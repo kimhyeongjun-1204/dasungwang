@@ -26,6 +26,12 @@ var Logic = (function () {
     return out;
   }
 
+  // 시즌 수요일 중 진행하지 않은 날(skipDates) 제외
+  function seasonDays(settings) {
+    var skip = settings.skipDates || [];
+    return wednesdays(settings.seasonStart, settings.seasonEnd).filter(function (d) { return skip.indexOf(d) < 0; });
+  }
+
   function isOfficial(m, pid) { return !(m.off && m.off.indexOf(pid) >= 0); }
   function playersOf(m) { return m.a.concat(m.b).filter(Boolean); }
 
@@ -342,7 +348,7 @@ var Logic = (function () {
 
   return {
     encodeSeeds: encodeSeeds, decodeSeeds: decodeSeeds, parseOrder: parseOrder, strengthOf: strengthOf, balanceOf: balanceOf,
-    mulberry32: mulberry32, wednesdays: wednesdays, isOfficial: isOfficial, playersOf: playersOf,
+    mulberry32: mulberry32, wednesdays: wednesdays, seasonDays: seasonDays, isOfficial: isOfficial, playersOf: playersOf,
     weekTally: weekTally, standings: standings, tierOf: tierOf, skillOf: skillOf, HEAT: HEAT,
     generatePool: generatePool, validateWeek: validateWeek, parseBand: parseBand,
   };

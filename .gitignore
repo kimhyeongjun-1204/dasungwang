@@ -1,0 +1,9 @@
+# 실제 부원 데이터·비밀 (초기 데이터 넣기는 로컬에서만)
+live_state.json
+*.bak.json
+.env
+seed.local.sql
+# 빌드 결과 (GitHub Actions가 만듦)
+dist/
+node_modules/
+.claude/

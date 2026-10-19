@@ -37,6 +37,14 @@ test('시즌 10/6~12/23 수요일은 12번', () => {
   assert.strictEqual(w[11], '2026-12-23');
 });
 
+test('seasonDays: 진행 안 한 수요일(skipDates)은 시즌에서 빠짐', () => {
+  const d = L.seasonDays({ seasonStart: '2026-10-07', seasonEnd: '2026-12-23', skipDates: ['2026-10-14'] });
+  assert.strictEqual(d.length, 11);
+  assert(!d.includes('2026-10-14'));
+  assert.strictEqual(d[1], '2026-10-21');
+  assert.strictEqual(L.seasonDays({ seasonStart: '2026-10-07', seasonEnd: '2026-12-23' }).length, 12);
+});
+
 console.log('generatePool');
 for (let n = 4; n <= 23; n++) {
   test(`${n}명: 전원 공식 2경기, 경기 수 ceil(n/2), 한 경기 중복 없음, 파트너 중복 없음`, () => {
