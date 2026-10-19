@@ -260,4 +260,175 @@ test('balanceOf: 팀 실력 차이 등급', () => {
   assert.strictEqual(L.balanceOf(1.6, 0.6), 'lopsided');
 });
 
+// ---------- 돼장 요청: 편성 조건(rules)과 수정 계획(applyPlan) ----------
+console.log('rules / applyPlan');
+const together = (ms, p, q, where) => ms.filter(m => where === 'team'
+  ? [m.a, m.b].some(t => t.includes(p) && t.includes(q))
+  : m.a.concat(m.b).includes(p) && m.a.concat(m.b).includes(q)).length;
+const SEEDS = [1, 2, 3, 4, 5, 6, 7, 8];
+
+for (const n of [8, 10, 12]) {
+  test(`${n}명: 같은 팀 금지(no_partner) 조건이면 두 사람은 절대 한 팀이 안 됨`, () => {
+    for (const s of SEEDS) {
+      const ms = L.generatePool(mkPlayers(n), s, { rules: [{ type: 'no_partner', players: ['p0', 'p1'] }] }).matches;
+      assert.strictEqual(together(ms, 'p0', 'p1', 'team'), 0, 'seed ' + s);
+      assert.strictEqual(partnerRepeats(ms), 0);
+    }
+  });
+}
+test('같은 경기 금지(no_same_game): 두 사람이 한 경기에 같이 안 들어감', () => {
+  for (const s of SEEDS) {
+    const ms = L.generatePool(mkPlayers(10), s, { rules: [{ type: 'no_same_game', players: ['p2', 'p5'] }] }).matches;
+    assert.strictEqual(together(ms, 'p2', 'p5', 'game'), 0, 'seed ' + s);
+  }
+});
+test('같은 팀 희망(want_partner): 두 사람이 한 번은 파트너가 됨', () => {
+  for (const s of SEEDS) {
+    const ms = L.generatePool(mkPlayers(10), s, { rules: [{ type: 'want_partner', players: ['p3', 'p7'] }] }).matches;
+    assert(together(ms, 'p3', 'p7', 'team') >= 1, 'seed ' + s);
+    assert.strictEqual(partnerRepeats(ms), 0);
+  }
+});
+test('추가출전 지정(extra_prefer): 홀수 인원이면 지정한 사람이 추가출전', () => {
+  for (const s of SEEDS) {
+    const ms = L.generatePool(mkPlayers(9), s, { rules: [{ type: 'extra_prefer', players: ['p4'] }] }).matches;
+    assert(ms.some(m => m.off.includes('p4')), 'seed ' + s);
+  }
+});
+test('추가출전 제외(extra_avoid): 지정한 사람은 추가출전이 안 됨', () => {
+  for (const s of SEEDS) {
+    const ms = L.generatePool(mkPlayers(9), s, { rules: [{ type: 'extra_avoid', players: ['p0'] }, { type: 'extra_avoid', players: ['p1'] }] }).matches;
+    assert(!ms.some(m => m.off.includes('p0') || m.off.includes('p1')), 'seed ' + s);
+    const c = officialCounts(ms);
+    Object.keys(c).forEach(pid => assert.strictEqual(c[pid].off, 2));
+  }
+});
+test('조건이 있어도 전원 공식 2경기', () => {
+  const rules = [{ type: 'no_partner', players: ['p0', 'p1'] }, { type: 'no_same_game', players: ['p2', 'p3'] }, { type: 'want_partner', players: ['p4', 'p5'] }];
+  const ms = L.generatePool(mkPlayers(11), 9, { rules }).matches;
+  const c = officialCounts(ms);
+  assert.strictEqual(Object.keys(c).length, 11);
+  Object.keys(c).forEach(pid => assert.strictEqual(c[pid].off, 2));
+});
+
+// applyPlan용 상태: A조 8명, B조 4명, 이번 주(2026-10-21) 편성됨
+function planState() {
+  const players = [];
+  for (let i = 0; i < 8; i++) players.push({ id: 'a' + i, name: 'A선수' + i, group: 'A' });
+  for (let i = 0; i < 4; i++) players.push({ id: 'b' + i, name: 'B선수' + i, group: 'B' });
+  const attendees = {};
+  players.forEach(p => { attendees[p.id] = p.group; });
+  const mk = (id, pool, a, b) => ({ id, pool, a, b, off: [], win: null, score: '' });
+  return {
+    settings: { seasonStart: '2026-10-07', seasonEnd: '2026-12-23', groups: [{ id: 'A', name: 'A', winners: 1 }, { id: 'B', name: 'B', winners: 1 }] },
+    players,
+    weeks: [{
+      date: '2026-10-21', published: false, attendees, matches: [
+        mk('m1', 'A', ['a0', 'a1'], ['a2', 'a3']), mk('m2', 'A', ['a4', 'a5'], ['a6', 'a7']),
+        mk('m3', 'A', ['a0', 'a2'], ['a4', 'a6']), mk('m4', 'A', ['a1', 'a3'], ['a5', 'a7']),
+        mk('m5', 'B', ['b0', 'b1'], ['b2', 'b3']), mk('m6', 'B', ['b0', 'b2'], ['b1', 'b3']),
+      ],
+    }],
+  };
+}
+let idn = 0;
+const OPT = { seed: 7, newId: () => 'n' + (++idn) };
+
+test('applyPlan: 입력 state는 바꾸지 않고 새 주 데이터를 돌려줌', () => {
+  const st = planState(), before = JSON.stringify(st);
+  const r = L.applyPlan(st, '2026-10-21', { edits: [{ type: 'swap', players: ['a0', 'a4'], matches: ['m1'] }] }, OPT);
+  assert.strictEqual(JSON.stringify(st), before);
+  assert(r.week && Array.isArray(r.errors));
+});
+test('applyPlan swap: 지정한 경기 안에서만 두 사람 자리를 바꿈', () => {
+  const r = L.applyPlan(planState(), '2026-10-21', { edits: [{ type: 'swap', players: ['a1', 'a2'], matches: ['m1'] }] }, OPT);
+  const m1 = r.week.matches.find(m => m.id === 'm1'), m3 = r.week.matches.find(m => m.id === 'm3');
+  assert.deepStrictEqual(m1.a, ['a0', 'a2']);
+  assert.deepStrictEqual(m1.b, ['a1', 'a3']);
+  assert.deepStrictEqual(m3.a, ['a0', 'a2'], '다른 경기는 그대로');
+  assert.strictEqual(r.errors.length, 0);
+});
+test('applyPlan swap: 경기 지정이 없으면 그 주 전체에서 맞바꿈', () => {
+  const r = L.applyPlan(planState(), '2026-10-21', { edits: [{ type: 'swap', players: ['a0', 'a7'] }] }, OPT);
+  const all = r.week.matches.filter(m => m.pool === 'A');
+  assert(all.find(m => m.id === 'm1').a.includes('a7'));
+  assert(all.find(m => m.id === 'm2').b.includes('a0'));
+});
+test('applyPlan set_slot / set_off', () => {
+  const r = L.applyPlan(planState(), '2026-10-21', { edits: [
+    { type: 'set_slot', match: 'm5', side: 'b', index: 1, player: 'b1' },
+    { type: 'set_off', match: 'm6', player: 'b3', off: true },
+  ] }, OPT);
+  assert.deepStrictEqual(r.week.matches.find(m => m.id === 'm5').b, ['b2', 'b1']);
+  assert.deepStrictEqual(r.week.matches.find(m => m.id === 'm6').off, ['b3']);
+});
+test('applyPlan rules_add: 조건을 주에 저장하고, 지금 편성이 어기면 그 조만 다시 짬', () => {
+  const r = L.applyPlan(planState(), '2026-10-21', { rules_add: [{ type: 'no_partner', players: ['a0', 'a1'] }] }, OPT);
+  assert.strictEqual(r.week.rules.length, 1);
+  assert(r.week.rules[0].id);
+  const A = r.week.matches.filter(m => m.pool === 'A');
+  assert.strictEqual(together(A, 'a0', 'a1', 'team'), 0);
+  assert.deepStrictEqual(r.regenerated, ['A']);
+  assert.deepStrictEqual(r.week.matches.filter(m => m.pool === 'B').map(m => m.id), ['m5', 'm6'], 'B조는 그대로');
+  assert.strictEqual(L.validateWeek(planState(), r.week).length, 0);
+});
+test('applyPlan rules_add: 지금 편성이 이미 지키면 다시 짜지 않음', () => {
+  const r = L.applyPlan(planState(), '2026-10-21', { rules_add: [{ type: 'no_partner', players: ['a0', 'a7'] }] }, OPT);
+  assert.deepStrictEqual(r.regenerated, []);
+  assert.deepStrictEqual(r.week.matches.map(m => m.id), ['m1', 'm2', 'm3', 'm4', 'm5', 'm6']);
+});
+test('applyPlan rules_remove: 저장된 조건 삭제', () => {
+  const st = planState();
+  st.weeks[0].rules = [{ id: 'r1', type: 'no_partner', players: ['a0', 'a7'] }];
+  const r = L.applyPlan(st, '2026-10-21', { rules_remove: ['r1'] }, OPT);
+  assert.strictEqual(r.week.rules.length, 0);
+});
+test('applyPlan pool_moves: 편성 조를 옮기면 두 조 모두 다시 짬', () => {
+  const r = L.applyPlan(planState(), '2026-10-21', { pool_moves: [{ player: 'a7', pool: 'B' }, { player: 'a6', pool: 'B' }] }, OPT);
+  assert.strictEqual(r.week.attendees.a7, 'B');
+  assert.deepStrictEqual(r.regenerated.slice().sort(), ['A', 'B']);
+  const B = r.week.matches.filter(m => m.pool === 'B');
+  assert(B.some(m => m.a.concat(m.b).includes('a7')));
+  assert.strictEqual(L.validateWeek(planState(), r.week).filter(x => x.level === 'error').length, 0);
+});
+test('applyPlan regenerate: 조건을 지키며 지정한 조를 새로 짬 (새 경기 id)', () => {
+  const st = planState();
+  st.weeks[0].rules = [{ id: 'r1', type: 'no_same_game', players: ['a0', 'a1'] }];
+  const r = L.applyPlan(st, '2026-10-21', { regenerate: ['A'] }, OPT);
+  const A = r.week.matches.filter(m => m.pool === 'A');
+  assert.strictEqual(A.length, 4);
+  assert(A.every(m => /^n/.test(m.id)));
+  assert.strictEqual(together(A, 'a0', 'a1', 'game'), 0);
+});
+test('applyPlan: 순서는 조건 → 조 옮기기 → 다시 짜기 → 직접 수정', () => {
+  const r = L.applyPlan(planState(), '2026-10-21', {
+    rules_add: [{ type: 'no_partner', players: ['b0', 'b1'] }],
+    edits: [{ type: 'set_off', match: 'm1', player: 'a0', off: true }],
+  }, OPT);
+  assert.deepStrictEqual(r.regenerated, ['B']);
+  assert.deepStrictEqual(r.week.matches.find(m => m.id === 'm1').off, ['a0']);
+});
+test('applyPlan: 없는 선수·경기·조건 종류는 건너뛰고 errors에 남김', () => {
+  const r = L.applyPlan(planState(), '2026-10-21', {
+    rules_add: [{ type: 'no_partner', players: ['a0', 'zz'] }, { type: 'teleport', players: ['a0'] }],
+    edits: [{ type: 'swap', players: ['a0', 'a1'], matches: ['m99'] }, { type: 'set_slot', match: 'm1', side: 'c', index: 0, player: 'a1' }],
+  }, OPT);
+  assert.strictEqual(r.errors.length, 4);
+  assert.strictEqual((r.week.rules || []).length, 0);
+  assert.deepStrictEqual(r.week.matches.find(m => m.id === 'm1').a, ['a0', 'a1']);
+});
+test('validateWeek: 저장된 조건을 어기면 rule 경고', () => {
+  const st = planState();
+  st.weeks[0].rules = [{ id: 'r1', type: 'no_partner', players: ['a0', 'a1'] }, { id: 'r2', type: 'extra_avoid', players: ['b3'] }];
+  st.weeks[0].matches.find(m => m.id === 'm6').off = ['b3'];
+  const rs = L.validateWeek(st, st.weeks[0]).filter(x => x.code === 'rule');
+  assert.strictEqual(rs.length, 2);
+  assert(rs[0].msg.includes('A선수0') && rs[0].msg.includes('A선수1'));
+});
+test('ruleText: 조건을 사람이 읽는 문장으로', () => {
+  const st = planState();
+  assert.strictEqual(L.ruleText(st, { type: 'no_partner', players: ['a0', 'a1'] }), 'A선수0·A선수1 같은 팀 금지');
+  assert.strictEqual(L.ruleText(st, { type: 'extra_prefer', players: ['b2'] }), 'B선수2 추가출전 우선');
+});
+
 console.log(`\n${passed} passed`);

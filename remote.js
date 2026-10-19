@@ -2,7 +2,7 @@
 var Remote = (function () {
   'use strict';
   var TOKEN_KEY = 'ddw-admin-token', TOKEN_DAYS = 30;
-  var CODES = ['unauthorized', 'stale_rev', 'no_pin', 'bad_pin', 'bad_new_pin', 'too_large', 'bad_state'];
+  var CODES = ['unauthorized', 'stale_rev', 'no_pin', 'bad_pin', 'bad_new_pin', 'too_large', 'bad_state', 'ai_limit', 'ai_failed', 'ai_refused', 'bad_request'];
 
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
   // 서버로 보내는 state: PIN 해시와 서버가 관리하는 rev/savedAt은 뺀다
@@ -20,7 +20,7 @@ var Remote = (function () {
   function errorCode(err) {
     var msg = String(err && err.message || '');
     if (CODES.indexOf(msg) >= 0) return { code: msg };
-    if (/fetch|network|load failed/i.test(msg)) return { code: 'network' };
+    if (/fetch|network|load failed|send a request/i.test(msg)) return { code: 'network' };
     return { code: 'error', message: msg };
   }
 
@@ -52,6 +52,14 @@ var Remote = (function () {
       logout: function (token) { return rpc('admin_logout', { token: token }); },
       save: function (token, state, expectedRev) { return rpc('save_state', { token: token, new_state: publicState(state), expected_rev: expectedRev }); },
       changePin: function (token, oldPin, newPin) { return rpc('change_pin', { token: token, old_pin: oldPin, new_pin: newPin }); },
+      // 돼장 요청을 Edge Function 'rematch'(Claude)로 보내 편성 수정 계획을 받음. 함수는 항상 {ok, code|plan, explanation}
+      rematch: function (token, payload) {
+        var body = Object.assign({}, payload, { token: token });
+        return call(client.functions.invoke('rematch', { body: body })).then(function (d) {
+          if (!d || !d.ok) throw { code: (d && d.code) || 'ai_failed' };
+          return { plan: d.plan || {}, explanation: d.explanation || '', usage: d.usage || null };
+        });
+      },
     };
   }
   function connect(cfg, lib) {

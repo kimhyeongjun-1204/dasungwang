@@ -32,6 +32,7 @@
     planGroup: 'A',
     seedText: {},
     paste: '',
+    ai: { text: '', busy: false, err: '', res: null }, // 돼장 요청(Claude) 상태
     unknown: [],
     confirm: null,
     draftConflict: null,
@@ -445,6 +446,9 @@
     orphan.forEach(function (m, i) { out += editMatch(m, i, w, attIds, P); });
     out += '</div>';
 
+    // 2-1. 돼장 요청 (Claude가 편성 수정)
+    out += viewAi(w, attIds);
+
     // 3. 검증
     var issues = w.matches.length || attIds.length ? L.validateWeek(work, w) : [];
     out += '<div class="card"><h2>점검</h2><ul class="issues">' + (issues.length ? issues.map(function (x) { return '<li class="' + x.level + '">' + esc(x.msg) + '</li>'; }).join('') :
@@ -456,6 +460,108 @@
       '<p class="small muted">' + (w.published ? '공개 중이에요. 저장해야 회원 화면에 반영돼요.' : '공개 전에는 관리 모드에서만 보여요.') + '</p>' +
       (ui.notice ? '<label class="f" for="notice-box">공지 글 (길게 눌러 전체 선택 후 복사)<textarea id="notice-box" class="copybox" readonly>' + esc(ui.notice) + '</textarea></label>' : '') + '</div>';
     return out;
+  }
+
+  // ---------- 돼장 요청: 글로 적으면 Claude가 조건·수정 계획을 만들고, 미리 보고 적용 ----------
+  function matchLine(m, P) {
+    var n = function (t) { return t.map(function (p) { return P[p] ? P[p].name : '빈 자리'; }).join('·'); };
+    var off = (m.off || []).map(function (p) { return P[p] ? P[p].name : '?'; });
+    return esc(n(m.a)) + ' <span class="muted">vs</span> ' + esc(n(m.b)) + (off.length ? ' <span class="muted small">(추가출전 ' + esc(off.join(', ')) + ')</span>' : '');
+  }
+  function viewAi(w, attIds) {
+    var P = pm(), ai = ui.ai, rules = w.rules || [];
+    var out = '<div class="card ai-card"><h2>돼장 요청</h2>' +
+      '<p class="small muted">자동 편성을 어떻게 고칠지 글로 적어 보내면 Claude가 고쳐 줘요. 예) "철수·영희 같은 팀 금지", "A조 3경기 민수랑 지훈 바꿔줘", "추가출전은 지훈 말고 다른 사람". 미리 보고 <b>적용</b>을 눌러야 바뀌어요.</p>';
+    if (rules.length) {
+      out += '<p class="small" style="margin-bottom:4px"><b>이번 주 조건</b> <span class="muted">자동 편성을 다시 눌러도 지켜요</span></p><div class="plist">' + rules.map(function (r) {
+        return '<div class="prow"><span class="small">' + esc(L.ruleText(work, r)) + '</span><span></span><button class="btn sm" data-act="rule-del" data-r="' + esc(r.id) + '">지우기</button></div>';
+      }).join('') + '</div>';
+    }
+    out += '<label class="f" for="ai-text">요청<textarea id="ai-text" maxlength="500" placeholder="예) 박강호랑 조영재는 같은 팀 하지 말아 줘">' + esc(ai.text) + '</textarea></label>' +
+      '<div class="row"><button class="btn primary" data-act="ai-send"' + (ai.busy || attIds.length < 4 ? ' disabled' : '') + '>보내기</button>' +
+      (ai.busy ? '<span class="small">Claude가 편성을 고치는 중이에요… (보통 10~40초)</span>' : '') + '</div>';
+    if (ai.err) out += '<div class="banner warn" role="alert"><span>' + esc(ai.err) + '</span></div>';
+    var res = ai.res;
+    if (res) {
+      var nw = res.out.week, before = res.before;
+      var kept = function (m) { return before.matches.some(function (b) { return b.id === m.id && same2(b, m); }); };
+      out += '<div class="ai-preview"><p class="ai-say">' + esc(res.explanation || '요청을 반영한 편성이에요.') + '</p>';
+      var added = (nw.rules || []).filter(function (r) { return !(before.rules || []).some(function (b) { return b.id === r.id; }); });
+      if (added.length) out += '<p class="small"><b>추가할 조건</b> ' + added.map(function (r) { return esc(L.ruleText(work, r)); }).join(', ') + '</p>';
+      var changed = groups().filter(function (g) {
+        var a = nw.matches.filter(function (m) { return m.pool === g.id; }), b = before.matches.filter(function (m) { return m.pool === g.id; });
+        return a.length !== b.length || a.some(function (m) { return !kept(m); });
+      });
+      if (!changed.length && !added.length && !res.out.errors.length) out += '<p class="small muted">바뀌는 경기가 없어요.</p>';
+      changed.forEach(function (g) {
+        out += '<h3 class="gdot g' + g.id + '">' + esc(g.name) + (res.out.regenerated.indexOf(g.id) >= 0 ? ' <span class="muted small">다시 짬</span>' : '') + '</h3><div class="plist">' +
+          nw.matches.filter(function (m) { return m.pool === g.id; }).map(function (m, i) {
+            return '<div class="ai-line' + (kept(m) ? '' : ' changed') + '"><span class="num">' + (i + 1) + '경기</span><span>' + matchLine(m, P) + '</span>' + (kept(m) ? '' : '<span class="chip lot">바뀜</span>') + '</div>';
+          }).join('') + '</div>';
+      });
+      var issues = L.validateWeek(work, nw);
+      var lost = res.out.regenerated.map(function (gid) {
+        var n = before.matches.filter(function (m) { return m.pool === gid && m.win; }).length;
+        return n ? '<li class="error">' + esc(gname(gid)) + '조에 입력된 결과 ' + n + '경기가 새 편성으로 바뀌면서 지워져요.</li>' : '';
+      }).join('');
+      out += '<ul class="issues">' + lost + res.out.errors.map(function (e) { return '<li class="error">반영 못 한 것: ' + esc(e) + '</li>'; }).join('') +
+        (issues.length ? issues.map(function (x) { return '<li class="' + x.level + '">' + esc(x.msg) + '</li>'; }).join('') : '<li class="ok">점검 통과: 전원 공식 2경기, 파트너 중복 없음' + ((nw.rules || []).length ? ', 조건 지킴' : '') + '</li>') + '</ul>' +
+        (changed.length || !same(nw.rules || [], before.rules || [])
+          ? '<div class="row"><button class="btn primary" data-act="ai-apply">적용</button><button class="btn" data-act="ai-cancel">취소</button></div>'
+          : '<div class="row"><button class="btn" data-act="ai-cancel">닫기</button></div>') + '</div>';
+    }
+    return out + '</div>';
+  }
+  function same2(a, b) { return same([a.a, a.b, a.off || []], [b.a, b.b, b.off || []]); }
+  function aiPayload(w) {
+    var P = pm(), att = w.attendees || {}, idx = {};
+    return {
+      request: ui.ai.text.trim(),
+      date: w.date,
+      groups: groups().map(function (g) { return { id: g.id, name: g.name }; }),
+      players: Object.keys(att).filter(function (id) { return P[id]; }).map(function (id) {
+        return { id: id, name: P[id].name, group: P[id].group, pool: att[id], tier: TIER_LABEL[L.tierOf(work, id, w.date).tier] };
+      }),
+      matches: w.matches.map(function (m) {
+        idx[m.pool] = (idx[m.pool] || 0) + 1;
+        return { id: m.id, pool: m.pool, label: gname(m.pool) + ' ' + idx[m.pool] + '경기', a: m.a, b: m.b, off: m.off || [], decided: !!m.win };
+      }),
+      rules: (w.rules || []).map(function (r) { return { id: r.id, type: r.type, players: r.players, text: L.ruleText(work, r) }; }),
+    };
+  }
+  function tmpId() { return 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5); }
+  var AI_ERR = {
+    ai_limit: '오늘 보낼 수 있는 요청 횟수를 다 썼어요. 내일 다시 해 주세요.',
+    ai_refused: 'Claude가 이 요청은 처리하지 않았어요. 다르게 적어 보세요.',
+    bad_request: '요청이 비어 있거나 너무 길어요. 500자 안으로 적어 주세요.',
+    network: '인터넷에 연결되지 않았어요. 연결을 확인하고 다시 보내 주세요.',
+  };
+  function aiSend() {
+    var w = ensureWeek(ui.week);
+    if (!ui.ai.text.trim()) { ui.ai.err = '요청을 먼저 적어 주세요.'; render(); return; }
+    if (!token) { ui.ai.err = '관리자 로그인이 필요해요.'; render(); return; }
+    ui.ai.busy = true; ui.ai.err = ''; ui.ai.res = null; render();
+    var before = clone(w), base = JSON.stringify(w);
+    remote.rematch(token, aiPayload(w)).then(function (r) {
+      ui.ai.busy = false;
+      var out = L.applyPlan(work, w.date, r.plan, { seed: (Math.random() * 4294967296) >>> 0, newId: tmpId });
+      ui.ai.res = { explanation: r.explanation, out: out, before: before, base: base, date: w.date };
+      render();
+    }, function (e) {
+      ui.ai.busy = false;
+      var code = e && e.code;
+      if (code === 'unauthorized') { dropAdmin(); ui.admin = false; ui.pinMsg = '관리자 로그인이 만료됐어요. PIN을 다시 입력하세요.'; }
+      ui.ai.err = AI_ERR[code] || '편성 수정 요청에 실패했어요 (' + (code || '알 수 없는 오류') + '). 잠시 후 다시 해 주세요.';
+      render();
+    });
+  }
+  function aiApply() {
+    var res = ui.ai.res, w = getWeek(res.date);
+    if (!w || JSON.stringify(w) !== res.base) { ui.ai.res = null; toast('그사이 편성이 바뀌었어요. 요청을 다시 보내 주세요.'); return; }
+    work.weeks[work.weeks.indexOf(w)] = res.out.week;
+    ui.ai.res = null; ui.ai.text = '';
+    commit();
+    toast('요청을 반영했어요. 점검 결과를 확인하고 저장해 주세요.');
   }
 
   function seedsObj() { return L.decodeSeeds(work.settings.seeds); }
@@ -568,14 +674,10 @@
       gids.forEach(function (gid) {
         var ids = Object.keys(w.attendees).filter(function (id) { return w.attendees[id] === gid && pm()[id]; });
         if (!ids.length) return;
-        var ps = ids.map(function (id) { return { id: id, heat: L.HEAT[L.tierOf(work, id, w.date).tier], skill: L.strengthOf(work, id, w.date, gid) }; });
-        var r = L.generatePool(ps, (Math.random() * 4294967296) >>> 0);
-        if (r.error) { errs.push(gname(gid) + ': ' + r.error); return; }
-        w.matches = w.matches.filter(function (m) { return m.pool !== gid; }).concat(r.matches.map(function (m) {
-          return { id: newId(), pool: gid, a: m.a, b: m.b, off: m.off, win: null, score: '' };
-        }));
+        // 이번 주 조건(돼장 요청)까지 지켜서 짬
+        var r = L.regenPool(work, w, gid, (Math.random() * 4294967296) >>> 0, newId);
+        if (r.error) errs.push(gname(gid) + ': ' + r.error);
       });
-      sortMatches(w);
       ui.busy = null;
       commit();
       if (errs.length) toast(errs.join(' / '));
@@ -618,7 +720,7 @@
     var w, m, P;
     switch (act) {
       case 'tab': ui.tab = v; LS.set(KEY.tab, v); ui.notice = null; render(); window.scrollTo(0, 0); break;
-      case 'week': ui.week = v; SS.set(SKEY.week, v); ui.confirm = null; ui.notice = null; render(); break;
+      case 'week': ui.week = v; SS.set(SKEY.week, v); ui.confirm = null; ui.notice = null; ui.ai.res = null; ui.ai.err = ''; render(); break;
       case 'rankg': ui.rankGroup = v; render(); break;
       case 'sec': ui.sec = v; SS.set(SKEY.sec, v); render(); break;
       case 'lock': ui.admin = false; forgetAdmin(); render(); break;
@@ -652,6 +754,15 @@
       case 'gen-all': askGen(groups().map(function (g) { return g.id; })); break;
       case 'confirm-yes': var c = ui.confirm; ui.confirm = null; runGen(c.gids); break;
       case 'confirm-no': ui.confirm = null; render(); break;
+      case 'ai-send': aiSend(); break;
+      case 'ai-apply': aiApply(); break;
+      case 'ai-cancel': ui.ai.res = null; render(); break;
+      case 'rule-del':
+        w = getWeek(ui.week); if (!w) return;
+        var rid = el.getAttribute('data-r');
+        w.rules = (w.rules || []).filter(function (r) { return r.id !== rid; });
+        if (!w.rules.length) delete w.rules;
+        commit(); break;
       case 'add-match':
         w = ensureWeek(ui.week);
         w.matches.push({ id: newId(), pool: el.getAttribute('data-g'), a: ['', ''], b: ['', ''], off: [], win: null, score: '' });
@@ -714,7 +825,7 @@
       case 'pgroup': P[el.getAttribute('data-p')].group = el.value; commit(); break;
     }
   });
-  document.addEventListener('input', function (ev) { if (ev.target.id === 'paste') ui.paste = ev.target.value; if (ev.target.id === 'seed-text') ui.seedText[ui.seedGroup] = ev.target.value; });
+  document.addEventListener('input', function (ev) { if (ev.target.id === 'paste') ui.paste = ev.target.value; if (ev.target.id === 'seed-text') ui.seedText[ui.seedGroup] = ev.target.value; if (ev.target.id === 'ai-text') ui.ai.text = ev.target.value; });
 
   document.addEventListener('submit', function (ev) {
     ev.preventDefault();

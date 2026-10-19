@@ -113,6 +113,36 @@ test('api.check / changePin / logout: RPC 이름과 인자', async () => {
   assert.deepStrictEqual(c.calls[1][1], { token: 'tok', old_pin: '1111', new_pin: '2222' });
 });
 
+// 돼장 요청 → Edge Function 'rematch'
+function fnClient(reply) {
+  const calls = [];
+  return { calls, functions: { invoke(name, opts) { calls.push([name, opts]); return Promise.resolve(reply); } } };
+}
+test('api.rematch: 토큰과 요청을 rematch 함수로 보내고 plan·설명을 돌려받음', async () => {
+  const c = fnClient({ data: { ok: true, plan: { edits: [] }, explanation: '바꿨어요', usage: { input_tokens: 10, output_tokens: 5 } }, error: null });
+  const r = await need().api(c).rematch('tok', { request: '철수랑 영희 떼어줘', date: '2026-10-21' });
+  assert.strictEqual(c.calls[0][0], 'rematch');
+  assert.strictEqual(c.calls[0][1].body.token, 'tok');
+  assert.strictEqual(c.calls[0][1].body.request, '철수랑 영희 떼어줘');
+  assert.deepStrictEqual(r.plan, { edits: [] });
+  assert.strictEqual(r.explanation, '바꿨어요');
+});
+test('api.rematch: 함수가 ok:false면 code로 reject (unauthorized, ai_limit …)', async () => {
+  const r = need();
+  await assert.rejects(r.api(fnClient({ data: { ok: false, code: 'ai_limit' }, error: null })).rematch('t', {}), e => e.code === 'ai_limit');
+  await assert.rejects(r.api(fnClient({ data: null, error: { message: 'Failed to send a request to the Edge Function' } })).rematch('t', {}), e => e.code === 'network');
+});
+
+test('Edge Function rematch: 조건 종류가 logic.js와 같고, 모델·폴백·키 처리가 맞음', () => {
+  const src = fs.readFileSync(path.join(__dirname, 'supabase', 'functions', 'rematch', 'index.ts'), 'utf8');
+  const types = JSON.parse(src.match(/const RULE_TYPES = (\[[^\]]*\])/)[1].replace(/'/g, '"'));
+  assert.deepStrictEqual(types.slice().sort(), Object.keys(require('./logic.js').RULE_ARITY).sort());
+  assert.ok(/model: "claude-opus-5-5"/.test(src), '모델');
+  assert.ok(/fallbacks: "default"/.test(src) && /server-side-fallback-2026-07-01/.test(src), '거절 폴백');
+  assert.ok(!/sk-ant-/.test(src), 'API 키가 코드에 들어 있음');
+  assert.ok(/rpc\("ai_take"/.test(src), '관리자 토큰·횟수 확인');
+});
+
 console.log('app.js');
 const appSrc = fs.readFileSync(path.join(__dirname, 'app.js'), 'utf8');
 test('app.js: 아티팩트 자기 재게시·브라우저 PIN 해시·내장 state를 쓰지 않음', () => {

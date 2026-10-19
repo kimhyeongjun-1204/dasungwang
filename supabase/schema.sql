@@ -104,6 +104,31 @@ end $$;
 -- 예전 버전의 로그인 실패 잠금 테이블 정리
 drop table if exists public.admin_login_guard;
 
+-- ---------- 돼장 요청(Claude) 하루 사용 횟수 ----------
+create table if not exists public.ai_usage (
+  day date primary key,
+  count int not null default 0
+);
+alter table public.ai_usage enable row level security;
+revoke all on public.ai_usage from anon, authenticated;
+
+-- Edge Function 'rematch'가 Claude를 부르기 전에 호출: 관리자 토큰 확인 + 오늘(한국 시간) 횟수 1 증가, 넘으면 ai_limit
+create or replace function public.ai_take(token uuid) returns int
+language plpgsql security definer set search_path = public as $$
+declare
+  d date := (now() at time zone 'Asia/Seoul')::date;
+  n int;
+begin
+  if not public.admin_check(token) then raise exception 'unauthorized'; end if;
+  insert into public.ai_usage (day, count) values (d, 1)
+    on conflict (day) do update set count = public.ai_usage.count + 1
+    returning count into n;
+  if n > 20 then raise exception 'ai_limit'; end if;
+  return n;
+end $$;
+revoke all on function public.ai_take(uuid) from public, anon, authenticated;
+grant execute on function public.ai_take(uuid) to anon, authenticated;
+
 revoke all on function public.admin_login(text), public.admin_check(uuid), public.admin_logout(uuid),
   public.save_state(uuid, jsonb, int), public.change_pin(uuid, text, text), public.set_admin_pin(text)
   from public, anon, authenticated;
