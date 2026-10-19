@@ -125,5 +125,29 @@ icon-512.png 512
 | 서버 꺼진 상태에서 새로고침 | 서버 종료 확인(`Failed to fetch`) 후 새로고침 | 처음 `불러오는 중…` → 약 16.7초 뒤 `데이터를 불러오지 못했어요. 인터넷 연결을 확인하고 다시 시도해 주세요. [다시 시도]` (supabase-js가 몇 번 재시도한 뒤 실패) |
 | service worker 캐시 | 수정 후 캐시 목록 | `/`, `/config.js` (+ 확인용으로 받은 `/sw.js`)만 있고 `/rest/v1/…` 없음 |
 
-## 6. 실제 Supabase 검증 (아직 안 함)
+## 6. GitHub 저장소·Pages
+```
+$ gh repo create dasungwang --public --description "라켓뚱보단 수요 다승왕전 웹앱" --source . --remote origin
+https://github.com/kimhyeongjun-1204/dasungwang
+
+$ gh api -X POST repos/kimhyeongjun-1204/dasungwang/pages -f build_type=workflow --jq '{build_type, html_url, source}'
+{"build_type":"workflow","html_url":"https://kimhyeongjun-1204.github.io/dasungwang/","source":{"branch":"main","path":"/"}}
+
+$ git push -u origin main
+ * [new branch]      main -> main
+
+$ gh run watch 39194051201 --exit-status
+✓ build in 7s   (로직 테스트 ✓, 배포 테스트 ✓, 빌드 ✓, configure-pages ✓, upload-pages-artifact ✓)
+✓ deploy in 9s  (deploy-pages ✓)
+
+$ curl -s -o /dev/null -w '%{http_code} %{content_type}' https://kimhyeongjun-1204.github.io/dasungwang/<파일>
+(index): 200 text/html; charset=utf-8
+manifest.webmanifest: 200 application/manifest+json; charset=utf-8
+sw.js: 200 application/javascript; charset=utf-8
+config.js: 200 application/javascript; charset=utf-8
+icons/icon-512.png: 200 image/png
+```
+이 시점의 config.js는 아직 예시 값이라 배포 화면은 'config.js에 Supabase 주소와 키를 넣어 주세요.'가 정상.
+
+## 7. 실제 Supabase 검증 (아직 안 함)
 Supabase 프로젝트 만들기와 `config.js` 입력이 끝나면 `node verify_db.js` 출력과, 배포된 주소에서 다시 확인한 결과를 여기에 적을 거예요.

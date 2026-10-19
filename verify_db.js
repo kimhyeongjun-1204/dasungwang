@@ -9,7 +9,9 @@ new Function('window', fs.readFileSync(__dirname + '/config.js', 'utf8'))(win);
 const { url, anonKey } = win.DDW_CONFIG || {};
 if (!url || /YOUR-/.test(url + anonKey)) { console.error('config.js에 Supabase URL과 anon key를 먼저 넣어 주세요.'); process.exit(1); }
 const skipLock = process.argv.includes('--skip-lock');
-const H = { apikey: anonKey, Authorization: 'Bearer ' + anonKey, 'Content-Type': 'application/json' };
+// 새 publishable 키(sb_publishable_…)는 apikey 헤더에만, 예전 anon 키(eyJ…, JWT)는 Authorization에도 넣음
+const H = { apikey: anonKey, 'Content-Type': 'application/json' };
+if (/^eyJ/.test(anonKey)) H.Authorization = 'Bearer ' + anonKey;
 
 async function req(method, path, body, extra) {
   const r = await fetch(url + path, { method, headers: Object.assign({}, H, extra), body: body === undefined ? undefined : JSON.stringify(body) });
