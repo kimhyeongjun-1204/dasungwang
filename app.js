@@ -731,8 +731,7 @@
         rememberAdmin(t); ui.admin = true; render();
       }, function (e) {
         pinBusy = false;
-        ui.pinMsg = e.code === 'locked' ? 'PIN을 여러 번 틀려서 잠겼어요. ' + Math.max(1, Math.ceil(e.wait / 60)) + '분 뒤에 다시 해 주세요.' :
-          e.code === 'no_pin' ? '관리 PIN이 아직 설정되지 않았어요. 설치 안내(README)대로 PIN을 먼저 정해 주세요.' :
+        ui.pinMsg = e.code === 'no_pin' ? '관리 PIN이 아직 설정되지 않았어요. 설치 안내(README)대로 PIN을 먼저 정해 주세요.' :
           e.code === 'network' ? '인터넷 연결을 확인하고 다시 해 주세요.' : '잠금을 해제하지 못했어요 (' + e.code + ').';
         render();
       });

@@ -149,5 +149,111 @@ icons/icon-512.png: 200 image/png
 ```
 이 시점의 config.js는 아직 예시 값이라 배포 화면은 'config.js에 Supabase 주소와 키를 넣어 주세요.'가 정상.
 
-## 7. 실제 Supabase 검증 (아직 안 함)
-Supabase 프로젝트 만들기와 `config.js` 입력이 끝나면 `node verify_db.js` 출력과, 배포된 주소에서 다시 확인한 결과를 여기에 적을 거예요.
+## 7. 실제 Supabase 연결
+```
+$ curl -s "$U/rest/v1/app_state?select=rev" -H "apikey: sb_publishable_…"      (schema.sql 실행 전)
+{"code":"PGRST205","details":null,"hint":null,"message":"Could not find the table 'public.app_state' in the schema cache"}
+HTTP 404
+(apikey + Authorization: Bearer 같은 publishable 키로 보내도 같은 응답 → 키는 받아들여짐)
+
+$ (schema.sql 실행 후) 각 테이블 GET, admin_login(pin=null)
+[app_state] [] HTTP 200
+[admin_secret] {"code":"42501",…,"message":"permission denied for table admin_secret"} HTTP 401
+[admin_session] {"code":"42501",…,"message":"permission denied for table admin_session"} HTTP 401
+[admin_login_guard] {"code":"42501",…,"message":"permission denied for table admin_login_guard"} HTTP 401
+[admin_login 함수] {"code":"P0001","details":null,"hint":null,"message":"no_pin"} HTTP 400
+
+$ (seed.local.sql 실행 후) app_state 읽기
+rev 7 saved_at 2026-10-17T16:34:24.102+00:00 players 46 weeks 2 has settings.pin false club 라켓뚱보단
+```
+
+config.js 커밋 1ce3d23 푸시 → Actions run 39195088550: `{"conclusion":"success","jobs":[{"conclusion":"success","name":"build"},{"conclusion":"success","name":"deploy"}]}`
+
+배포 주소(https://kimhyeongjun-1204.github.io/dasungwang/)를 앱 내장 브라우저 360×780으로 열어 확인:
+```
+{ "loaded": true, "facts": "참석\n24명\n경기\n13\n결과 입력\n12/13", "sw": 360, "iw": 360,
+  "manifest": "https://kimhyeongjun-1204.github.io/dasungwang/manifest.webmanifest", "swReg": true }
+콘솔 오류: 없음
+페이지 안에서 supabase-js로: rpc('admin_check', 임의 uuid) → data false, error null
+                            from('app_state').update({rev:999}) → "42501 permission denied for table app_state"
+```
+
+## 8. `node verify_db.js` (1차, 사용자가 터미널에서 PIN 입력)
+```
+대상: https://ovnagheqsygclposiemh.supabase.co
+
+읽기·권한
+  ok  anon이 app_state를 읽을 수 있음  (rev 7, 선수 46명)
+  ok  공개 state에 settings.pin이 없음
+  ok  anon이 app_state를 직접 UPDATE하면 거부  (401 42501 permission denied for table app_state)
+  ok  anon이 app_state에 직접 INSERT하면 거부  (401 42501 permission denied for table app_state)
+  ok  anon이 app_state를 DELETE하면 거부  (401 42501 permission denied for table app_state)
+  ok  anon이 admin_secret를 읽으면 거부  (401 42501 permission denied for table admin_secret)
+  ok  anon이 admin_session를 읽으면 거부  (401 42501 permission denied for table admin_session)
+  ok  anon이 admin_login_guard를 읽으면 거부  (401 42501 permission denied for table admin_login_guard)
+  ok  anon이 set_admin_pin을 호출하면 거부  (401 42501 permission denied for function set_admin_pin)
+
+로그인·저장
+  ok  맞는 PIN으로 로그인하면 토큰 발급
+  ok  admin_check: 발급 토큰은 유효, 임의 토큰은 무효
+  ok  틀린 PIN 로그인은 실패 (토큰 없음)  (실패 1회 기록됨)
+  ok  무효 토큰으로 저장하면 unauthorized  (400 P0001 unauthorized)
+  ok  오래된 rev로 저장하면 stale_rev  (400 P0001 stale_rev)
+  FAIL 유효한 토큰 + 최신 rev로 저장하면 성공하고 rev +1 (보낸 settings.pin은 서버가 버림)
+       400 42725 operator is not unique: unknown - unknown
+  ok  change_pin: 지금 PIN이 틀리면 bad_pin  (400 P0001 bad_pin)
+  ok  로그아웃하면 토큰 무효
+
+무차별 대입 잠금 (위의 틀린 PIN 1회 + 아래 4회 = 연속 5회)
+  ok  틀린 PIN을 연속 5회 넣으면 잠금, 잠긴 동안은 맞는 PIN 도 거부  (잠금 남은 시간 600초)
+```
+→ 정상 저장 실패: `save_state`의 연산자 우선순위 버그 (docs/wrong-answers.md 7번). schema.sql을 고쳐서 다시 실행하기로 함.
+
+## 9. 운영 결정: 로그인 실패 잠금 제거
+사용자 요청으로 연속 5회 실패 잠금을 없앰(4자리 PIN이라 무차별 대입에 약하다는 점은 안내함). `schema.sql`에서 `admin_login_guard` 테이블과 잠금 로직을 지우고 `drop table if exists public.admin_login_guard;` 추가, `verify_db.js` 잠금 시험은 "틀린 PIN 5번 뒤에도 맞는 PIN으로 로그인됨"으로 바꿈. 같은 수정본에 `save_state` 괄호 수정도 들어 있음.
+```
+$ node deploy.test.js | tail -1
+14 passed
+$ node logic.test.js | tail -1
+43 passed
+$ node --check verify_db.js
+(출력 없음, 통과)
+```
+
+## 10. `node verify_db.js` (2차, 수정한 schema.sql 실행 후, 사용자가 터미널에서 PIN 입력)
+```
+$ (schema.sql 재실행 후) admin_login_guard GET, app_state rev
+[admin_login_guard] {"code":"PGRST205",…,"message":"Could not find the table 'public.admin_login_guard' in the schema cache"} HTTP 404
+[app_state rev] [{"rev":7}]
+
+$ node verify_db.js
+대상: https://ovnagheqsygclposiemh.supabase.co
+
+읽기·권한
+  ok  anon이 app_state를 읽을 수 있음  (rev 7, 선수 46명)
+  ok  공개 state에 settings.pin이 없음
+  ok  anon이 app_state를 직접 UPDATE하면 거부  (401 42501 permission denied for table app_state)
+  ok  anon이 app_state에 직접 INSERT하면 거부  (401 42501 permission denied for table app_state)
+  ok  anon이 app_state를 DELETE하면 거부  (401 42501 permission denied for table app_state)
+  ok  anon이 admin_secret를 읽으면 거부  (401 42501 permission denied for table admin_secret)
+  ok  anon이 admin_session를 읽으면 거부  (401 42501 permission denied for table admin_session)
+  ok  anon이 set_admin_pin을 호출하면 거부  (401 42501 permission denied for function set_admin_pin)
+
+로그인·저장
+  ok  맞는 PIN으로 로그인하면 토큰 발급
+  ok  admin_check: 발급 토큰은 유효, 임의 토큰은 무효
+  ok  틀린 PIN 로그인은 실패 (토큰 없음)  (실패 1회 기록됨)
+  ok  무효 토큰으로 저장하면 unauthorized  (400 P0001 unauthorized)
+  ok  오래된 rev로 저장하면 stale_rev  (400 P0001 stale_rev)
+  ok  유효한 토큰 + 최신 rev로 저장하면 성공하고 rev +1 (보 낸 settings.pin은 서버가 버림)  (rev 7 → 8)
+  ok  change_pin: 지금 PIN이 틀리면 bad_pin  (400 P0001 bad_pin)
+  ok  로그아웃하면 토큰 무효
+
+잠금 없음 (운영 판단)
+  ok  틀린 PIN을 5번 넣은 뒤에도 맞는 PIN으로 로그인됨
+
+17 passed, 0 failed
+```
+("실패 1회 기록됨" 문구는 잠금을 없앤 뒤 맞지 않아 이 실행 뒤에 "null 반환"으로 고침.)
+
+아직 안 한 것: 배포 주소에서 실제 PIN으로 잠금 해제 → 저장 → 새로고침, 두 기기 동시 저장. (같은 흐름은 로컬 가짜 서버에서만 확인함, 5번 참고)

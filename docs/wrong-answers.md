@@ -8,3 +8,4 @@
 | 4 | bash에서 `python tools/make_icons.py` 실행 | `python`이 Windows 스토어 별칭(WindowsApps\python.exe)이라 exit 49로 실패 | `py tools/make_icons.py`(Python 런처)로 실행, README에도 `py`로 적음 |
 | 5 | 서버를 끈 직후 새로고침해서 "서버가 꺼져도 데이터가 뜬다"고 봄 | 종료 명령 직후 서버가 아직 응답하고 있었음 (`fetch`로 다시 확인하니 그다음부터 `Failed to fetch`) | 서버가 실제로 꺼진 것을 확인한 뒤 다시 시험 → '다시 시도' 화면 확인 |
 | 6 | 서버가 꺼진 상태에서 저장 후 1.5초 만에 보고 "실패 배너가 안 뜬다"고 봄 | supabase-js가 몇 번 재시도하느라 실패가 늦게 옴 | 3.5초 뒤 다시 확인하니 `ui.saveError` 배너가 정상으로 뜸 |
+| 7 | `save_state`에서 `new_state #- '{settings,pin}' - 'rev' - 'savedAt'`로 PIN·rev·savedAt을 한 줄에 지움 | PostgreSQL에서 `-`가 `#-`보다 우선순위가 높아서 `'{settings,pin}' - 'rev'`부터 계산하려다 `42725 operator is not unique: unknown - unknown`. 로컬 가짜 서버는 JS라 못 잡았고, 실제 DB의 `verify_db.js`에서 정상 저장이 실패해서 발견 | `((new_state #- '{settings,pin}'::text[]) - 'rev'::text) - 'savedAt'::text`로 괄호와 타입을 명시 |

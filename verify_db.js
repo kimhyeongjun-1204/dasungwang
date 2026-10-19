@@ -1,5 +1,5 @@
-// Supabase DB 실제 검증: node verify_db.js   (PIN은 실행 중에 물어봄. 잠금 시험을 빼려면 --skip-lock)
-// config.js의 URL·anon key로 anon 권한만 써서 확인. 마지막 잠금 시험 뒤에는 관리자 로그인이 10분 잠김.
+// Supabase DB 실제 검증: node verify_db.js   (PIN은 실행 중에 물어봄)
+// config.js의 URL·anon key로 anon 권한만 써서 확인.
 // 저장 시험은 지금 데이터를 그대로 다시 저장하므로 rev만 1 올라감.
 const fs = require('fs');
 const crypto = require('crypto');
@@ -8,7 +8,6 @@ const win = {};
 new Function('window', fs.readFileSync(__dirname + '/config.js', 'utf8'))(win);
 const { url, anonKey } = win.DDW_CONFIG || {};
 if (!url || /YOUR-/.test(url + anonKey)) { console.error('config.js에 Supabase URL과 anon key를 먼저 넣어 주세요.'); process.exit(1); }
-const skipLock = process.argv.includes('--skip-lock');
 // 새 publishable 키(sb_publishable_…)는 apikey 헤더에만, 예전 anon 키(eyJ…, JWT)는 Authorization에도 넣음
 const H = { apikey: anonKey, 'Content-Type': 'application/json' };
 if (/^eyJ/.test(anonKey)) H.Authorization = 'Bearer ' + anonKey;
@@ -84,7 +83,7 @@ function askPin() {
     expect(denied(r), '거부되지 않음: ' + short(r));
     return short(r);
   });
-  for (const t of ['admin_secret', 'admin_session', 'admin_login_guard']) {
+  for (const t of ['admin_secret', 'admin_session']) {
     await check('anon이 ' + t + '를 읽으면 거부', async () => {
       const r = await req('GET', '/rest/v1/' + t + '?select=*');
       expect(denied(r), '거부되지 않음: ' + short(r));
@@ -110,7 +109,7 @@ function askPin() {
   await check('틀린 PIN 로그인은 실패 (토큰 없음)', async () => {
     const r = await rpc('admin_login', { pin: wrong });
     expect(r.status === 200 && r.json === null, short(r));
-    return '실패 1회 기록됨';
+    return 'null 반환';
   });
   await check('무효 토큰으로 저장하면 unauthorized', async () => {
     const r = await rpc('save_state', { token: crypto.randomUUID(), new_state: cur.state, expected_rev: cur.rev });
@@ -146,18 +145,16 @@ function askPin() {
     expect(r.json === false, short(r));
   });
 
-  if (!skipLock) {
-    console.log('\n무차별 대입 잠금 (위의 틀린 PIN 1회 + 아래 4회 = 연속 5회)');
-    await check('틀린 PIN을 연속 5회 넣으면 잠금, 잠긴 동안은 맞는 PIN도 거부', async () => {
-      for (let i = 0; i < 4; i++) {
-        const r = await rpc('admin_login', { pin: wrong });
-        expect(r.status === 200 && r.json === null, (i + 2) + '번째 실패 응답: ' + short(r));
-      }
-      const r = await rpc('admin_login', { pin });
-      expect(r.status >= 400 && r.json && r.json.message === 'locked', '잠기지 않음: ' + short(r));
-      return '잠금 남은 시간 ' + r.json.details + '초';
-    });
-  } else console.log('\n(잠금 시험 건너뜀)');
+  console.log('\n잠금 없음 (운영 판단)');
+  await check('틀린 PIN을 5번 넣은 뒤에도 맞는 PIN으로 로그인됨', async () => {
+    for (let i = 0; i < 5; i++) {
+      const r = await rpc('admin_login', { pin: wrong });
+      expect(r.status === 200 && r.json === null, (i + 1) + '번째 틀린 PIN 응답: ' + short(r));
+    }
+    const r = await rpc('admin_login', { pin });
+    expect(r.status === 200 && typeof r.json === 'string', '로그인 안 됨: ' + short(r));
+    await rpc('admin_logout', { token: r.json });
+  });
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   process.exitCode = failed ? 1 : 0;

@@ -53,9 +53,7 @@ test('errorCode: 서버 에러를 구분', () => {
   const E = need().errorCode;
   assert.strictEqual(E({ message: 'stale_rev', code: 'P0001' }).code, 'stale_rev');
   assert.strictEqual(E({ message: 'unauthorized', code: 'P0001' }).code, 'unauthorized');
-  const l = E({ message: 'locked', details: '420', code: 'P0001' });
-  assert.strictEqual(l.code, 'locked');
-  assert.strictEqual(l.wait, 420);
+  assert.strictEqual(E({ message: 'no_pin', code: 'P0001' }).code, 'no_pin');
   assert.strictEqual(E({ message: 'TypeError: Failed to fetch', code: '' }).code, 'network');
   assert.strictEqual(E({ message: 'something else' }).code, 'error');
   assert.strictEqual(E(null).code, 'error');
@@ -99,11 +97,11 @@ test('api.save: stale_rev는 code로 구분돼 reject', async () => {
   const c = fakeClient({ save_state: () => ({ data: null, error: { message: 'stale_rev', code: 'P0001' } }) });
   await assert.rejects(need().api(c).save('tok', SAMPLE, 6), e => e.code === 'stale_rev');
 });
-test('api.login: 맞으면 토큰, 틀리면 null, 잠금이면 locked', async () => {
+test('api.login: 맞으면 토큰, 틀리면 null, PIN 미설정이면 no_pin', async () => {
   const r = need();
   assert.strictEqual(await r.api(fakeClient({ admin_login: a => ({ data: a.pin === '1234' ? 'tok' : null, error: null }) })).login('1234'), 'tok');
   assert.strictEqual(await r.api(fakeClient({ admin_login: () => ({ data: null, error: null }) })).login('0000'), null);
-  await assert.rejects(r.api(fakeClient({ admin_login: () => ({ data: null, error: { message: 'locked', details: '600' } }) })).login('1'), e => e.code === 'locked' && e.wait === 600);
+  await assert.rejects(r.api(fakeClient({ admin_login: () => ({ data: null, error: { message: 'no_pin' } }) })).login('1'), e => e.code === 'no_pin');
 });
 test('api.check / changePin / logout: RPC 이름과 인자', async () => {
   const c = fakeClient({ admin_check: () => ({ data: true, error: null }), change_pin: () => ({ data: null, error: null }), admin_logout: () => ({ data: null, error: null }) });

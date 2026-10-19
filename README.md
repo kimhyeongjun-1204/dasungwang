@@ -12,7 +12,7 @@
 | `logic.js` | 순수 로직: 자동 편성(hill-climbing), 승수 집계·순위, 지옥도/천국도 등급, 시드→실력 점수, 주차 점검, 밴드 명단 파싱 |
 | `logic.test.js` | 로직 테스트 43개 |
 | `app.js` | 화면 렌더링·이벤트 처리. 저장은 `remote.js`를 통해 Supabase로 |
-| `remote.js` | Supabase 읽기/RPC 호출, 관리자 토큰(30일) 보관, 에러 구분(`stale_rev`, `unauthorized`, `locked` …) |
+| `remote.js` | Supabase 읽기/RPC 호출, 관리자 토큰(30일) 보관, 에러 구분(`stale_rev`, `unauthorized`, `no_pin` …) |
 | `config.js` | Supabase Project URL과 anon(publishable) key. **공개돼도 되는 값만** |
 | `deploy.test.js` | 배포 관련 테스트(remote.js, 빌드 결과, service worker) |
 | `app.css`, `images.css` | 포스터 스타일 디자인, 이미지(WebP base64) |
@@ -20,7 +20,7 @@
 | `manifest.webmanifest`, `sw.js`, `icons/` | 홈 화면 앱 설정, 최소 service worker, 아이콘(돼장 이미지로 생성: `py tools/make_icons.py`) |
 | `supabase/schema.sql` | DB 테이블·권한·함수. SQL Editor에서 실행 |
 | `seed_db.js` | `live_state.json` → `seed.local.sql`(초기 데이터 SQL, PIN 해시 제외). 로컬 전용 |
-| `verify_db.js` | 실제 Supabase에 anon 권한으로 접속해 권한·잠금·저장 규칙 확인 |
+| `verify_db.js` | 실제 Supabase에 anon 권한으로 접속해 권한·로그인·저장 규칙 확인 |
 | `seed.js` | 최초 예시 데이터 (live_state.json이 없을 때) |
 | `tools/mock_supabase.js` | 로컬 화면 확인용 가짜 Supabase (개발 전용, PIN 1234) |
 | `docs/deploy-log.md` | 실제로 실행한 명령과 출력 기록 |
@@ -61,7 +61,7 @@
 ```powershell
 node verify_db.js
 ```
-PIN을 물어보면 2-5에서 정한 PIN을 입력(화면에 안 보임). 마지막 잠금 시험 때문에 **끝나고 10분 동안 관리자 로그인이 잠겨요**(이미 로그인한 기기는 그대로). 잠금 시험을 빼려면 `node verify_db.js --skip-lock`.
+PIN을 물어보면 2-5에서 정한 PIN을 입력(화면에 안 보임). 저장 시험 때문에 rev가 1 올라가요(데이터 내용은 그대로).
 
 ### 5. GitHub 저장소 만들기 → push
 1. https://github.com/new → Repository name `dasungwang` → **Public** (무료 계정의 GitHub Pages는 공개 저장소만 가능) → README 추가 체크하지 말고 **Create repository**
@@ -97,8 +97,8 @@ Node.js만 있으면 되고 설치할 패키지는 없어요.
 - PIN은 서버에 bcrypt 해시로만 있고(`admin_secret`), 공개 state에는 PIN 정보가 없어요. 저장할 때 `settings.pin`을 보내도 서버가 버려요.
 - PIN이 맞으면 30일짜리 토큰을 발급해 이 기기에 기억해요. 토큰이 만료되거나 PIN이 바뀌면 다시 PIN 입력 화면이 떠요.
 - PIN을 바꾸면 지금 기기를 뺀 다른 기기의 관리자 로그인이 모두 풀려요.
-- 무차별 대입 방지: 틀린 PIN을 연속 5번 넣으면 10분 잠금. 잠금이 또 걸릴 때마다 20분, 40분 … 최대 24시간으로 늘어나고, 맞는 PIN으로 로그인하면 초기화돼요. (4자리 PIN은 경우의 수가 1만 개뿐이라 고정 10분 잠금만으로는 몇 주면 뚫릴 수 있어서 늘려 가요.) 잠금은 전체 공통이라, 누가 일부러 틀리면 그동안 새 기기에서는 로그인이 안 돼요. 이미 로그인한 기기는 영향 없음.
-- 잊었을 때: SQL Editor에서 `select public.set_admin_pin('새PIN');` (모든 관리자 로그인과 잠금도 초기화)
+- 로그인 실패 잠금은 없어요(2026-10-19 운영 판단). 4자리 PIN은 경우의 수가 1만 개뿐이라, 누가 프로그램으로 계속 넣어 보면 뚫릴 수 있다는 점은 알고 쓰기로 했어요. 이상한 저장이 보이면 바로 PIN을 바꾸세요(바꾸면 다른 기기 로그인은 모두 풀려요).
+- 잊었을 때: SQL Editor에서 `select public.set_admin_pin('새PIN');` (모든 관리자 로그인도 초기화)
 - 시드(실력 순위)는 공개 state 안에 화면에 안 보이게 인코딩만 돼 있어요(암호화 아님).
 
 ## Supabase 무료 플랜: 비활성 일시정지 (2026-10-19 확인)

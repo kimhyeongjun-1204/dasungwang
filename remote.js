@@ -2,7 +2,7 @@
 var Remote = (function () {
   'use strict';
   var TOKEN_KEY = 'ddw-admin-token', TOKEN_DAYS = 30;
-  var CODES = ['unauthorized', 'stale_rev', 'locked', 'no_pin', 'bad_pin', 'bad_new_pin', 'too_large', 'bad_state'];
+  var CODES = ['unauthorized', 'stale_rev', 'no_pin', 'bad_pin', 'bad_new_pin', 'too_large', 'bad_state'];
 
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
   // 서버로 보내는 state: PIN 해시와 서버가 관리하는 rev/savedAt은 뺀다
@@ -19,9 +19,9 @@ var Remote = (function () {
   }
   function errorCode(err) {
     var msg = String(err && err.message || '');
-    if (CODES.indexOf(msg) >= 0) return { code: msg, wait: msg === 'locked' ? (+err.details || 0) : 0 };
-    if (/fetch|network|load failed/i.test(msg)) return { code: 'network', wait: 0 };
-    return { code: 'error', wait: 0, message: msg };
+    if (CODES.indexOf(msg) >= 0) return { code: msg };
+    if (/fetch|network|load failed/i.test(msg)) return { code: 'network' };
+    return { code: 'error', message: msg };
   }
 
   // 관리자 토큰: 이 기기 localStorage에 30일 (store는 get/set/del, 각 호출 예외는 여기서 막음)
