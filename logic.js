@@ -349,6 +349,14 @@ var Logic = (function () {
     return tierCandidates(state, date).filter(function (c) { return week.attendees[c.player] === c.from; })
       .map(function (c) { return { player: c.player, from: c.from, to: c.to, tier: c.tier }; });
   }
+  // 등록 조 기준으로 옮길 조: up(한 조 위) / down(한 조 아래) / back(원래 조). 없으면 null
+  function shiftTarget(state, pid, dir) {
+    var p = playerMap(state)[pid];
+    if (!p) return null;
+    var order = state.settings.groups.map(function (g) { return g.id; }), i = order.indexOf(p.group);
+    if (i < 0) return null;
+    return (dir === 'up' ? order[i - 1] : dir === 'down' ? order[i + 1] : dir === 'back' ? p.group : null) || null;
+  }
   // 이번 주 참석자 중 옮길 수 있는 지옥도·천국도 후보 전부 → [{player, from(등록 조), to, tier, moved(지금 to에서 뜀)}]
   function tierCandidates(state, date) {
     var week = state.weeks.filter(function (w) { return w.date === date; })[0];
@@ -568,7 +576,7 @@ var Logic = (function () {
     mulberry32: mulberry32, wednesdays: wednesdays, seasonDays: seasonDays, isOfficial: isOfficial, playersOf: playersOf,
     weekTally: weekTally, standings: standings, tierOf: tierOf, skillOf: skillOf, HEAT: HEAT,
     generatePool: generatePool, validateWeek: validateWeek, parseBand: parseBand,
-    RULE_ARITY: RULE_ARITY, ruleText: ruleText, ruleViolation: ruleViolation, regenPool: regenPool, applyPlan: applyPlan, tierShift: tierShift, tierCandidates: tierCandidates,
+    RULE_ARITY: RULE_ARITY, ruleText: ruleText, ruleViolation: ruleViolation, regenPool: regenPool, applyPlan: applyPlan, tierShift: tierShift, tierCandidates: tierCandidates, shiftTarget: shiftTarget,
   };
 })();
 if (typeof module !== 'undefined') module.exports = Logic;

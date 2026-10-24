@@ -33,6 +33,7 @@
     seedText: {},
     paste: '',
     ai: { text: '', busy: false, err: '', res: null }, // 돼장 요청(Claude) 상태
+    shiftSel: { p: '', dir: 'up' }, // 지옥도·천국도 조 옮기기 선택
     unknown: [],
     confirm: null,
     draftConflict: null,
@@ -375,6 +376,31 @@
     return out + viewPlan();
   }
 
+  function viewShift(w, att, P) {
+    var cands = L.tierCandidates(work, w.date), sel = ui.shiftSel;
+    var tierOfP = {}; cands.forEach(function (c) { tierOfP[c.player] = c.tier; });
+    var names = function (t) { return cands.filter(function (c) { return c.tier === t; }).map(function (c) { return esc(P[c.player].name) + (c.moved ? ' ✓' : ''); }).join(', '); };
+    var out = '<div class="shift"><p class="shift-title"><b>지옥도·천국도 조 옮기기</b> <span class="muted small">고른 사람만 옮겨져요. 승수는 원래 조로 들어가요.</span></p>';
+    if (names('hell')) out += '<p class="small"><span class="pl t-hell">지옥도</span> 한 조 위 추천: ' + names('hell') + '</p>';
+    if (names('heaven')) out += '<p class="small"><span class="pl t-heaven">천국도</span> 한 조 아래 추천: ' + names('heaven') + '</p>';
+    out += '<div class="row" style="align-items:flex-end"><label class="f" for="shift-p">참석자<select id="shift-p" data-act="shift-p"><option value="">이름을 선택하세요</option>' +
+      groups().map(function (g) {
+        var ids = Object.keys(att).filter(function (id) { return P[id] && P[id].group === g.id; }).sort(function (a, b) { return P[a].name.localeCompare(P[b].name, 'ko'); });
+        if (!ids.length) return '';
+        return '<optgroup label="' + esc(g.name) + '">' + ids.map(function (id) {
+          var tag = tierOfP[id] === 'hell' ? ' · 지옥도' : tierOfP[id] === 'heaven' ? ' · 천국도' : '';
+          var now = att[id] !== P[id].group ? ' (지금 ' + gname(att[id]) + ')' : '';
+          return '<option value="' + id + '"' + (sel.p === id ? ' selected' : '') + '>' + esc(P[id].name + tag + now) + '</option>';
+        }).join('') + '</optgroup>';
+      }).join('') + '</select></label>' +
+      '<label class="f" for="shift-dir">옮기기<select id="shift-dir" data-act="shift-dir">' +
+      [['up', '한 조 위로 (승급)'], ['down', '한 조 아래로 (하향)'], ['back', '원래 조로']].map(function (o) { return '<option value="' + o[0] + '"' + (sel.dir === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') +
+      '</select></label><button class="btn primary" data-act="shift-ok">확인</button></div>';
+    var moved = Object.keys(att).filter(function (id) { return P[id] && att[id] !== P[id].group; });
+    if (moved.length) out += '<p class="small"><b>지금 다른 조에서 뛰는 사람</b> ' + moved.map(function (id) { return esc(P[id].name) + ' <span class="muted">(' + esc(gname(P[id].group)) + ' → ' + esc(gname(att[id])) + ')</span>'; }).join(', ') + '</p>';
+    return out + '</div>';
+  }
+
   function viewPlan() {
     var w = getWeek(ui.week) || { date: ui.week, attendees: {}, matches: [], published: false };
     var P = pm(), att = w.attendees || {};
@@ -384,22 +410,8 @@
       '<label class="f" for="paste">밴드 참가신청 명단 붙여넣기<textarea id="paste" placeholder="박강호(랍스터), 서민희(닭갈비), 조인규(닭갈비) …">' + esc(ui.paste) + '</textarea></label>' +
       '<div class="row"><button class="btn" data-act="paste-replace">명단으로 바꾸기</button><button class="btn" data-act="paste-add">명단 추가</button>' +
       (Object.keys(att).length ? '<button class="btn danger sm" data-act="att-clear">참석 비우기</button>' : '') + '</div>';
-    // 지옥도는 한 조 위, 천국도는 한 조 아래: 후보를 이름 버튼으로, 누른 사람만 옮김 (다시 누르면 원래 조)
-    var cands = Object.keys(att).length ? L.tierCandidates(work, w.date) : [];
-    if (cands.length) {
-      out += '<div class="shift"><p class="small" style="margin:0"><b>지옥도·천국도 조 옮기기</b> <span class="muted">누른 사람만 옮겨져요. 다시 누르면 원래 조로 돌아와요. 승수는 원래 조로 들어가요.</span></p>';
-      [['hell', '지옥도 · 한 조 위에서', '↑', 'up'], ['heaven', '천국도 · 한 조 아래에서', '↓', 'down']].forEach(function (t) {
-        var cs = cands.filter(function (c) { return c.tier === t[0]; })
-          .sort(function (a, b) { return poolOrder(a.from) - poolOrder(b.from) || P[a.player].name.localeCompare(P[b.player].name, 'ko'); });
-        if (!cs.length) return;
-        out += '<div class="row small" style="margin:8px 0 4px"><span class="pl t-' + t[0] + '">' + t[1] + '</span><span class="muted num">' + cs.filter(function (c) { return c.moved; }).length + '/' + cs.length + '명 옮김</span></div><div class="chips">' +
-          cs.map(function (c) {
-            return '<button data-act="shift-one" data-p="' + c.player + '" aria-pressed="' + c.moved + '" title="' + esc(gname(c.from) + ' → ' + gname(c.to)) + '">' + esc(P[c.player].name) +
-              ' <span class="mv ' + t[3] + '">' + t[2] + esc(gname(c.to).split('·').pop()) + '</span></button>';
-          }).join('') + '</div>';
-      });
-      out += '</div>';
-    }
+    // 지옥도는 한 조 위, 천국도는 한 조 아래: 참석자와 방향을 골라 확인 (고른 사람만 옮김)
+    if (Object.keys(att).length) out += viewShift(w, att, P);
     if (w.note) out += '<p class="small muted">메모: ' + esc(w.note) + ' <button class="btn sm" data-act="note-clear">메모 지우기</button></p>';
     if (ui.unknown.length) {
       out += '<div class="banner warn" style="display:grid"><b>명단에 없는 이름 ' + ui.unknown.length + '명</b>' + ui.unknown.map(function (u, i) {
@@ -411,7 +423,7 @@
     groups().forEach(function (g) {
       var ps = work.players.filter(function (p) { return p.group === g.id && p.active !== false; }).sort(function (a, b) { return a.name.localeCompare(b.name, 'ko'); });
       var cnt = ps.filter(function (p) { return att[p.id]; }).length;
-      out += '<div><div class="row small" style="margin-bottom:6px"><span class="gdot g' + g.id + '">' + esc(g.name) + '</span><span class="muted num">' + cnt + '/' + ps.length + '</span></div><div class="chips">' +
+      out += '<div class="att-group"><div class="row small" style="margin-bottom:6px"><span class="gdot g' + g.id + '">' + esc(g.name) + '</span><span class="muted num">' + cnt + '/' + ps.length + '</span></div><div class="chips">' +
         ps.map(function (p) {
           var mv = att[p.id] && att[p.id] !== p.group ? (poolOrder(att[p.id]) < poolOrder(p.group) ? '↑' : '↓') : '';
           return '<button data-act="att" data-p="' + p.id + '" aria-pressed="' + !!att[p.id] + '"' + (mv ? ' title="' + esc(gname(att[p.id])) + '조에서 경기"' : '') + '>' + esc(p.name) + (mv ? ' <b class="mv ' + (mv === '↑' ? 'up' : 'down') + '">' + mv + '</b>' : '') + '</button>';
@@ -742,7 +754,7 @@
     var w, m, P;
     switch (act) {
       case 'tab': ui.tab = v; LS.set(KEY.tab, v); ui.notice = null; render(); window.scrollTo(0, 0); break;
-      case 'week': ui.week = v; SS.set(SKEY.week, v); ui.confirm = null; ui.notice = null; ui.ai.res = null; ui.ai.err = ''; render(); break;
+      case 'week': ui.week = v; SS.set(SKEY.week, v); ui.confirm = null; ui.notice = null; ui.ai.res = null; ui.ai.err = ''; ui.shiftSel = { p: '', dir: 'up' }; render(); break;
       case 'rankg': ui.rankGroup = v; render(); break;
       case 'sec': ui.sec = v; SS.set(SKEY.sec, v); render(); break;
       case 'lock': ui.admin = false; forgetAdmin(); render(); break;
@@ -776,13 +788,17 @@
       case 'gen-all': askGen(groups().map(function (g) { return g.id; })); break;
       case 'confirm-yes': var c = ui.confirm; ui.confirm = null; runGen(c.gids); break;
       case 'confirm-no': ui.confirm = null; render(); break;
-      case 'shift-one':
+      case 'shift-ok':
+        var sel = ui.shiftSel;
+        if (!sel.p) { toast('옮길 참석자를 먼저 골라 주세요.'); return; }
         w = ensureWeek(ui.week);
-        var sp = el.getAttribute('data-p'), cand = L.tierCandidates(work, ui.week).filter(function (c) { return c.player === sp; })[0];
-        if (!cand) return;
-        w.attendees[sp] = cand.moved ? cand.from : cand.to;
+        var to = L.shiftTarget(work, sel.p, sel.dir), nm2 = pm()[sel.p].name;
+        if (!to) { toast(nm2 + ': ' + (sel.dir === 'up' ? '맨 위 조라 더 올릴 수 없어요.' : '맨 아래 조라 더 내릴 수 없어요.')); return; }
+        if (w.attendees[sel.p] === to) { toast(nm2 + ': 이미 ' + gname(to) + '조에서 경기해요.'); return; }
+        w.attendees[sel.p] = to;
+        ui.shiftSel = { p: '', dir: 'up' };
         commit();
-        toast(pm()[sp].name + (cand.moved ? ': 원래 조(' + gname(cand.from) + ')로 돌아왔어요.' : ': ' + gname(cand.to) + '조에서 경기해요.') + (w.matches.length ? ' 자동 편성을 다시 눌러 주세요.' : '')); break;
+        toast(nm2 + ': ' + gname(to) + '조에서 경기해요.' + (w.matches.length ? ' 자동 편성을 다시 눌러 주세요.' : '')); break;
       case 'ai-send': aiSend(); break;
       case 'ai-apply': aiApply(); break;
       case 'ai-cancel': ui.ai.res = null; render(); break;
@@ -856,6 +872,12 @@
         if (work.players.some(function (p) { return p.name === nm && p.id !== el.getAttribute('data-p'); })) { toast('같은 이름이 이미 있어요. 동명이인이면 "김민수B"처럼 구분해 주세요.'); render(); return; }
         P[el.getAttribute('data-p')].name = nm; commit(); break;
       case 'pgroup': P[el.getAttribute('data-p')].group = el.value; commit(); break;
+      case 'shift-p':
+        // 지옥도면 승급, 천국도면 하향, 이미 옮긴 사람이면 원래 조로를 기본으로
+        var c2 = L.tierCandidates(work, ui.week).filter(function (c) { return c.player === el.value; })[0], aw = getWeek(ui.week);
+        ui.shiftSel = { p: el.value, dir: aw && el.value && aw.attendees[el.value] !== P[el.value].group ? 'back' : c2 ? (c2.tier === 'hell' ? 'up' : 'down') : 'up' };
+        render(); break;
+      case 'shift-dir': ui.shiftSel.dir = el.value; break;
     }
   });
   document.addEventListener('input', function (ev) { if (ev.target.id === 'paste') ui.paste = ev.target.value; if (ev.target.id === 'seed-text') ui.seedText[ui.seedGroup] = ev.target.value; if (ev.target.id === 'ai-text') ui.ai.text = ev.target.value; });

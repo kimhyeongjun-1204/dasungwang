@@ -476,6 +476,15 @@ test('tierCandidates: 지옥도·천국도 후보 전부 (이미 옮긴 사람�
   assert(!by.a0, 'A조 지옥도는 위 조가 없어 후보 아님');
   assert(!by.b3, '중립은 후보 아님');
 });
+test('shiftTarget: 등록 조 기준으로 한 조 위(up)/아래(down)/원래 조(back), 없으면 null', () => {
+  const st = shiftState();
+  assert.strictEqual(L.shiftTarget(st, 'b0', 'up'), 'A');
+  assert.strictEqual(L.shiftTarget(st, 'b0', 'down'), 'C');
+  assert.strictEqual(L.shiftTarget(st, 'a0', 'up'), null, '맨 위 조는 위가 없음');
+  assert.strictEqual(L.shiftTarget(st, 'a0', 'down'), 'B');
+  assert.strictEqual(L.shiftTarget(st, 'b0', 'back'), 'B');
+  assert.strictEqual(L.shiftTarget(st, 'zz', 'up'), null);
+});
 test('tierCandidates: 참석 안 한 사람은 후보 아님', () => {
   const st = shiftState();
   delete st.weeks[1].attendees.b0;
