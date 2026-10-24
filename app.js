@@ -379,10 +379,7 @@
   function viewShift(w, att, P) {
     var cands = L.tierCandidates(work, w.date), sel = ui.shiftSel;
     var tierOfP = {}; cands.forEach(function (c) { tierOfP[c.player] = c.tier; });
-    var names = function (t) { return cands.filter(function (c) { return c.tier === t; }).map(function (c) { return esc(P[c.player].name) + (c.moved ? ' ✓' : ''); }).join(', '); };
     var out = '<div class="shift"><p class="shift-title"><b>지옥도·천국도 조 옮기기</b> <span class="muted small">고른 사람만 옮겨져요. 승수는 원래 조로 들어가요.</span></p>';
-    if (names('hell')) out += '<p class="small"><span class="pl t-hell">지옥도</span> 한 조 위 추천: ' + names('hell') + '</p>';
-    if (names('heaven')) out += '<p class="small"><span class="pl t-heaven">천국도</span> 한 조 아래 추천: ' + names('heaven') + '</p>';
     out += '<div class="row" style="align-items:flex-end"><label class="f" for="shift-p">참석자<select id="shift-p" data-act="shift-p"><option value="">이름을 선택하세요</option>' +
       groups().map(function (g) {
         var ids = Object.keys(att).filter(function (id) { return P[id] && P[id].group === g.id; }).sort(function (a, b) { return P[a].name.localeCompare(P[b].name, 'ko'); });
