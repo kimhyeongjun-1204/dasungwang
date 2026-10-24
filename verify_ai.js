@@ -10,8 +10,10 @@ if (/^eyJ/.test(anonKey)) H.Authorization = 'Bearer ' + anonKey;
 const PRICE = { input: 4, output: 20 }; // Claude Opus 5.5, 100만 토큰당 달러
 const TIER = { hell: '지옥도', heaven: '천국도', mid: '중립', new: '첫 참가', unknown: '결과 대기' };
 
-const request = process.argv[2];
-if (!request) { console.error('사용법: node verify_ai.js "요청 문장" [YYYY-MM-DD]'); process.exit(1); }
+// "요청 문장" 대신 @파일경로 를 주면 그 파일(UTF-8)의 내용을 요청으로 씀
+const arg = process.argv[2] || '';
+const request = (arg.startsWith('@') ? fs.readFileSync(arg.slice(1), 'utf8') : arg).trim();
+if (!request) { console.error('사용법: node verify_ai.js "요청 문장" [YYYY-MM-DD]  또는  node verify_ai.js @요청.txt [YYYY-MM-DD]'); process.exit(1); }
 
 async function post(path, body, extra) {
   const r = await fetch(url + path, { method: 'POST', headers: Object.assign({}, H, extra), body: JSON.stringify(body) });

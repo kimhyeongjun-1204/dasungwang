@@ -431,4 +431,75 @@ test('ruleText: 조건을 사람이 읽는 문장으로', () => {
   assert.strictEqual(L.ruleText(st, { type: 'extra_prefer', players: ['b2'] }), 'B선수2 추가출전 우선');
 });
 
+// ---------- 지옥도는 한 조 위, 천국도는 한 조 아래 (tierShift) / 다른 조 경기에 넣어 둔 사람 (regenPool) ----------
+console.log('tierShift / borrowed');
+// 지난주(10/14): b0 2승(지옥도), a7 2패(천국도), a0 2승(A조 지옥도: 위 조 없음), b3 1승1패(중립)
+function shiftState() {
+  const st = planState();
+  const mk = (id, pool, a, b, win) => ({ id, pool, a, b, off: [], win, score: '' });
+  st.weeks.unshift({ date: '2026-10-14', published: true, attendees: {}, matches: [
+    mk('x1', 'A', ['a0', 'a1'], ['a6', 'a7'], 'a'), mk('x2', 'A', ['a0', 'a2'], ['a5', 'a7'], 'a'),
+    mk('x3', 'B', ['b0', 'b1'], ['b2', 'b3'], 'a'), mk('x4', 'B', ['b0', 'b3'], ['b1', 'b2'], 'a'),
+  ] });
+  st.settings.groups.push({ id: 'C', name: 'C', winners: 1 });
+  return st;
+}
+test('tierShift: 지옥도는 한 조 위로, 천국도는 한 조 아래로', () => {
+  const moves = L.tierShift(shiftState(), '2026-10-21');
+  const by = {}; moves.forEach(m => { by[m.player] = m; });
+  assert.deepStrictEqual(by.b0 && [by.b0.from, by.b0.to, by.b0.tier], ['B', 'A', 'hell']);
+  assert.deepStrictEqual(by.a7 && [by.a7.from, by.a7.to, by.a7.tier], ['A', 'B', 'heaven']);
+  assert(!by.a0, 'A조 지옥도는 위 조가 없어 그대로');
+  assert(!by.b3, '중립은 그대로');
+});
+test('tierShift: 이미 조를 옮긴 사람은 건드리지 않음', () => {
+  const st = shiftState();
+  st.weeks[1].attendees.b0 = 'B';
+  st.weeks[1].attendees.a7 = 'A';
+  st.weeks[1].attendees.b0 = 'C'; // 돼장이 직접 옮겨 둠
+  const moves = L.tierShift(st, '2026-10-21');
+  assert(!moves.some(m => m.player === 'b0'));
+  assert(moves.some(m => m.player === 'a7'));
+});
+test('tierShift: 두 번 눌러도 같은 결과 (옮긴 뒤에는 다시 안 옮김)', () => {
+  const st = shiftState();
+  L.tierShift(st, '2026-10-21').forEach(m => { st.weeks[1].attendees[m.player] = m.to; });
+  assert.strictEqual(L.tierShift(st, '2026-10-21').length, 0);
+});
+test('regenPool: 편성 조는 B인데 공식 경기가 전부 A조에 있는 사람은 A조를 다시 짤 때 함께 짬', () => {
+  const st = planState(), w = st.weeks[0];
+  // b3를 A조 경기에 직접 넣어 둠 (a7 자리), a7은 참석 안 함
+  delete w.attendees.a7;
+  w.matches.forEach(m => { m.a = m.a.map(x => x === 'a7' ? 'b3' : x); m.b = m.b.map(x => x === 'a7' ? 'b3' : x); });
+  w.matches = w.matches.filter(m => m.pool === 'A'); // B조 경기는 없음 (b3는 A조에서만 뜀)
+  const r = L.regenPool(st, w, 'A', 3, () => 'n' + (++idn));
+  const A = w.matches.filter(m => m.pool === 'A');
+  assert(A.some(m => m.a.concat(m.b).includes('b3')), 'b3가 빠짐');
+  assert.strictEqual(w.attendees.b3, 'A', '실제 뛰는 조로 편성 조를 맞춤');
+  assert.deepStrictEqual(r.split, []);
+});
+test('regenPool: 두 조에 나눠 들어간 사람은 split으로 알려 줌', () => {
+  const st = planState(), w = st.weeks[0];
+  const m1 = w.matches.find(m => m.id === 'm1');
+  m1.a = ['a0', 'b0']; // b0: A조 1경기 + B조 2경기
+  const r = L.regenPool(st, w, 'A', 3, () => 'n' + (++idn));
+  assert.deepStrictEqual(r.split, ['b0']);
+});
+test('applyPlan pool_moves: 원래 조로 되돌린 사람은 예전 경기 위치와 상관없이 그 조로 짬', () => {
+  const st = planState(), w = st.weeks[0];
+  // b3를 A조로 올려서 A조 경기에 넣어 둔 상태(편성 조 A) → 다시 B조로 되돌림
+  w.attendees.b3 = 'A'; delete w.attendees.a7;
+  w.matches.forEach(m => { m.a = m.a.map(x => x === 'a7' ? 'b3' : x); m.b = m.b.map(x => x === 'a7' ? 'b3' : x); });
+  w.matches = w.matches.filter(m => m.pool === 'A');
+  const r = L.applyPlan(st, '2026-10-21', { pool_moves: [{ player: 'b3', pool: 'B' }] }, OPT);
+  assert.strictEqual(r.week.attendees.b3, 'B');
+  assert(!r.week.matches.filter(m => m.pool === 'A').some(m => m.a.concat(m.b).includes('b3')));
+});
+test('applyPlan: 다시 짠 조에 나눠 들어간 사람이 있으면 warnings', () => {
+  const st = planState();
+  st.weeks[0].matches.find(m => m.id === 'm1').a = ['a0', 'b0'];
+  const r = L.applyPlan(st, '2026-10-21', { regenerate: ['A'] }, OPT);
+  assert(r.warnings.some(x => x.includes('B선수0')));
+});
+
 console.log(`\n${passed} passed`);

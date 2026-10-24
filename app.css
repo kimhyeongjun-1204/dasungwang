@@ -351,6 +351,9 @@ textarea { width: 100%; min-height: 84px; resize: vertical; }
 .issues li.error { background: var(--danger-50); color: var(--hell-text); }
 .issues li.warn { background: var(--yellow-50); }
 .issues li.ok { background: var(--win-50); color: var(--win-text); font-weight: 700; }
+.chips .mv { font-size: 12px; margin-left: 2px; }
+.chips .mv.up { color: var(--hell-text); }
+.chips .mv.down { color: var(--heaven-text); }
 .ai-preview { display: grid; gap: 10px; border-top: 1px solid var(--line-2); padding-top: 12px; }
 .ai-say { margin: 0; padding: 10px 12px; border-radius: var(--r-ctl); background: var(--navy-50); color: var(--navy); font-size: 14px; }
 .ai-line { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: center; font-size: 14px; padding: 6px 8px; border-radius: var(--r-ctl); background: var(--surface-2); }

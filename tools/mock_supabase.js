@@ -7,7 +7,9 @@ const crypto = require('crypto');
 
 const PORT = +process.env.PORT || 8787;
 const dist = path.join(__dirname, '..', 'dist');
-const src = fs.existsSync(path.join(__dirname, '..', 'live_state.json')) ? require('../live_state.json') : require('../seed.js');
+// MOCK_STATE=파일경로 로 다른 데이터를 쓸 수 있음 (예: 실제 DB를 읽어 둔 사본)
+const src = process.env.MOCK_STATE ? JSON.parse(fs.readFileSync(process.env.MOCK_STATE, 'utf8'))
+  : fs.existsSync(path.join(__dirname, '..', 'live_state.json')) ? require('../live_state.json') : require('../seed.js');
 const state = JSON.parse(JSON.stringify(src));
 delete state.rev; delete state.savedAt; if (state.settings) delete state.settings.pin;
 const db = { state, rev: src.rev || 1, saved_at: src.savedAt || new Date().toISOString(), pin: '1234', sessions: new Set() };

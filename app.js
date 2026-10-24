@@ -33,6 +33,7 @@
     seedText: {},
     paste: '',
     ai: { text: '', busy: false, err: '', res: null }, // 돼장 요청(Claude) 상태
+    shift: null, // 지옥도↑·천국도↓ 확인 대기 [{player, from, to, tier}]
     unknown: [],
     confirm: null,
     draftConflict: null,
@@ -383,7 +384,13 @@
     out += '<div class="card"><div class="row" style="justify-content:space-between"><h2>' + md(w.date) + '(수) 참석자</h2><span class="muted num">' + Object.keys(att).length + '명</span></div>' +
       '<label class="f" for="paste">밴드 참가신청 명단 붙여넣기<textarea id="paste" placeholder="박강호(랍스터), 서민희(닭갈비), 조인규(닭갈비) …">' + esc(ui.paste) + '</textarea></label>' +
       '<div class="row"><button class="btn" data-act="paste-replace">명단으로 바꾸기</button><button class="btn" data-act="paste-add">명단 추가</button>' +
-      (Object.keys(att).length ? '<button class="btn danger sm" data-act="att-clear">참석 비우기</button>' : '') + '</div>';
+      (Object.keys(att).length ? '<button class="btn danger sm" data-act="att-clear">참석 비우기</button>' : '') + '</div>' +
+      (Object.keys(att).length ? '<div class="row"><button class="btn" data-act="shift">지옥도↑ · 천국도↓ 조 옮기기</button><span class="small muted">지난 성적이 전승이면 한 조 위, 전패면 한 조 아래에서 경기해요. 승수는 원래 조로 들어가요.</span></div>' : '');
+    if (ui.shift) {
+      out += '<div class="banner warn" style="display:grid"><b>이렇게 옮길까요?</b>' + ui.shift.map(function (m) {
+        return '<span class="small">' + esc(P[m.player] ? P[m.player].name : m.player) + ' <span class="muted">' + esc(gname(m.from)) + ' → ' + esc(gname(m.to)) + ' (' + TIER_LABEL[m.tier] + ')</span></span>';
+      }).join('') + '<span class="row"><button class="btn sm primary" data-act="shift-yes">옮기기</button><button class="btn sm" data-act="shift-no">취소</button></span></div>';
+    }
     if (w.note) out += '<p class="small muted">메모: ' + esc(w.note) + ' <button class="btn sm" data-act="note-clear">메모 지우기</button></p>';
     if (ui.unknown.length) {
       out += '<div class="banner warn" style="display:grid"><b>명단에 없는 이름 ' + ui.unknown.length + '명</b>' + ui.unknown.map(function (u, i) {
@@ -396,7 +403,10 @@
       var ps = work.players.filter(function (p) { return p.group === g.id && p.active !== false; }).sort(function (a, b) { return a.name.localeCompare(b.name, 'ko'); });
       var cnt = ps.filter(function (p) { return att[p.id]; }).length;
       out += '<div><div class="row small" style="margin-bottom:6px"><span class="gdot g' + g.id + '">' + esc(g.name) + '</span><span class="muted num">' + cnt + '/' + ps.length + '</span></div><div class="chips">' +
-        ps.map(function (p) { return '<button data-act="att" data-p="' + p.id + '" aria-pressed="' + !!att[p.id] + '">' + esc(p.name) + '</button>'; }).join('') + '</div></div>';
+        ps.map(function (p) {
+          var mv = att[p.id] && att[p.id] !== p.group ? (poolOrder(att[p.id]) < poolOrder(p.group) ? '↑' : '↓') : '';
+          return '<button data-act="att" data-p="' + p.id + '" aria-pressed="' + !!att[p.id] + '"' + (mv ? ' title="' + esc(gname(att[p.id])) + '조에서 경기"' : '') + '>' + esc(p.name) + (mv ? ' <b class="mv ' + (mv === '↑' ? 'up' : 'down') + '">' + mv + '</b>' : '') + '</button>';
+        }).join('') + '</div></div>';
     });
     var attIds = Object.keys(att).filter(function (id) { return P[id]; });
     if (attIds.length) {
@@ -505,6 +515,7 @@
         return n ? '<li class="error">' + esc(gname(gid)) + '조에 입력된 결과 ' + n + '경기가 새 편성으로 바뀌면서 지워져요.</li>' : '';
       }).join('');
       out += '<ul class="issues">' + lost + res.out.errors.map(function (e) { return '<li class="error">반영 못 한 것: ' + esc(e) + '</li>'; }).join('') +
+        (res.out.warnings || []).map(function (e) { return '<li class="warn">' + esc(e) + '</li>'; }).join('') +
         (issues.length ? issues.map(function (x) { return '<li class="' + x.level + '">' + esc(x.msg) + '</li>'; }).join('') : '<li class="ok">점검 통과: 전원 공식 2경기, 파트너 중복 없음' + ((nw.rules || []).length ? ', 조건 지킴' : '') + '</li>') + '</ul>' +
         (changed.length || !same(nw.rules || [], before.rules || [])
           ? '<div class="row"><button class="btn primary" data-act="ai-apply">적용</button><button class="btn" data-act="ai-cancel">취소</button></div>'
@@ -670,14 +681,16 @@
   function runGen(gids) {
     ui.busy = '편성 중…'; render();
     setTimeout(function () {
-      var w = ensureWeek(ui.week), errs = [];
+      var w = ensureWeek(ui.week), errs = [], split = [];
       gids.forEach(function (gid) {
         var ids = Object.keys(w.attendees).filter(function (id) { return w.attendees[id] === gid && pm()[id]; });
         if (!ids.length) return;
         // 이번 주 조건(돼장 요청)까지 지켜서 짬
         var r = L.regenPool(work, w, gid, (Math.random() * 4294967296) >>> 0, newId);
         if (r.error) errs.push(gname(gid) + ': ' + r.error);
+        else r.split.forEach(function (id) { if (split.indexOf(id) < 0) split.push(id); });
       });
+      if (split.length) errs.push(split.map(function (id) { return pm()[id].name; }).join(', ') + ': 두 조 경기에 나눠 들어가 있어요. 편성 조 옮기기로 한 조를 정해 주세요');
       ui.busy = null;
       commit();
       if (errs.length) toast(errs.join(' / '));
@@ -720,7 +733,7 @@
     var w, m, P;
     switch (act) {
       case 'tab': ui.tab = v; LS.set(KEY.tab, v); ui.notice = null; render(); window.scrollTo(0, 0); break;
-      case 'week': ui.week = v; SS.set(SKEY.week, v); ui.confirm = null; ui.notice = null; ui.ai.res = null; ui.ai.err = ''; render(); break;
+      case 'week': ui.week = v; SS.set(SKEY.week, v); ui.confirm = null; ui.notice = null; ui.ai.res = null; ui.ai.err = ''; ui.shift = null; render(); break;
       case 'rankg': ui.rankGroup = v; render(); break;
       case 'sec': ui.sec = v; SS.set(SKEY.sec, v); render(); break;
       case 'lock': ui.admin = false; forgetAdmin(); render(); break;
@@ -754,6 +767,17 @@
       case 'gen-all': askGen(groups().map(function (g) { return g.id; })); break;
       case 'confirm-yes': var c = ui.confirm; ui.confirm = null; runGen(c.gids); break;
       case 'confirm-no': ui.confirm = null; render(); break;
+      case 'shift':
+        var mvs = L.tierShift(work, ui.week);
+        if (!mvs.length) { toast('옮길 지옥도·천국도가 없어요. 지난주 결과가 다 입력됐는지 확인해 주세요.'); return; }
+        ui.shift = mvs; render(); break;
+      case 'shift-yes':
+        w = ensureWeek(ui.week);
+        ui.shift.forEach(function (m) { if (w.attendees[m.player]) w.attendees[m.player] = m.to; });
+        var up = ui.shift.filter(function (m) { return m.tier === 'hell'; }).length, down = ui.shift.length - up;
+        ui.shift = null; commit();
+        toast('지옥도 ' + up + '명은 한 조 위로, 천국도 ' + down + '명은 한 조 아래로 옮겼어요. 자동 편성을 다시 눌러 주세요.'); break;
+      case 'shift-no': ui.shift = null; render(); break;
       case 'ai-send': aiSend(); break;
       case 'ai-apply': aiApply(); break;
       case 'ai-cancel': ui.ai.res = null; render(); break;
@@ -816,7 +840,11 @@
         m[el.getAttribute('data-side')][+el.getAttribute('data-k')] = el.value;
         m.off = (m.off || []).filter(function (p) { return m.a.concat(m.b).indexOf(p) >= 0; });
         commit(); break;
-      case 'pool': ensureWeek(ui.week).attendees[el.getAttribute('data-p')] = el.value; commit(); break;
+      case 'pool':
+        var pw = ensureWeek(ui.week), pp2 = el.getAttribute('data-p');
+        pw.attendees[pp2] = el.value; commit();
+        if (pw.matches.some(function (m) { return m.pool !== el.value && m.a.concat(m.b).indexOf(pp2) >= 0; })) toast('아직 다른 조 경기에 들어가 있어요. 두 조를 자동 편성으로 다시 짜 주세요.');
+        break;
       case 'pname':
         var nm = el.value.trim();
         if (!nm) { render(); return; }

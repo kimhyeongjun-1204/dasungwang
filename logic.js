@@ -342,10 +342,46 @@ var Logic = (function () {
     return null;
   }
 
+  // 지옥도는 한 조 위, 천국도는 한 조 아래에서 경기 (조 순서: settings.groups 앞이 강한 조)
+  // → [{player, from, to, tier}]. 편성 조가 등록 조와 같은 참석자만 (돼장이 직접 옮긴 사람은 그대로)
+  function tierShift(state, date) {
+    var week = state.weeks.filter(function (w) { return w.date === date; })[0];
+    if (!week) return [];
+    var pm = playerMap(state), order = state.settings.groups.map(function (g) { return g.id; }), out = [];
+    Object.keys(week.attendees || {}).forEach(function (id) {
+      var p = pm[id];
+      if (!p || week.attendees[id] !== p.group) return;
+      var t = tierOf(state, id, date).tier, i = order.indexOf(p.group);
+      var to = t === 'hell' ? order[i - 1] : t === 'heaven' ? order[i + 1] : null;
+      if (i >= 0 && to) out.push({ player: id, from: p.group, to: to, tier: t });
+    });
+    return out;
+  }
+
+  // 공식 경기가 들어가 있는 조들 (pid → {조: 1})
+  function officialPools(week) {
+    var r = {};
+    (week.matches || []).forEach(function (m) {
+      m.a.concat(m.b).forEach(function (id) { if (id && isOfficial(m, id)) (r[id] = r[id] || {})[m.pool] = 1; });
+    });
+    return r;
+  }
+
   // 한 조를 (저장된 조건까지 지켜서) 다시 짜서 week.matches에 반영. week는 직접 바뀜
-  function regenPool(state, week, gid, seed, newId) {
-    var pm = playerMap(state);
-    var ids = Object.keys(week.attendees || {}).filter(function (id) { return week.attendees[id] === gid && pm[id]; });
+  // 편성 조를 따로 옮긴 적 없는(편성 조 = 등록 조) 사람이 공식 경기를 전부 다른 조에서 하면 실제로 뛰는 조 사람으로 봄
+  // (돼장이 경기 칸에 직접 넣은 경우). fixed: 이번에 조를 옮긴 사람 {id:1} — 편성 조를 그대로 믿음
+  // → {count, split:[두 조에 나눠 들어가 있어 경기 수가 어긋날 사람]} 또는 {error}
+  function regenPool(state, week, gid, seed, newId, fixed) {
+    var pm = playerMap(state), op = officialPools(week);
+    var poolOf = function (id) {
+      var ps = Object.keys(op[id] || {});
+      if ((fixed && fixed[id]) || week.attendees[id] !== pm[id].group || ps.length !== 1) return week.attendees[id];
+      return ps[0];
+    };
+    var split = Object.keys(op).filter(function (id) { return op[id][gid] && Object.keys(op[id]).length > 1; });
+    var ids = Object.keys(week.attendees || {}).filter(function (id) { return pm[id] && poolOf(id) === gid && split.indexOf(id) < 0; })
+      .concat(Object.keys(week.attendees || {}).filter(function (id) { return pm[id] && split.indexOf(id) >= 0 && week.attendees[id] === gid; }));
+    ids.forEach(function (id) { week.attendees[id] = gid; });
     var order = state.settings.groups.map(function (g) { return g.id; });
     var keep = (week.matches || []).filter(function (m) { return m.pool !== gid; });
     var fresh = [];
@@ -362,13 +398,13 @@ var Logic = (function () {
       return (ox < 0 ? 99 : ox) - (oy < 0 ? 99 : oy) || x.i - y.i;
     });
     week.matches = all.map(function (x) { return x.m; });
-    return { count: fresh.length };
+    return { count: fresh.length, split: split };
   }
 
   // 돼장 요청을 해석한 계획을 적용: 조건 삭제·추가 → 조 옮기기 → 다시 짜기 → 직접 수정
   // plan: {rules_add:[{type,players}], rules_remove:[id], pool_moves:[{player,pool}], regenerate:[gid],
   //        edits:[{type:'swap',players:[p,q],matches?:[id]} | {type:'set_slot',match,side,index,player} | {type:'set_off',match,player,off}]}
-  // → {week(새 객체), regenerated:[gid], errors:[문장]}  (state는 바꾸지 않음)
+  // → {week(새 객체), regenerated:[gid], errors:[문장], warnings:[문장]}  (state는 바꾸지 않음)
   function applyPlan(state, date, plan, opt) {
     opt = opt || {};
     plan = plan || {};
@@ -378,7 +414,7 @@ var Logic = (function () {
     week.attendees = week.attendees || {};
     week.matches = week.matches || [];
     week.rules = week.rules || [];
-    var pm = playerMap(st), errors = [], touched = {};
+    var pm = playerMap(st), errors = [], warnings = [], touched = {}, moved = {};
     var gids = st.settings.groups.map(function (g) { return g.id; });
     var newId = opt.newId || function () { return 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); };
     var seed = opt.seed == null ? (Math.random() * 4294967296) >>> 0 : opt.seed;
@@ -408,7 +444,7 @@ var Logic = (function () {
       if (!pm[p] || gids.indexOf(g) < 0) { errors.push('조 옮기기를 할 수 없어요: ' + nm(p) + ' → ' + g); return; }
       if (!week.attendees[p]) { errors.push(nm(p) + '은(는) 이번 주 참석자가 아니에요'); return; }
       touched[week.attendees[p]] = 1; touched[g] = 1;
-      week.attendees[p] = g;
+      week.attendees[p] = g; moved[p] = 1;
     });
     (plan.regenerate || []).forEach(function (g) {
       if (gids.indexOf(g) < 0) errors.push('없는 조예요: ' + g); else touched[g] = 1;
@@ -416,8 +452,10 @@ var Logic = (function () {
     var regenerated = [];
     gids.forEach(function (g, i) {
       if (!touched[g]) return;
-      var res = regenPool(st, week, g, (seed + i * 7919) >>> 0, newId);
-      if (res.error) errors.push(g + '조 다시 짜기 실패: ' + res.error); else regenerated.push(g);
+      var res = regenPool(st, week, g, (seed + i * 7919) >>> 0, newId, moved);
+      if (res.error) { errors.push(g + '조 다시 짜기 실패: ' + res.error); return; }
+      regenerated.push(g);
+      res.split.forEach(function (id) { warnings.push(nm(id) + ': 두 조 경기에 나눠 들어가 있어서 ' + g + '조를 다시 짜면 경기 수가 맞지 않아요. 한 조로 옮겨 주세요.'); });
     });
 
     (plan.edits || []).forEach(function (e) {
@@ -441,7 +479,7 @@ var Logic = (function () {
         if (e.off) m2.off.push(e.player);
       } else errors.push('알 수 없는 수정 종류예요: ' + type);
     });
-    return { week: week, regenerated: regenerated, errors: errors };
+    return { week: week, regenerated: regenerated, errors: errors, warnings: warnings };
   }
 
   var HINTS = { '캐비어': 'A', '랍스터': 'A', '소갈비': 'B', '양갈비': 'B', '돼지갈비': 'C', '닭갈비': 'C', '돼지': 'C', '닭': 'C' };
@@ -524,7 +562,7 @@ var Logic = (function () {
     mulberry32: mulberry32, wednesdays: wednesdays, seasonDays: seasonDays, isOfficial: isOfficial, playersOf: playersOf,
     weekTally: weekTally, standings: standings, tierOf: tierOf, skillOf: skillOf, HEAT: HEAT,
     generatePool: generatePool, validateWeek: validateWeek, parseBand: parseBand,
-    RULE_ARITY: RULE_ARITY, ruleText: ruleText, ruleViolation: ruleViolation, regenPool: regenPool, applyPlan: applyPlan,
+    RULE_ARITY: RULE_ARITY, ruleText: ruleText, ruleViolation: ruleViolation, regenPool: regenPool, applyPlan: applyPlan, tierShift: tierShift,
   };
 })();
 if (typeof module !== 'undefined') module.exports = Logic;
