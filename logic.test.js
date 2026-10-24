@@ -466,6 +466,21 @@ test('tierShift: 두 번 눌러도 같은 결과 (옮긴 뒤에는 다시 안 �
   L.tierShift(st, '2026-10-21').forEach(m => { st.weeks[1].attendees[m.player] = m.to; });
   assert.strictEqual(L.tierShift(st, '2026-10-21').length, 0);
 });
+test('tierCandidates: 지옥도·천국도 후보 전부 (이미 옮긴 사람은 moved:true, 위·아래 조 없으면 빠짐)', () => {
+  const st = shiftState();
+  st.weeks[1].attendees.b0 = 'A'; // 이미 위로 옮김
+  const c = L.tierCandidates(st, '2026-10-21');
+  const by = {}; c.forEach(x => { by[x.player] = x; });
+  assert.deepStrictEqual([by.b0.tier, by.b0.from, by.b0.to, by.b0.moved], ['hell', 'B', 'A', true]);
+  assert.deepStrictEqual([by.a7.tier, by.a7.from, by.a7.to, by.a7.moved], ['heaven', 'A', 'B', false]);
+  assert(!by.a0, 'A조 지옥도는 위 조가 없어 후보 아님');
+  assert(!by.b3, '중립은 후보 아님');
+});
+test('tierCandidates: 참석 안 한 사람은 후보 아님', () => {
+  const st = shiftState();
+  delete st.weeks[1].attendees.b0;
+  assert(!L.tierCandidates(st, '2026-10-21').some(x => x.player === 'b0'));
+});
 test('regenPool: 편성 조는 B인데 공식 경기가 전부 A조에 있는 사람은 A조를 다시 짤 때 함께 짬', () => {
   const st = planState(), w = st.weeks[0];
   // b3를 A조 경기에 직접 넣어 둠 (a7 자리), a7은 참석 안 함

@@ -346,14 +346,20 @@ var Logic = (function () {
   // → [{player, from, to, tier}]. 편성 조가 등록 조와 같은 참석자만 (돼장이 직접 옮긴 사람은 그대로)
   function tierShift(state, date) {
     var week = state.weeks.filter(function (w) { return w.date === date; })[0];
+    return tierCandidates(state, date).filter(function (c) { return week.attendees[c.player] === c.from; })
+      .map(function (c) { return { player: c.player, from: c.from, to: c.to, tier: c.tier }; });
+  }
+  // 이번 주 참석자 중 옮길 수 있는 지옥도·천국도 후보 전부 → [{player, from(등록 조), to, tier, moved(지금 to에서 뜀)}]
+  function tierCandidates(state, date) {
+    var week = state.weeks.filter(function (w) { return w.date === date; })[0];
     if (!week) return [];
     var pm = playerMap(state), order = state.settings.groups.map(function (g) { return g.id; }), out = [];
     Object.keys(week.attendees || {}).forEach(function (id) {
       var p = pm[id];
-      if (!p || week.attendees[id] !== p.group) return;
+      if (!p) return;
       var t = tierOf(state, id, date).tier, i = order.indexOf(p.group);
       var to = t === 'hell' ? order[i - 1] : t === 'heaven' ? order[i + 1] : null;
-      if (i >= 0 && to) out.push({ player: id, from: p.group, to: to, tier: t });
+      if (i >= 0 && to) out.push({ player: id, from: p.group, to: to, tier: t, moved: week.attendees[id] === to });
     });
     return out;
   }
@@ -562,7 +568,7 @@ var Logic = (function () {
     mulberry32: mulberry32, wednesdays: wednesdays, seasonDays: seasonDays, isOfficial: isOfficial, playersOf: playersOf,
     weekTally: weekTally, standings: standings, tierOf: tierOf, skillOf: skillOf, HEAT: HEAT,
     generatePool: generatePool, validateWeek: validateWeek, parseBand: parseBand,
-    RULE_ARITY: RULE_ARITY, ruleText: ruleText, ruleViolation: ruleViolation, regenPool: regenPool, applyPlan: applyPlan, tierShift: tierShift,
+    RULE_ARITY: RULE_ARITY, ruleText: ruleText, ruleViolation: ruleViolation, regenPool: regenPool, applyPlan: applyPlan, tierShift: tierShift, tierCandidates: tierCandidates,
   };
 })();
 if (typeof module !== 'undefined') module.exports = Logic;

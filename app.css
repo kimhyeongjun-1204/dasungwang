@@ -352,6 +352,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; }
 .issues li.warn { background: var(--yellow-50); }
 .issues li.ok { background: var(--win-50); color: var(--win-text); font-weight: 700; }
 .chips .mv { font-size: 12px; margin-left: 2px; }
+.shift { border-top: 1px solid var(--line-2); padding-top: 10px; }
 .chips .mv.up { color: var(--hell-text); }
 .chips .mv.down { color: var(--heaven-text); }
 .ai-preview { display: grid; gap: 10px; border-top: 1px solid var(--line-2); padding-top: 12px; }

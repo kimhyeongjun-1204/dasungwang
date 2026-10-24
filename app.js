@@ -33,7 +33,6 @@
     seedText: {},
     paste: '',
     ai: { text: '', busy: false, err: '', res: null }, // 돼장 요청(Claude) 상태
-    shift: null, // 지옥도↑·천국도↓ 확인 대기 [{player, from, to, tier}]
     unknown: [],
     confirm: null,
     draftConflict: null,
@@ -384,12 +383,22 @@
     out += '<div class="card"><div class="row" style="justify-content:space-between"><h2>' + md(w.date) + '(수) 참석자</h2><span class="muted num">' + Object.keys(att).length + '명</span></div>' +
       '<label class="f" for="paste">밴드 참가신청 명단 붙여넣기<textarea id="paste" placeholder="박강호(랍스터), 서민희(닭갈비), 조인규(닭갈비) …">' + esc(ui.paste) + '</textarea></label>' +
       '<div class="row"><button class="btn" data-act="paste-replace">명단으로 바꾸기</button><button class="btn" data-act="paste-add">명단 추가</button>' +
-      (Object.keys(att).length ? '<button class="btn danger sm" data-act="att-clear">참석 비우기</button>' : '') + '</div>' +
-      (Object.keys(att).length ? '<div class="row"><button class="btn" data-act="shift">지옥도↑ · 천국도↓ 조 옮기기</button><span class="small muted">지난 성적이 전승이면 한 조 위, 전패면 한 조 아래에서 경기해요. 승수는 원래 조로 들어가요.</span></div>' : '');
-    if (ui.shift) {
-      out += '<div class="banner warn" style="display:grid"><b>이렇게 옮길까요?</b>' + ui.shift.map(function (m) {
-        return '<span class="small">' + esc(P[m.player] ? P[m.player].name : m.player) + ' <span class="muted">' + esc(gname(m.from)) + ' → ' + esc(gname(m.to)) + ' (' + TIER_LABEL[m.tier] + ')</span></span>';
-      }).join('') + '<span class="row"><button class="btn sm primary" data-act="shift-yes">옮기기</button><button class="btn sm" data-act="shift-no">취소</button></span></div>';
+      (Object.keys(att).length ? '<button class="btn danger sm" data-act="att-clear">참석 비우기</button>' : '') + '</div>';
+    // 지옥도는 한 조 위, 천국도는 한 조 아래: 후보를 이름 버튼으로, 누른 사람만 옮김 (다시 누르면 원래 조)
+    var cands = Object.keys(att).length ? L.tierCandidates(work, w.date) : [];
+    if (cands.length) {
+      out += '<div class="shift"><p class="small" style="margin:0"><b>지옥도·천국도 조 옮기기</b> <span class="muted">누른 사람만 옮겨져요. 다시 누르면 원래 조로 돌아와요. 승수는 원래 조로 들어가요.</span></p>';
+      [['hell', '지옥도 · 한 조 위에서', '↑', 'up'], ['heaven', '천국도 · 한 조 아래에서', '↓', 'down']].forEach(function (t) {
+        var cs = cands.filter(function (c) { return c.tier === t[0]; })
+          .sort(function (a, b) { return poolOrder(a.from) - poolOrder(b.from) || P[a.player].name.localeCompare(P[b.player].name, 'ko'); });
+        if (!cs.length) return;
+        out += '<div class="row small" style="margin:8px 0 4px"><span class="pl t-' + t[0] + '">' + t[1] + '</span><span class="muted num">' + cs.filter(function (c) { return c.moved; }).length + '/' + cs.length + '명 옮김</span></div><div class="chips">' +
+          cs.map(function (c) {
+            return '<button data-act="shift-one" data-p="' + c.player + '" aria-pressed="' + c.moved + '" title="' + esc(gname(c.from) + ' → ' + gname(c.to)) + '">' + esc(P[c.player].name) +
+              ' <span class="mv ' + t[3] + '">' + t[2] + esc(gname(c.to).split('·').pop()) + '</span></button>';
+          }).join('') + '</div>';
+      });
+      out += '</div>';
     }
     if (w.note) out += '<p class="small muted">메모: ' + esc(w.note) + ' <button class="btn sm" data-act="note-clear">메모 지우기</button></p>';
     if (ui.unknown.length) {
@@ -733,7 +742,7 @@
     var w, m, P;
     switch (act) {
       case 'tab': ui.tab = v; LS.set(KEY.tab, v); ui.notice = null; render(); window.scrollTo(0, 0); break;
-      case 'week': ui.week = v; SS.set(SKEY.week, v); ui.confirm = null; ui.notice = null; ui.ai.res = null; ui.ai.err = ''; ui.shift = null; render(); break;
+      case 'week': ui.week = v; SS.set(SKEY.week, v); ui.confirm = null; ui.notice = null; ui.ai.res = null; ui.ai.err = ''; render(); break;
       case 'rankg': ui.rankGroup = v; render(); break;
       case 'sec': ui.sec = v; SS.set(SKEY.sec, v); render(); break;
       case 'lock': ui.admin = false; forgetAdmin(); render(); break;
@@ -767,17 +776,13 @@
       case 'gen-all': askGen(groups().map(function (g) { return g.id; })); break;
       case 'confirm-yes': var c = ui.confirm; ui.confirm = null; runGen(c.gids); break;
       case 'confirm-no': ui.confirm = null; render(); break;
-      case 'shift':
-        var mvs = L.tierShift(work, ui.week);
-        if (!mvs.length) { toast('옮길 지옥도·천국도가 없어요. 지난주 결과가 다 입력됐는지 확인해 주세요.'); return; }
-        ui.shift = mvs; render(); break;
-      case 'shift-yes':
+      case 'shift-one':
         w = ensureWeek(ui.week);
-        ui.shift.forEach(function (m) { if (w.attendees[m.player]) w.attendees[m.player] = m.to; });
-        var up = ui.shift.filter(function (m) { return m.tier === 'hell'; }).length, down = ui.shift.length - up;
-        ui.shift = null; commit();
-        toast('지옥도 ' + up + '명은 한 조 위로, 천국도 ' + down + '명은 한 조 아래로 옮겼어요. 자동 편성을 다시 눌러 주세요.'); break;
-      case 'shift-no': ui.shift = null; render(); break;
+        var sp = el.getAttribute('data-p'), cand = L.tierCandidates(work, ui.week).filter(function (c) { return c.player === sp; })[0];
+        if (!cand) return;
+        w.attendees[sp] = cand.moved ? cand.from : cand.to;
+        commit();
+        toast(pm()[sp].name + (cand.moved ? ': 원래 조(' + gname(cand.from) + ')로 돌아왔어요.' : ': ' + gname(cand.to) + '조에서 경기해요.') + (w.matches.length ? ' 자동 편성을 다시 눌러 주세요.' : '')); break;
       case 'ai-send': aiSend(); break;
       case 'ai-apply': aiApply(); break;
       case 'ai-cancel': ui.ai.res = null; render(); break;
