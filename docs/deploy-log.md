@@ -598,3 +598,44 @@ $ node deploy.test.js
 | 전체 + 선수별 | 1위 14명(작전주 배지), "전체 보기 (27명)" |
 | 360px | 카드 16~344px, 마지막 조 탭 오른쪽 끝 327px, 조 탭 높이 51px, 막대 높이 10px, scrollWidth 360 |
 | PR 스크린숏 | MOCK_DEMO(seed.js 가짜 데이터)로 찍음: docs/screenshots/daebles/390-popular-team.jpg, 390-popular-player.jpg |
+
+## 22. 인기 픽 팀별 카드 개편 + 조별 슈퍼매치 (사용자 요청, 같은 브랜치 feat/daebles-popular-tabs, 2026-11-15)
+구조 확인: `prediction_counts`(경기·팀·방식별 인원)만으로 계산 가능해서 DB는 바꾸지 않음. 한 사람은 서로 다른 4경기만 고를 수 있어(서버 `pred_check`) 한 경기 양 팀 인원의 합 = 그 경기를 예측한 서로 다른 회원 수. 마감 후에는 `prediction_close`(마감 시점 스냅숏) 사용.
+```
+$ node logic.test.js   (matchBoard·superMatches·선수별 비율 테스트 6개 먼저 추가)
+  FAIL playerPicks: 선택 비율 = 그 선수 경기를 고른 수 중 그 선수 팀을 고른 수 (상대 팀만 고른 경기도 분모에 포함)
+  FAIL matchBoard: 경기별 양 팀 인원·비율(분모는 그 경기를 고른 인원), 0명 경기도 오류 없이 포함
+       L.matchBoard is not a function
+  FAIL matchBoard 배지: 70% 초과 인기 픽(hot), 30% 미만 역배 후보(under), 고른 사람이 5명 미만이면 배지 없음
+       L.matchBoard is not a function
+  FAIL superMatches: 조마다 예측 인원이 가장 많은 경기 (양 팀·두 방식 합산), 다른 조와는 비교하지 않음
+       L.superMatches is not a function
+  FAIL superMatches: 공동 1위는 모두, 예측이 없는 조는 없음, 0명·없는 경기는 무시
+       L.superMatches is not a function
+  FAIL superMatches: 마감 스냅숏(prediction_close 모양, mode 없음)으로도 같은 결과
+       L.superMatches is not a function
+104 passed
+$ node logic.test.js   (구현 후)
+110 passed
+$ node deploy.test.js
+21 passed
+```
+화면 확인 A — 실제 데이터 복사본(실제 DB를 읽기만 해서 복사) + 가짜 예측 20명, 로컬 가짜 서버 8793, 390px:
+| 확인 | 결과 |
+|---|---|
+| 팀별 카드 14개를 서버 집계(prediction_counts)에서 직접 계산한 값과 비교(인원·%·총 인원·막대 폭·배지·슈퍼매치) | 불일치 0건. 막대 폭 합 100%(예: 42.86% / 57.14%) |
+| 조별 최다 | A 7명, B 7명, C 8명 → 슈퍼매치 4경기(C조는 8명 공동 1위 2경기 모두) |
+| 조 탭 소갈비·양갈비 | 그 조 6경기만, 슈퍼매치 1경기(총 7명) |
+| 선수별 27명을 서버 집계에서 직접 계산한 값과 비교(인원·%·막대) | 불일치 0건. 1위 14명 70% |
+| 이번 주 탭 | 경기 번호 옆 "🔥 슈퍼매치 · 7명 참여" 등 4개, scrollWidth 390 |
+| 다른 사람 제출 뒤 자동 갱신(이번 주 탭을 건드리지 않고 대기, 로컬은 Realtime 대신 20초 다시 읽기) | 3명 추가 제출 → B조 2경기 6→9명. 14초 뒤 B조 슈퍼매치가 1경기(7명)→2경기(9명), A조는 1·2경기 공동(각 9명)으로 바뀜 |
+화면 확인 B — MOCK_DEMO(seed.js 가짜 데이터), 360px:
+| 확인 | 결과 |
+|---|---|
+| 11/11(마감) | "마감 인기 픽 · 마감 시점 집계". 관리자 RPC로 한 명 예측을 다른 경기로 바꾼 뒤: prediction_counts는 바뀌고 prediction_close 16행은 그대로, 카드 14개·슈퍼매치 동일 |
+| 11/18 돼지갈비·닭갈비 탭 | 5경기 중 3경기가 0명 → "– 0명 vs – 0명 / 아직 고른 사람이 없어요", 빈 막대, 오류 없음 |
+| 마감 전 `predictions` 읽기(가짜 서버 RLS 흉내) | 0행 |
+| 예측하기 화면 | 슈퍼매치 경기 3개에 배지, 제출 → "제출했어요…", 참여 14→15명 |
+| 순위·관리 › 예측(가짜 서버 PIN) | 순위표 머리글 그대로, 관리 목록 15명 |
+| 가로 넘침 | scrollWidth 360 |
+확인 못 한 것: 실제 DB의 Realtime 경로(실제 주에 제출해야 함). 한쪽 100% 카드는 가짜 데이터에 없어서 화면으로는 못 봤고 테스트(matchBoard 배지)로만 확인.

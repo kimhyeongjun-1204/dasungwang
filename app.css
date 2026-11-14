@@ -481,9 +481,33 @@ textarea { width: 100%; min-height: 84px; resize: vertical; }
 .pp-nums { display: grid; justify-items: end; gap: 2px; }
 .pp-nums b { font-size: 16px; font-weight: 700; color: var(--navy); }
 .pp-nums span { font-size: var(--fs-cap); font-weight: 700; color: var(--text-2); }
-.mv-up, .pp-nums .mv-up { color: var(--hell-text); }
-.mv-down, .pp-nums .mv-down { color: var(--heaven-text); }
-.chip.up { background: var(--hell-50); color: var(--hell-text); border-color: #F1CACA; }
+/* 인기 픽 배지: 인기 픽(빨강) · 역배 후보(파랑) · 슈퍼매치(노랑, 불꽃) — 뜻이 다르므로 색도 다르게 */
+.chip.hot { background: var(--hell-50); color: var(--hell-text); border-color: #F1CACA; }
+.chip.under { background: var(--heaven-50); color: var(--heaven-text); border-color: #C9DCF5; }
+.chip.super { background: var(--yellow); color: var(--navy); border-color: #E9B60F; }
+.m-head .chip.super { margin-right: auto; }
+/* 팀별 인기 픽: 경기 하나 = 카드 하나. 왼쪽 팀 navy, 오른쪽 팀 핑크로 고정 */
+.mb-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.mb { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: var(--r-card); background: var(--surface); }
+.mb-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.mb-title { font-size: 14px; color: var(--navy); }
+.mb-total { justify-self: center; font-size: 14px; font-weight: 700; color: var(--text); }
+.mb-teams { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.mb-team { display: grid; gap: 2px; justify-items: start; align-content: start; min-width: 0; }
+.mb-team.b { justify-items: end; text-align: right; }
+.mb-name { font-size: 15px; font-weight: 700; overflow-wrap: anywhere; }
+.mb-fig { display: flex; align-items: baseline; gap: 6px; }
+.mb-team.b .mb-fig { flex-direction: row-reverse; }
+.mb-fig b { font-size: 26px; font-weight: 900; line-height: 1.15; }
+.mb-fig span { font-size: 15px; font-weight: 700; color: var(--text); }
+.mb-team.a .mb-fig b { color: var(--navy); }
+.mb-team.b .mb-fig b { color: var(--plan-text); }
+.mb-bar { display: flex; height: 14px; border-radius: 7px; overflow: hidden; background: var(--line-2); box-shadow: inset 0 0 0 1px var(--line); }
+.mb-bar i { display: block; height: 100%; }
+.mb-bar i.a { background: var(--navy); }
+.mb-bar i.b { background: var(--plan); }
+.mb-bar i.a + i.b { box-shadow: -2px 0 0 #fff; }
+.pp-nums .pp-pct { font-size: 14px; color: var(--plan-text); }
 .chip.sneaky { background: #FCE8F0; color: var(--plan-text); border-color: #F5C3D7; }
 .feed { gap: 6px; }
 .feed-row { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; gap: 8px; align-items: center; font-size: 14px; min-height: 32px; }

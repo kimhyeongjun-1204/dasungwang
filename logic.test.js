@@ -699,6 +699,46 @@ test('playerPicks: 최근 증감(pickChanges 결과)을 선수별로 합침, 고
   assert.deepStrictEqual(only2.map(x => [x.player, x.n, x.rank]), [['a', 2, 1], ['b', 2, 1], ['e', 2, 1], ['f', 2, 1]]);
   assert.deepStrictEqual(L.playerPicks([], PW), []);
 });
+test('playerPicks: 선택 비율 = 그 선수 경기를 고른 수 중 그 선수 팀을 고른 수 (상대 팀만 고른 경기도 분모에 포함)', () => {
+  const r = L.playerPicks(COUNTS, PW);
+  const get = id => r.find(x => x.player === id);
+  // a: p1(12명) + p2(4명) 중 11 / c: p1(12명) + p3(0명) 중 3 / e: p2(4명) + p3(0명) 중 2
+  assert.deepStrictEqual([get('a').total, get('a').share], [16, 11 / 16]);
+  assert.deepStrictEqual([get('c').total, get('c').share], [12, 0.25]);
+  assert.deepStrictEqual([get('e').total, get('e').share], [4, 0.5]);
+});
+test('matchBoard: 경기별 양 팀 인원·비율(분모는 그 경기를 고른 인원), 0명 경기도 오류 없이 포함', () => {
+  const r = L.matchBoard(COUNTS, PW);
+  assert.deepStrictEqual(r.map(x => [x.match, x.pool, x.total, x.a.n, x.b.n]), [['p1', 'A', 12, 9, 3], ['p2', 'A', 4, 2, 2], ['p3', 'A', 0, 0, 0], ['p4', 'B', 0, 0, 0], ['p5', 'B', 0, 0, 0]]);
+  assert.deepStrictEqual([r[0].a.share, r[0].b.share], [0.75, 0.25]);
+  assert.deepStrictEqual([r[2].a.share, r[2].b.share, r[2].a.badge, r[2].b.badge], [0, 0, '', '']);
+  assert.deepStrictEqual(L.matchBoard([], PW).map(x => x.total), [0, 0, 0, 0, 0]);
+});
+test('matchBoard 배지: 70% 초과 인기 픽(hot), 30% 미만 역배 후보(under), 고른 사람이 5명 미만이면 배지 없음', () => {
+  const b = (s, id) => { const m = L.matchBoard(C(s), PW).find(x => x.match === (id || 'p1')); return [m.a.badge, m.b.badge]; };
+  assert.deepStrictEqual(b('p1a:high:5 p1a:safe:4 p1b:high:3'), ['hot', 'under']);        // 75 : 25
+  assert.deepStrictEqual(b('p1a:high:7 p1b:high:3'), ['', '']);                            // 정확히 70 : 30은 일반
+  assert.deepStrictEqual(b('p1a:high:71 p1b:high:29'), ['hot', 'under']);
+  assert.deepStrictEqual(b('p1a:high:6'), ['hot', 'under']);                               // 한쪽 100%
+  assert.deepStrictEqual(b('p1a:high:4'), ['', '']);                                       // 4명뿐 → 배지 없음
+  assert.deepStrictEqual(b('p1a:high:3 p1b:high:1'), ['', '']);
+  assert.deepStrictEqual(b('p1a:high:3 p1b:safe:3'), ['', '']);                            // 50 : 50
+});
+test('superMatches: 조마다 예측 인원이 가장 많은 경기 (양 팀·두 방식 합산), 다른 조와는 비교하지 않음', () => {
+  // A조: p1 12명, p2 4명 / B조: p4 3명, p5 1명 → B조 1위(3명)는 A조 2위(4명)보다 적어도 슈퍼매치
+  const s = L.superMatches(C('p1a:high:5 p1a:safe:4 p1b:high:3 p2a:safe:2 p2b:high:2 p4a:high:2 p4b:safe:1 p5a:high:1'), PW);
+  assert.deepStrictEqual(s, { p1: 12, p4: 3 });
+});
+test('superMatches: 공동 1위는 모두, 예측이 없는 조는 없음, 0명·없는 경기는 무시', () => {
+  assert.deepStrictEqual(L.superMatches(C('p4a:high:2 p5b:safe:2 p1a:high:1'), PW), { p1: 1, p4: 2, p5: 2 });
+  assert.deepStrictEqual(L.superMatches(C('p1a:high:5 p3a:high:0 p9a:high:7'), PW), { p1: 5 });
+  assert.deepStrictEqual(L.superMatches([], PW), {});
+});
+test('superMatches: 마감 스냅숏(prediction_close 모양, mode 없음)으로도 같은 결과', () => {
+  const close = [{ match_id: 'p1', side: 'a', n: 9, total: 12 }, { match_id: 'p1', side: 'b', n: 3, total: 12 }, { match_id: 'p2', side: 'a', n: 4, total: 4 }, { match_id: 'p5', side: 'b', n: 2, total: 2 }];
+  assert.deepStrictEqual(L.superMatches(close, PW), { p1: 12, p5: 2 });
+  assert.deepStrictEqual(L.matchBoard(close, PW)[0].a.share, 0.75);
+});
 test('pickBadges: 상한가는 경기 안 70% 이상, 작전주는 가장 많이 걸린 선수 1명', () => {
   // p1: a 9 / b 3 → 75% 상한가. p2: 2/2 → 50%
   const b = L.pickBadges(COUNTS, PW);
