@@ -722,7 +722,7 @@ var Logic = (function () {
     board.forEach(function (x) { if (x.total === best[x.pool]) out[x.match] = x.total; });
     return out;
   }
-  // 🔺상한가: 경기 안 70% 이상인 쪽 / 🕵️작전주: 고른 인원이 가장 많이 걸린 선수 1명(동률이면 id 순)
+  // 🔺상한가: 경기 안 70% 이상인 쪽 / 인기 선수(예전 이름 작전주): 고른 인원이 가장 많이 걸린 선수 1명(동률이면 id 순)
   function pickBadges(counts, week) {
     var s = sumCounts(counts, week), upper = {};
     Object.keys(s.sides).forEach(function (k) {

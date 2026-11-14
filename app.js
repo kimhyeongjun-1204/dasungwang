@@ -508,7 +508,7 @@
       out += '<ol class="pp-list">' + shown.map(function (r) {
         var p = P[r.player] || {};
         return '<li class="pp-row"><span class="pp-rank num">' + r.rank + '</span><div class="pp-main"><div class="pp-name"><b>' + esc(p.name || '?') + '</b>' +
-          (r.player === sneaky ? '<span class="chip sneaky">작전주</span>' : '') + '</div>' +
+          (r.player === sneaky ? '<span class="chip sneaky">인기 선수</span>' : '') + '</div>' +
           (p.group ? '<span class="pp-sub gdot g' + p.group + '">' + esc(gname(p.group)) + '조</span>' : '') +
           '<span class="pp-bar" aria-hidden="true"><i style="width:' + (r.share * 100).toFixed(2) + '%"></i></span></div>' +
           '<div class="pp-nums"><b class="num">' + r.n + '명</b><b class="pp-pct num">' + pct(r.share) + '%</b></div></li>';

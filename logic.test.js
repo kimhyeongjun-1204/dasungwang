@@ -739,7 +739,7 @@ test('superMatches: 마감 스냅숏(prediction_close 모양, mode 없음)으로
   assert.deepStrictEqual(L.superMatches(close, PW), { p1: 12, p5: 2 });
   assert.deepStrictEqual(L.matchBoard(close, PW)[0].a.share, 0.75);
 });
-test('pickBadges: 상한가는 경기 안 70% 이상, 작전주는 가장 많이 걸린 선수 1명', () => {
+test('pickBadges: 상한가는 경기 안 70% 이상, 인기 선수(sneaky)는 가장 많이 걸린 선수 1명', () => {
   // p1: a 9 / b 3 → 75% 상한가. p2: 2/2 → 50%
   const b = L.pickBadges(COUNTS, PW);
   assert.deepStrictEqual(b.upper, { p1a: 1 });
