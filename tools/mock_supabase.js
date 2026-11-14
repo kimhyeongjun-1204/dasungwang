@@ -7,12 +7,84 @@ const crypto = require('crypto');
 
 const PORT = +process.env.PORT || 8787;
 const dist = path.join(__dirname, '..', 'dist');
+// 돼블스플랜 마감 판단용 서버 시계. MOCK_NOW=2026-11-18T17:31+09:00 처럼 주면 그 시각부터 흐름 (로컬 시험 전용)
+const clockOffset = process.env.MOCK_NOW ? Date.parse(process.env.MOCK_NOW) - Date.now() : 0;
+if (Number.isNaN(clockOffset)) throw new Error('MOCK_NOW 형식이 잘못됐어요');
+const now = () => Date.now() + clockOffset;
 // MOCK_STATE=파일경로 로 다른 데이터를 쓸 수 있음 (예: 실제 DB를 읽어 둔 사본)
-const src = process.env.MOCK_STATE ? JSON.parse(fs.readFileSync(process.env.MOCK_STATE, 'utf8'))
+// MOCK_DEMO=1 이면 seed.js 명단으로 만든 돼블스플랜 가짜 주차·예측 (tools/daebles_demo.js)
+const demo = process.env.MOCK_DEMO ? require('./daebles_demo.js').build(require('../seed.js'), now()) : null;
+const src = demo ? demo.state : process.env.MOCK_STATE ? JSON.parse(fs.readFileSync(process.env.MOCK_STATE, 'utf8'))
   : fs.existsSync(path.join(__dirname, '..', 'live_state.json')) ? require('../live_state.json') : require('../seed.js');
 const state = JSON.parse(JSON.stringify(src));
 delete state.rev; delete state.savedAt; if (state.settings) delete state.settings.pin;
 const db = { state, rev: src.rev || 1, saved_at: src.savedAt || new Date().toISOString(), pin: '1234', sessions: new Set() };
+
+// ---- 돼블스플랜: schema.sql의 테이블·함수를 메모리에서 흉내 ----
+const P = { predictions: [], prediction_counts: [], prediction_events: [], prediction_close: [], eventId: 0 };
+const deadline = d => Date.parse(d + 'T17:30:00+09:00');
+const testWeeks = {}; // prediction_test_weeks (verify_db.js 전용, 2000·2099년만)
+const isTestDate = d => /^(2000|2099)-/.test(String(d));
+const weekIds = d => { const w = db.state.weeks.find(x => x.date === d && x.published !== false); return w ? w.matches.map(m => m.id) : testWeeks[d] || null; };
+function predCheck(d, pid, mode, picks) {
+  if (mode !== 'high' && mode !== 'safe') return 'bad_mode';
+  if (!db.state.players.some(p => p.id === pid && p.active !== false)) return 'bad_player';
+  const ids = weekIds(d);
+  if (!ids) return 'no_week';
+  if (!Array.isArray(picks) || picks.length !== 4) return 'bad_count';
+  const seen = new Set();
+  for (const e of picks) {
+    if (!e || typeof e.match !== 'string') return 'bad_match';
+    if (e.side !== 'a' && e.side !== 'b') return 'bad_side';
+    if (seen.has(e.match)) return 'dup_match';
+    if (!ids.includes(e.match)) return 'bad_match';
+    seen.add(e.match);
+  }
+  return null;
+}
+function bump(d, k, mode, by) {
+  let c = P.prediction_counts.find(x => x.week_date === d && x.match_id === k.match && x.side === k.side && x.mode === mode);
+  if (!c) P.prediction_counts.push(c = { week_date: d, match_id: k.match, side: k.side, mode, n: 0 });
+  c.n += by;
+}
+function predApply(d, pid, mode, picks, log, at) {
+  const t = new Date(at || now()).toISOString();
+  const clean = picks.map(e => ({ match: e.match, side: e.side }));
+  const prev = P.predictions.find(x => x.week_date === d && x.player_id === pid);
+  const has = (list, k) => list.some(x => x.match === k.match && x.side === k.side);
+  const ev = (k, m, delta) => P.prediction_events.push({ id: ++P.eventId, week_date: d, match_id: k.match, side: k.side, mode: m, delta, at: t });
+  if (prev) {
+    prev.picks.forEach(k => bump(d, k, prev.mode, -1));
+    if (log) prev.picks.forEach(k => { if (prev.mode !== mode || !has(clean, k)) ev(k, prev.mode, -1); });
+  }
+  clean.forEach(k => bump(d, k, mode, 1));
+  if (log) clean.forEach(k => { if (!prev || prev.mode !== mode || !has(prev.picks, k)) ev(k, mode, 1); });
+  if (prev) Object.assign(prev, { mode, picks: clean, updated_at: t });
+  else P.predictions.push({ week_date: d, player_id: pid, mode, picks: clean, updated_at: t });
+  return t;
+}
+function predRemove(d, pid) {
+  const i = P.predictions.findIndex(x => x.week_date === d && x.player_id === pid);
+  if (i < 0) return false;
+  P.predictions[i].picks.forEach(k => bump(d, k, P.predictions[i].mode, -1));
+  P.predictions.splice(i, 1);
+  return true;
+}
+if (demo) demo.predictions.forEach(p => predApply(p.week_date, p.player_id, p.mode, p.picks, true, Date.parse(p.updated_at)));
+// GET /rest/v1/<표>?week_date=eq.X&order=id.desc&limit=N (쓰는 모양만)
+function queryTable(name, u) {
+  let rows = P[name].slice();
+  if (name === 'predictions') rows = rows.filter(r => now() >= deadline(r.week_date)); // RLS: 마감 후에만
+  for (const [k, v] of u.searchParams) {
+    if (['select', 'order', 'limit'].includes(k)) continue;
+    const m = /^(eq|gte|lt)\.(.*)$/.exec(v);
+    if (m) rows = rows.filter(r => m[1] === 'eq' ? String(r[k]) === m[2] : m[1] === 'gte' ? String(r[k]) >= m[2] : String(r[k]) < m[2]);
+  }
+  const o = u.searchParams.get('order');
+  if (o) { const [k, dir] = o.split('.'); rows.sort((x, y) => (x[k] < y[k] ? -1 : x[k] > y[k] ? 1 : 0) * (dir === 'desc' ? -1 : 1)); }
+  const lim = +u.searchParams.get('limit');
+  return lim ? rows.slice(0, lim) : rows;
+}
 
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.webmanifest': 'application/manifest+json', '.png': 'image/png' };
 function send(res, status, body, type) { res.writeHead(status, { 'Content-Type': type || 'application/json', 'Cache-Control': 'no-store' }); res.end(typeof body === 'string' || Buffer.isBuffer(body) ? body : JSON.stringify(body)); }
@@ -34,6 +106,47 @@ const RPC = {
     if (!db.sessions.has(a.token)) return fail(res, 'unauthorized');
     if (a.old_pin !== db.pin) return fail(res, 'bad_pin');
     db.pin = a.new_pin; db.sessions = new Set([a.token]); send(res, 200, 'null');
+  },
+  submit_prediction: (a, res) => {
+    if (now() >= deadline(a.week_date)) return fail(res, 'closed');
+    const bad = predCheck(a.week_date, a.player_id, a.mode, a.picks);
+    if (bad) return fail(res, bad);
+    send(res, 200, JSON.stringify(predApply(a.week_date, a.player_id, a.mode, a.picks, true)));
+  },
+  admin_upsert_prediction: (a, res) => {
+    if (!db.sessions.has(a.token)) return fail(res, 'unauthorized');
+    const bad = predCheck(a.week_date, a.player_id, a.mode, a.picks);
+    if (bad) return fail(res, bad);
+    send(res, 200, JSON.stringify(predApply(a.week_date, a.player_id, a.mode, a.picks, false)));
+  },
+  admin_delete_prediction: (a, res) => {
+    if (!db.sessions.has(a.token)) return fail(res, 'unauthorized');
+    send(res, 200, String(predRemove(a.week_date, a.player_id)));
+  },
+  admin_list_predictions: (a, res) => {
+    if (!db.sessions.has(a.token)) return fail(res, 'unauthorized');
+    send(res, 200, P.predictions.filter(x => x.week_date === a.week_date));
+  },
+  admin_test_week: (a, res) => {
+    if (!db.sessions.has(a.token)) return fail(res, 'unauthorized');
+    if (!isTestDate(a.week_date)) return fail(res, 'test_date_only');
+    testWeeks[a.week_date] = a.match_ids; send(res, 200, 'null');
+  },
+  admin_test_purge: (a, res) => {
+    if (!db.sessions.has(a.token)) return fail(res, 'unauthorized');
+    const out = {};
+    for (const t of ['predictions', 'prediction_counts', 'prediction_events', 'prediction_close']) {
+      const before = P[t].length; P[t] = P[t].filter(r => !isTestDate(r.week_date)); out[t] = before - P[t].length;
+    }
+    out.prediction_test_weeks = Object.keys(testWeeks).length; for (const k of Object.keys(testWeeks)) delete testWeeks[k];
+    send(res, 200, out);
+  },
+  close_snapshot: (a, res) => {
+    const d = a.week_date;
+    if (now() < deadline(d) || P.prediction_close.some(x => x.week_date === d)) return send(res, 200, '0');
+    const rows = require('../logic.js').closeFromPredictions(P.predictions.filter(x => x.week_date === d)).map(r => Object.assign({ week_date: d }, r));
+    P.prediction_close.push(...rows);
+    send(res, 200, String(rows.length));
   },
 };
 
@@ -69,12 +182,18 @@ http.createServer((req, res) => {
     return req.on('end', () => setTimeout(() => send(res, 200, mockRematch(JSON.parse(body || '{}'))), 800));
   }
   if (u.pathname === '/rest/v1/app_state' && req.method === 'GET') return send(res, 200, { state: db.state, rev: db.rev, saved_at: db.saved_at });
+  const table = u.pathname.slice('/rest/v1/'.length);
+  if (u.pathname.startsWith('/rest/v1/') && table in P && table !== 'eventId') {
+    if (req.method !== 'GET') return send(res, 401, { code: '42501', message: 'permission denied for table ' + table });
+    return send(res, 200, queryTable(table, u));
+  }
   if (u.pathname.startsWith('/rest/v1/rpc/') && req.method === 'POST') {
     let body = ''; req.on('data', c => body += c);
     return req.on('end', () => { const f = RPC[u.pathname.slice(13)]; f ? f(JSON.parse(body || '{}'), res) : send(res, 404, { message: 'no function' }); });
   }
-  if (u.pathname === '/config.js') return send(res, 200, "window.DDW_CONFIG = { url: 'http://localhost:" + PORT + "', anonKey: 'mock' };", TYPES['.js']);
+  if (u.pathname === '/config.js') return send(res, 200, "window.DDW_CONFIG = { url: 'http://localhost:" + PORT + "', anonKey: 'mock', realtime: false };", TYPES['.js']);
   const f = path.join(dist, u.pathname === '/' ? 'index.html' : path.normalize(u.pathname).replace(/^[\\/]+/, ''));
   if (!f.startsWith(dist) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) return send(res, 404, 'not found', 'text/plain');
   send(res, 200, fs.readFileSync(f), TYPES[path.extname(f)] || 'application/octet-stream');
-}).listen(PORT, () => console.log('mock supabase + dist on http://localhost:' + PORT + ' (PIN 1234)'));
+}).listen(PORT, () => console.log('mock supabase + dist on http://localhost:' + PORT + ' (PIN 1234)' +
+  (clockOffset ? ' · 서버 시계 ' + new Date(now()).toISOString() : '') + (demo ? ' · 돼블스플랜 데모 예측 ' + P.predictions.length + '건' : '')));

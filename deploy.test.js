@@ -113,6 +113,73 @@ test('api.check / changePin / logout: RPC 이름과 인자', async () => {
   assert.deepStrictEqual(c.calls[1][1], { token: 'tok', old_pin: '1111', new_pin: '2222' });
 });
 
+// 돼블스플랜: 표 읽기 흉내 (select·eq·order·limit 기록)
+function tableClient(rows, handlers) {
+  const calls = [];
+  return {
+    calls,
+    rpc(name, args) { calls.push(['rpc', name, args]); return Promise.resolve(handlers[name](args)); },
+    from(t) {
+      const c = ['from', t];
+      calls.push(c);
+      const q = {
+        select(s) { c.push('select:' + s); return q; }, eq(k, v) { c.push(k + '=' + v); return q; },
+        order(k, o) { c.push('order:' + k + (o && o.ascending === false ? ' desc' : '')); return q; }, limit(n) { c.push('limit:' + n); return q; },
+        then(res, rej) { return Promise.resolve({ data: rows[t] || [], error: null }).then(res, rej); },
+      };
+      return q;
+    },
+  };
+}
+test('api 예측: counts·events·close·predictions를 그 주 기준으로 읽음', async () => {
+  const c = tableClient({ prediction_counts: [{ match_id: 'm1', side: 'a', mode: 'high', n: 2 }] }, {});
+  const a = need().api(c);
+  assert.deepStrictEqual(await a.predCounts('2026-11-18'), [{ match_id: 'm1', side: 'a', mode: 'high', n: 2 }]);
+  await a.predEvents('2026-11-18');
+  await a.predClose('2026-11-18');
+  await a.predictions();
+  assert.deepStrictEqual(c.calls[0].slice(0, 2), ['from', 'prediction_counts']);
+  assert.ok(c.calls[0].includes('week_date=2026-11-18'));
+  assert.ok(c.calls[1].includes('order:id desc') && c.calls[1].some(x => /^limit:\d+$/.test(x)), '이벤트는 최신순 일부만');
+  assert.deepStrictEqual(c.calls.map(x => x[1]), ['prediction_counts', 'prediction_events', 'prediction_close', 'predictions']);
+});
+test('api.submitPrediction: RPC 이름·인자, 마감 후는 closed 코드', async () => {
+  const picks = [{ match: 'm1', side: 'a' }];
+  const c = tableClient({}, { submit_prediction: () => ({ data: 't', error: null }) });
+  await need().api(c).submitPrediction('2026-11-18', 'p001', 'high', picks);
+  assert.deepStrictEqual(c.calls[0], ['rpc', 'submit_prediction', { week_date: '2026-11-18', player_id: 'p001', mode: 'high', picks }]);
+  const bad = tableClient({}, { submit_prediction: () => ({ data: null, error: { message: 'closed', code: 'P0001' } }) });
+  await assert.rejects(need().api(bad).submitPrediction('2026-11-18', 'p001', 'high', picks), e => e.code === 'closed');
+  for (const m of ['bad_player', 'dup_match', 'bad_match', 'bad_count', 'bad_side', 'no_week']) assert.strictEqual(need().errorCode({ message: m }).code, m);
+});
+test('api 예측 관리: 토큰과 함께 목록·수정·삭제, 마감 스냅숏', async () => {
+  const ok = () => ({ data: [], error: null });
+  const c = tableClient({}, { admin_list_predictions: ok, admin_upsert_prediction: ok, admin_delete_prediction: ok, close_snapshot: ok });
+  const a = need().api(c);
+  await a.adminListPredictions('tok', '2026-11-18');
+  await a.adminUpsertPrediction('tok', '2026-11-18', 'p001', 'safe', []);
+  await a.adminDeletePrediction('tok', '2026-11-18', 'p001');
+  await a.closeSnapshot('2026-11-18');
+  assert.deepStrictEqual(c.calls.map(x => x[1]), ['admin_list_predictions', 'admin_upsert_prediction', 'admin_delete_prediction', 'close_snapshot']);
+  assert.deepStrictEqual(c.calls[1][2], { token: 'tok', week_date: '2026-11-18', player_id: 'p001', mode: 'safe', picks: [] });
+  assert.deepStrictEqual(c.calls[2][2], { token: 'tok', week_date: '2026-11-18', player_id: 'p001' });
+});
+test('api.watchPredictions: Realtime이 없거나 꺼져 있으면 구독 안 하고 live=false', () => {
+  const r = need();
+  const w = r.api(tableClient({}, {})).watchPredictions('2026-11-18', () => { });
+  assert.strictEqual(w.live(), false);
+  w.stop();
+  const subs = [];
+  const rt = { channel(n) { const ch = { on(ev, f, cb) { subs.push(f); return ch; }, subscribe(cb) { cb('SUBSCRIBED'); return ch; } }; return ch; }, removeChannel() { } };
+  const off = r.api(rt, { realtime: false }).watchPredictions('2026-11-18', () => { });
+  assert.strictEqual(off.live(), false);
+  assert.strictEqual(subs.length, 0);
+  const on = r.api(rt).watchPredictions('2026-11-18', () => { });
+  assert.strictEqual(on.live(), true);
+  assert.deepStrictEqual(subs.map(f => f.table).sort(), ['prediction_counts', 'prediction_events']);
+  assert.ok(subs.every(f => f.filter === 'week_date=eq.2026-11-18'));
+});
+
 // 돼장 요청 → Edge Function 'rematch'
 function fnClient(reply) {
   const calls = [];
