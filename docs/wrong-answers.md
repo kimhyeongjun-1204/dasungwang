@@ -17,3 +17,4 @@
 | 13 | 인기 픽 줄의 숫자 칸을 `auto` 폭으로 둠 | 줄마다 "▲2 · 83%"/"71%" 길이가 달라 추세선·막대 위치가 줄마다 어긋났음(390px 스크린숏) | 숫자 칸을 고정 폭(78px, 360px 이하 74px)으로 |
 | 14 | 제출 뒤 "참여 14명"이 15명으로 안 늘어서 집계 버그라고 봄 | 고른 이름(김형준)이 가짜 데이터에 이미 예측이 있어서 덮어쓴 것. 이벤트를 읽어 보니 -1 3건·+1 3건으로 정상 | 버그 아님. 같은 사람 재제출은 인원이 늘지 않는 게 맞음 |
 | 15 | README를 Python 기본 모드(줄바꿈 변환)로 읽고 써서 고침 | README 94번째 줄에 원래 있던 제어 문자(`\r`·`\f`, 경로 `supabase\functions\rematch`가 깨진 흔적)가 줄바꿈으로 바뀌어 상관없는 줄이 diff에 잡혔음 | 되돌린 뒤 `newline=''`로 바이트 그대로 두고 다시 고침. 그 깨진 줄 자체는 이번 범위 밖이라 손대지 않음 |
+| 16 | SQL 복사 명령을 `Get-Content supabase\schema.sql -Raw \| Set-Clipboard`로 안내 | Windows PowerShell 5.1의 `Get-Content`는 BOM 없는 파일을 시스템 코드페이지(CP949)로 읽어서, 한글 주석 끝 바이트가 줄바꿈과 묶여 줄바꿈 4개가 사라짐(406줄 → 402줄). 다음 줄 `create or replace function public.prediction_match_ids…`가 주석 안으로 들어가 SQL Editor에서 `42601: syntax error at or near "language"` (LINE 213) | `-Encoding UTF8`을 붙여 안내. 기본 읽기 213번째 줄이 오류 줄과 같고, UTF8 읽기는 406줄 그대로인 것을 PowerShell에서 확인 |

@@ -543,3 +543,17 @@ $ VERIFY_URL=http://localhost:8790 ADMIN_PIN=1234 node verify_db.js --predict
 | 이번 주 | main 높이 3209px, 글자 839자 | 3209px, 839자 (같음) |
 | 내 기록 | 948px, "조 내 8위" | 948px, "조 내 9위" (보너스 합산 순위. 나머지 글자 같음) |
 | 순위 | 2248px | 2272px (보너스 칸, 안내 한 줄 추가) |
+
+### 사용자 SQL Editor 실행 1회차 (사용자가 붙여 준 결과)
+```
+Failed to run sql query: ERROR:  42601: syntax error at or near "language"
+LINE 213: language sql stable security definer set search_path = public as $$
+          ^
+```
+원인 확인 (Windows PowerShell 5.1):
+```
+기본(ANSI) 읽기 줄 수: 402 / UTF8 읽기 줄 수: 406
+기본 읽기 213번째 줄: language sql stable security definer set search_path = public as $$
+UTF8 읽기 213번째 줄: -- 그 주 경기 id 목록 (app_state의 공개된 주, 없으면 가짜 주). 읽기만 함
+```
+→ 복사 명령에 `-Encoding UTF8` 필요. schema.sql 파일은 그대로.
