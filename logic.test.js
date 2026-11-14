@@ -687,6 +687,23 @@ test('pickChanges: 최근 1시간 이벤트의 증감 합 (방식 필터)', () =
   assert.deepStrictEqual(L.pickChanges(ev, now), { p1a: 2, p1b: -1 });
   assert.deepStrictEqual(L.pickChanges(ev, now, 'high'), { p1a: 1, p1b: -1 });
 });
+test('pickTrend: 지금 인원에서 거꾸로 빼 가며 만든 누적 인원 추이 (오래된 것부터, 최대 12점)', () => {
+  const ev = [
+    { match_id: 'p1', side: 'a', mode: 'high', delta: 1, at: '2026-11-18T09:00:00Z' },
+    { match_id: 'p1', side: 'a', mode: 'safe', delta: 1, at: '2026-11-18T09:10:00Z' },
+    { match_id: 'p1', side: 'b', mode: 'high', delta: 1, at: '2026-11-18T09:15:00Z' },
+    { match_id: 'p1', side: 'a', mode: 'high', delta: -1, at: '2026-11-18T09:20:00Z' },
+    { match_id: 'p1', side: 'a', mode: 'high', delta: 1, at: '2026-11-18T09:30:00Z' },
+  ];
+  // 지금 p1a 5명 → 이벤트 전 3명: 3 → 4 → 5 → 4 → 5
+  assert.deepStrictEqual(L.pickTrend(ev, 'p1', 'a', 5), [3, 4, 5, 4, 5]);
+  assert.deepStrictEqual(L.pickTrend(ev, 'p1', 'a', 3, 'high'), [2, 3, 2, 3]);
+  assert.deepStrictEqual(L.pickTrend([], 'p1', 'a', 5), [5]);
+  const many = Array.from({ length: 30 }, (_, i) => ({ match_id: 'p2', side: 'a', mode: 'high', delta: 1, at: new Date(Date.UTC(2026, 10, 18, 9, i)).toISOString() }));
+  const t = L.pickTrend(many, 'p2', 'a', 30);
+  assert.strictEqual(t.length, 12);
+  assert.strictEqual(t[0], 0); assert.strictEqual(t[11], 30);
+});
 test('pickBadges: 상한가는 경기 안 70% 이상, 작전주는 가장 많이 걸린 선수 1명', () => {
   // p1: a 9 / b 3 → 75% 상한가. p2: 2/2 → 50%
   const b = L.pickBadges(COUNTS, PW);

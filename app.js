@@ -494,11 +494,19 @@
       var move = c > 0 ? '<span class="mv-up">▲' + c + '</span> · ' : c < 0 ? '<span class="mv-down">▼' + (-c) + '</span> · ' : '';
       return '<li class="pp-row"><span class="pp-rank num">' + r.rank + '</span><div class="pp-main"><div class="pp-name"><b>' + esc(teamText(m, r.side, P)) + '</b>' + tags + '</div>' +
         '<span class="pp-sub gdot g' + m.pool + '">' + esc(matchLabel(w, m)) + '</span><span class="pp-bar" aria-hidden="true"><i style="width:' + pct(r.share) + '%"></i></span></div>' +
+        spark(L.pickTrend(pred.events, r.match, r.side, r.n, f), c) +
         '<div class="pp-nums"><b class="num">' + r.n + '명</b><span class="num">' + move + pct(r.share) + '%</span></div></li>';
     }).join('') + '</ol>';
     if (list.length > 5) out += '<button class="btn sm" data-act="pp-more">' + (ui.pred.more ? '접기' : '전체 보기 (' + list.length + '팀)') + '</button>';
     if (!closed) out += '<p class="small muted">▲▼ 최근 1시간 인원 변화 · 상한가: 한 경기에서 70% 이상이 고른 팀 · 작전주: 이번 주 가장 많이 걸린 선수</p>';
     return out + '</div>';
+  }
+  // 작은 추세선(이름 없는 체결 이벤트로 만든 누적 인원). 최근 1시간 오르면 빨강, 내리면 파랑
+  function spark(vals, change) {
+    if (vals.length < 2) return '<span class="pp-spark" aria-hidden="true"></span>';
+    var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals), W = 56, H = 22;
+    var pts = vals.map(function (v, i) { return (i * W / (vals.length - 1)).toFixed(1) + ',' + (hi === lo ? H / 2 : H - 2 - (v - lo) / (hi - lo) * (H - 4)).toFixed(1); }).join(' ');
+    return '<svg class="pp-spark ' + (change > 0 ? 'rise' : change < 0 ? 'fall' : '') + '" viewBox="0 0 ' + W + ' ' + H + '" aria-hidden="true"><polyline points="' + pts + '" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/></svg>';
   }
   function viewFeed(w, P) {
     var ev = pred.events.filter(function (e) { return e.delta > 0; }).slice(0, 3);

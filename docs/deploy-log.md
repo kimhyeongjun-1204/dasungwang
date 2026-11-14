@@ -429,3 +429,117 @@ $ node deploy.test.js | tail -1
 17 passed
 ```
 화면 확인 (실제 데이터 사본, 10/28): 구역 첫 줄 "지옥도·천국도 조 옮기기 고른 사람만 옮겨져요. …" 다음 바로 "참석자" 드롭다운, "추천" 문구 없음, 드롭다운의 지옥도·천국도 표시 7개는 그대로.
+
+## 20. 돼블스플랜(승부 예측) 1단계 — 브랜치 feat/daebles-plan (2026-11-14, Node v22.14.0)
+### 로직 테스트 먼저 (구현 전)
+```
+$ node logic.test.js   (예측 테스트 28개 추가, logic.js는 그대로)
+  FAIL predictionDeadline: 그 날 17:30 KST (= 08:30 UTC)
+  FAIL isPredictionClosed: 17:29:59는 열림, 17:30:00부터 마감
+  FAIL validatePicks: 서로 다른 4경기·a/b면 오류 없음
+  FAIL validatePicks: 3개·5개·배열 아님은 count
+  FAIL validatePicks: 중복 경기·없는 경기·잘못된 side
+  FAIL 하이리스크 4경기 모두 적중 → hit +3
+  FAIL 하이리스크 하나 틀림 → miss -1
+  FAIL 안전형 적중 +1, 실패 0
+  FAIL 결과가 덜 나왔고 틀린 게 없으면 pending, 보너스 0
+  FAIL 대기 중이어도 하나 틀리면 즉시 miss
+  FAIL 고른 경기가 편성에서 사라지면 check, 보너스 0
+  FAIL 사라진 경기가 있으면 다른 경기가 틀려도 check (자동 처리 안 함)
+  FAIL 선수 자리가 빈 경기(무효)는 check
+  FAIL 주가 없거나 픽이 4개가 아니면 check
+  FAIL bonusByPlayer: 주차별 합계, 공개 안 된 주·없는 주는 0
+  FAIL standings: 보너스 없으면 기존과 같은 순서·순위
+  FAIL standings: 보너스 합산으로 순위, 공식 승은 그대로
+  FAIL standings: 합계 동률은 같은 순위, 패 적은 쪽이 위 (기존 동률 규칙)
+  FAIL popularPicks: 팀별 인원 순위, 경기 안 비율, 0명·없는 경기 제외
+  FAIL popularPicks: 방식 필터
+  FAIL pickChanges: 최근 1시간 이벤트의 증감 합 (방식 필터)
+  FAIL pickBadges: 상한가는 경기 안 70% 이상, 작전주는 가장 많이 걸린 선수 1명
+  FAIL closeFromPredictions: 두 방식 합산 마감 비율 (prediction_close 모양)
+  FAIL closingReport: 결과가 다 안 나오면 ready false
+  FAIL closingReport: 상한가·폭락주·역배 적중·수익·적중자
+  FAIL closingReport: 마감 스냅숏이 있으면 그 비율을 씀 (마감 후 수정과 무관)
+  FAIL closingReport: 스냅숏이 없으면 예측으로 계산, 소수 픽 승이 없으면 역배 null
+75 passed
+```
+- 27개 FAIL. 통과 75 = 기존 74 + "지옥도·천국도는 보너스와 무관"(기존 tierOf만 써서 구현 전에도 통과)
+```
+$ node logic.test.js   (logic.js 구현 후)
+102 passed
+$ node logic.test.js   (작은 추세선 pickTrend 테스트 1개 먼저 추가)
+  FAIL pickTrend: 지금 인원에서 거꾸로 빼 가며 만든 누적 인원 추이 (오래된 것부터, 최대 12점)
+       L.pickTrend is not a function
+102 passed
+$ node logic.test.js   (구현 후)
+103 passed
+```
+### remote.js 테스트 먼저
+```
+$ node deploy.test.js   (예측 API 테스트 4개 추가, remote.js는 그대로)
+  FAIL api.watchPredictions: Realtime이 없거나 꺼져 있으면 구독 안 하고 live=false
+  FAIL api 예측: counts·events·close·predictions를 그 주 기준으로 읽음
+  FAIL api.submitPrediction: RPC 이름·인자, 마감 후는 closed 코드
+  FAIL api 예측 관리: 토큰과 함께 목록·수정·삭제, 마감 스냅숏
+17 passed
+$ node deploy.test.js   (구현 후)
+21 passed
+```
+### 가짜 서버로 DB 검증 스크립트 미리 돌리기 (실제 DB 아님)
+`tools/mock_supabase.js`(PORT 8790, live_state.json)에 대고 실행. 가짜 서버는 schema.sql을 JS로 흉내 낸 것이라 SQL 자체를 검증한 것은 아님.
+```
+$ VERIFY_URL=http://localhost:8790 ADMIN_PIN=1234 node verify_db.js --predict
+대상: http://localhost:8790
+
+
+돼블스플랜 예측 (테스트 날짜 2000-01-05 · 2099-12-30, app_state 읽기만)
+  ok  관리자 로그인 + 명단에서 선수 2명 읽기 (읽기만)  (rev 7)
+  ok  이전 시험 찌꺼기 정리 + 테스트 주 만들기 (2000·2099년만)
+  ok  테스트 주 함수: 실제 날짜는 test_date_only, 무효 토큰은 unauthorized
+  ok  anon이 predictions에 직접 INSERT하면 거부  (401 42501 permission denied for table predictions)
+  ok  anon이 prediction_counts에 직접 INSERT하면 거부  (401 42501 permission denied for table prediction_counts)
+  ok  anon이 prediction_events에 직접 INSERT하면 거부  (401 42501 permission denied for table prediction_events)
+  ok  anon이 prediction_close에 직접 INSERT하면 거부  (401 42501 permission denied for table prediction_close)
+  ok  제출 거부: 3개 → bad_count
+  ok  제출 거부: 5개 → bad_count
+  ok  제출 거부: 중복 경기 → dup_match
+  ok  제출 거부: 없는 경기 → bad_match
+  ok  제출 거부: 잘못된 side → bad_side
+  ok  제출 거부: 명단에 없는 선수 → bad_player
+  ok  제출 거부: 없는 방식 → bad_mode
+  ok  마감 후 제출 거부 → closed
+  ok  정상 제출 → counts +1 (방식별), 이벤트 +4
+  ok  마감 전 anon이 predictions를 읽으면 0행
+  ok  수정하면 이전 선택은 감소, 새 선택은 증가 (이벤트 -1/+1)
+  ok  방식을 바꾸면 하이리스크 counts는 빠지고 안전형으로 들어감
+  ok  관리자 목록: 마감 전에도 전체 보임, 무효 토큰은 unauthorized
+  ok  관리자 토큰으로는 마감 후에도 수정 가능, 무효 토큰은 거부
+  ok  마감 후에는 anon도 predictions를 읽을 수 있음
+  ok  close_snapshot: 마감 전 0, 마감 후 한 번만 채움 (두 번째는 0)  (넣은 행 5)
+  ok  스냅숏 뒤 관리자 수정은 마감 비율(prediction_close)을 바꾸지 않음
+  ok  관리자 삭제 → counts 원래대로
+  ok  정리: 테스트 날짜의 행을 모두 지우고 남은 것 없음  (지운 행 {"predictions":2,"prediction_counts":14,"prediction_events":14,"prediction_close":5,"prediction_test_weeks":2})
+  ok  app_state는 그대로 (rev 변화 없음)  (rev 7)
+
+27 passed, 0 failed
+```
+### 화면 확인 (MOCK_DEMO=1, seed.js 명단으로 만든 가짜 주차·예측, 실제 데이터 아님)
+| 확인 | 결과 |
+|---|---|
+| 예측 탭 11/18 (마감 전) | 배너 "11/18(수) · 승리를 예측하라!", "마감까지 3일 22시간", "참여 14명", 실시간 인기 픽 5팀 + "전체 보기 (16팀)", 체결 3줄 |
+| 제출 (김형준, 하이리스크, 4경기) | 토스트 "제출했어요. 마감 전까지 고칠 수 있어요.", 내 예측 카드 4칸 ⏳, localStorage `ddw-pred`에 저장. 같은 사람이 이미 낸 예측이 있어 덮어씀 → 참여 14명 그대로, 이벤트 -1 3건·+1 3건 |
+| 같은 경기 다른 팀 누르기 | 선택이 바뀜(4/4 유지). 4개 고른 뒤 나머지 13경기 흐림·버튼 26개 disabled |
+| 11/11 (마감·결과 완료) | 장 마감 리포트: 참여 18 / 적중 2 / 실패 16, 상한가 83%, 폭락주 82% "9명이 함께 날렸습니다", 역배 18%, 수익 +4승, 적중자 2명. 전원 공개 18명 |
+| 리포트 크기 | 390×844에서 카드 위 12px ~ 아래 633px(스크롤 없음), 360×780에서도 12~633px |
+| 순위 (소갈비·양갈비) | 보너스 칸 추가, 김혜선 공식 6승 +3 → 1위, 표 아래 "승수 = 공식 경기 + 돼블스플랜 보너스" |
+| 관리 › 예측 (PIN 1234, 가짜 서버) | 11/18 14명 전체 보임. 권영순 안전형→하이리스크 고치기 저장 → "예측을 저장했어요." / 1경기 삭제(저장 안 함) → "확인 필요 9명" 경고, 되돌리기 후 0명 |
+| 마감 넘어가기 (MOCK_NOW=2026-11-18T17:29:30+09:00, 브라우저 시계도 콘솔에서 같은 시각으로) | "마감까지 0:00:27" → 30초 뒤 "장 마감", 예측하기 화면 닫힘, 전원 공개 0명 → 14명 |
+| 브라우저 시계가 늦을 때 마감 후 제출 | 서버가 closed → 토스트 "마감됐어요(수요일 17:30). 이제는 돼장만 고칠 수 있어요.", localStorage 저장 안 함 |
+| 가로 넘침 | scrollWidth 360(360px) · 390(390px) · 1009(1024px, 세로 스크롤바 15px) |
+| 배너 글자와 캐릭터 (360px) | 글자 오른쪽 끝 213px, 돼지 시작 213px(왼쪽 28%는 투명→불투명 마스크라 259px부터 다 보임), 배너 높이 137px |
+### 기존 탭 회귀 비교 (main 빌드 vs 이 브랜치, 같은 MOCK_DEMO 데이터, 360×780, 11/11, 내 이름 김형준)
+| 탭 | main | 이 브랜치 |
+|---|---|---|
+| 이번 주 | main 높이 3209px, 글자 839자 | 3209px, 839자 (같음) |
+| 내 기록 | 948px, "조 내 8위" | 948px, "조 내 9위" (보너스 합산 순위. 나머지 글자 같음) |
+| 순위 | 2248px | 2272px (보너스 칸, 안내 한 줄 추가) |

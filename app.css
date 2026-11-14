@@ -462,7 +462,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; }
 .live-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--plan); margin-right: 6px; vertical-align: 2px; box-shadow: 0 0 0 3px rgb(240 32 104 / .18); }
 .pp-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .pp-list { list-style: none; margin: 0; padding: 0; display: grid; }
-.pp-row { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line-2); }
+.pp-row { display: grid; grid-template-columns: 22px minmax(0, 1fr) 56px 78px; gap: 10px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line-2); }
 .pp-row:first-child { border-top: 0; }
 .pp-rank { font-size: 17px; font-weight: 700; color: var(--plan-text); text-align: center; }
 .pp-main { min-width: 0; display: grid; gap: 2px; }
@@ -471,6 +471,10 @@ textarea { width: 100%; min-height: 84px; resize: vertical; }
 .pp-sub { font-size: var(--fs-cap); font-weight: 500; color: var(--text-2); }
 .pp-bar, .pe-bar { display: block; height: 4px; border-radius: 2px; background: var(--line-2); overflow: hidden; margin-top: 4px; }
 .pp-bar i, .pe-bar i { display: block; height: 100%; background: var(--navy); border-radius: 2px; }
+.pp-spark { width: 56px; height: 22px; color: var(--text-2); }
+.pp-spark.rise { color: var(--hell-text); }
+.pp-spark.fall { color: var(--heaven-text); }
+@media (max-width: 360px) { .pp-row { grid-template-columns: 22px minmax(0, 1fr) 40px 74px; gap: 8px; } .pp-spark { width: 40px; } }
 .pp-nums { display: grid; justify-items: end; gap: 2px; }
 .pp-nums b { font-size: 16px; font-weight: 700; color: var(--navy); }
 .pp-nums span { font-size: var(--fs-cap); font-weight: 700; color: var(--text-2); }
@@ -492,7 +496,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; }
 }
 /* 하단 고정 바 (내 예측 하기 / 제출) */
 .plan-cta { position: fixed; left: 0; right: 0; bottom: 0; z-index: 9; padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px)); background: linear-gradient(180deg, rgb(244 247 252 / 0), var(--bg) 30%); }
-.plan-cta .in { max-width: 720px; margin: 0 auto; display: grid; gap: 8px; }
+.plan-cta .in { max-width: 688px; margin: 0 auto; display: grid; gap: 8px; }
 .plan-cta .btn.primary { min-height: 52px; font-size: 17px; gap: 8px; box-shadow: 0 4px 14px rgb(32 38 79 / .15); }
 .plan-cta .btn small { font-size: 13px; font-weight: 500; }
 .pe-bar-fixed { background: var(--surface); border-top: 1px solid var(--line); box-shadow: 0 -4px 16px rgb(32 38 79 / .08); }

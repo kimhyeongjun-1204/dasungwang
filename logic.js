@@ -673,6 +673,17 @@ var Logic = (function () {
     });
     return out;
   }
+  // 인기 픽 작은 추세선: 지금 인원 n에서 이벤트 증감을 거꾸로 빼서 만든 누적 인원 (오래된 것부터, 최대 12점)
+  function pickTrend(events, match, side, n, mode) {
+    var ev = (events || []).filter(function (e) { return e.match_id === match && e.side === side && (!mode || e.mode === mode); })
+      .sort(function (a, b) { return Date.parse(a.at) - Date.parse(b.at) || (a.id || 0) - (b.id || 0); });
+    var cur = n - ev.reduce(function (t, e) { return t + (e.delta == null ? 1 : e.delta); }, 0), s = [cur];
+    ev.forEach(function (e) { cur += e.delta == null ? 1 : e.delta; s.push(cur); });
+    if (s.length <= 12) return s;
+    var out = [];
+    for (var i = 0; i < 12; i++) out.push(s[Math.round(i * (s.length - 1) / 11)]);
+    return out;
+  }
   // 🔺상한가: 경기 안 70% 이상인 쪽 / 🕵️작전주: 고른 인원이 가장 많이 걸린 선수 1명(동률이면 id 순)
   function pickBadges(counts, week) {
     var s = sumCounts(counts, week), upper = {}, load = {};
@@ -727,7 +738,7 @@ var Logic = (function () {
   return {
     PREDICT: PREDICT, predictionDeadline: predictionDeadline, isPredictionClosed: isPredictionClosed, validatePicks: validatePicks,
     scorePrediction: scorePrediction, bonusByPlayer: bonusByPlayer, popularPicks: popularPicks, pickChanges: pickChanges,
-    pickBadges: pickBadges, closeFromPredictions: closeFromPredictions, closingReport: closingReport,
+    pickBadges: pickBadges, pickTrend: pickTrend, closeFromPredictions: closeFromPredictions, closingReport: closingReport,
     encodeSeeds: encodeSeeds, decodeSeeds: decodeSeeds, parseOrder: parseOrder, strengthOf: strengthOf, balanceOf: balanceOf,
     mulberry32: mulberry32, wednesdays: wednesdays, seasonDays: seasonDays, isOfficial: isOfficial, playersOf: playersOf,
     weekTally: weekTally, standings: standings, tierOf: tierOf, skillOf: skillOf, HEAT: HEAT,

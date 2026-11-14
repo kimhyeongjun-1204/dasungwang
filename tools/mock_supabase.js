@@ -6,7 +6,8 @@ const path = require('path');
 const crypto = require('crypto');
 
 const PORT = +process.env.PORT || 8787;
-const dist = path.join(__dirname, '..', 'dist');
+// MOCK_DIST=폴더 로 다른 빌드(예: main 브랜치 dist)를 같은 가짜 데이터로 띄워 비교할 수 있음
+const dist = process.env.MOCK_DIST ? path.resolve(process.env.MOCK_DIST) : path.join(__dirname, '..', 'dist');
 // 돼블스플랜 마감 판단용 서버 시계. MOCK_NOW=2026-11-18T17:31+09:00 처럼 주면 그 시각부터 흐름 (로컬 시험 전용)
 const clockOffset = process.env.MOCK_NOW ? Date.parse(process.env.MOCK_NOW) - Date.now() : 0;
 if (Number.isNaN(clockOffset)) throw new Error('MOCK_NOW 형식이 잘못됐어요');
