@@ -526,4 +526,224 @@ test('applyPlan: 다시 짠 조에 나눠 들어간 사람이 있으면 warnings
   assert(r.warnings.some(x => x.includes('B선수0')));
 });
 
+// ---------- 돼블스플랜(승부 예측) ----------
+const PW = {
+  date: '2026-11-18', published: true, attendees: {},
+  matches: [
+    { id: 'p1', pool: 'A', a: ['a', 'b'], b: ['c', 'd'], off: [], win: null },
+    { id: 'p2', pool: 'A', a: ['a', 'e'], b: ['b', 'f'], off: [], win: null },
+    { id: 'p3', pool: 'A', a: ['c', 'f'], b: ['e', 'd'], off: [], win: null },
+    { id: 'p4', pool: 'B', a: ['x', 'y'], b: ['z', 'w'], off: [], win: null },
+    { id: 'p5', pool: 'B', a: ['x', 'z'], b: ['y', 'w'], off: [], win: null },
+  ],
+};
+const pk = (s) => s.split(' ').map(t => ({ match: t.slice(0, 2), side: t.slice(2) })); // 'p1a p2b …'
+function decided(results) { // {p1:'a', …} → 결과를 넣은 주 사본
+  const w = JSON.parse(JSON.stringify(PW));
+  w.matches.forEach(m => { if (results[m.id] !== undefined) m.win = results[m.id]; });
+  return w;
+}
+
+console.log('돼블스플랜: 마감·검사');
+test('predictionDeadline: 그 날 17:30 KST (= 08:30 UTC)', () => {
+  assert.strictEqual(L.predictionDeadline('2026-11-18').toISOString(), '2026-11-18T08:30:00.000Z');
+  assert.strictEqual(L.predictionDeadline('2026-12-23').toISOString(), '2026-12-23T08:30:00.000Z');
+});
+test('isPredictionClosed: 17:29:59는 열림, 17:30:00부터 마감', () => {
+  assert.strictEqual(L.isPredictionClosed('2026-11-18', Date.parse('2026-11-18T08:29:59Z')), false);
+  assert.strictEqual(L.isPredictionClosed('2026-11-18', Date.parse('2026-11-18T08:30:00Z')), true);
+});
+test('validatePicks: 서로 다른 4경기·a/b면 오류 없음', () => {
+  assert.deepStrictEqual(L.validatePicks(pk('p1a p2b p3a p4b'), PW), []);
+});
+test('validatePicks: 3개·5개·배열 아님은 count', () => {
+  assert(L.validatePicks(pk('p1a p2b p3a'), PW).includes('count'));
+  assert(L.validatePicks(pk('p1a p2b p3a p4b p5a'), PW).includes('count'));
+  assert(L.validatePicks(null, PW).includes('count'));
+});
+test('validatePicks: 중복 경기·없는 경기·잘못된 side', () => {
+  assert(L.validatePicks(pk('p1a p1b p3a p4b'), PW).includes('dup_match'));
+  assert(L.validatePicks(pk('p1a p2b p3a p9b'), PW).includes('no_match'));
+  assert(L.validatePicks(pk('p1a p2b p3a p4c'), PW).includes('bad_side'));
+});
+
+console.log('돼블스플랜: 채점');
+const HIGH = { mode: 'high', picks: pk('p1a p2b p3a p4b') }, SAFE = { mode: 'safe', picks: pk('p1a p2b p3a p4b') };
+test('하이리스크 4경기 모두 적중 → hit +3', () => {
+  const r = L.scorePrediction(HIGH, decided({ p1: 'a', p2: 'b', p3: 'a', p4: 'b' }));
+  assert.strictEqual(r.status, 'hit'); assert.strictEqual(r.bonus, 3);
+  assert.deepStrictEqual(r.picks.map(p => p.result), ['hit', 'hit', 'hit', 'hit']);
+});
+test('하이리스크 하나 틀림 → miss -1', () => {
+  const r = L.scorePrediction(HIGH, decided({ p1: 'a', p2: 'b', p3: 'b', p4: 'b' }));
+  assert.strictEqual(r.status, 'miss'); assert.strictEqual(r.bonus, -1);
+  assert.strictEqual(r.picks[2].result, 'miss');
+});
+test('안전형 적중 +1, 실패 0', () => {
+  assert.deepStrictEqual(pick2(L.scorePrediction(SAFE, decided({ p1: 'a', p2: 'b', p3: 'a', p4: 'b' }))), ['hit', 1]);
+  assert.deepStrictEqual(pick2(L.scorePrediction(SAFE, decided({ p1: 'b', p2: 'b', p3: 'a', p4: 'b' }))), ['miss', 0]);
+});
+function pick2(r) { return [r.status, r.bonus]; }
+test('결과가 덜 나왔고 틀린 게 없으면 pending, 보너스 0', () => {
+  const r = L.scorePrediction(HIGH, decided({ p1: 'a', p2: 'b' }));
+  assert.deepStrictEqual(pick2(r), ['pending', 0]);
+  assert.deepStrictEqual(r.picks.map(p => p.result), ['hit', 'hit', 'pending', 'pending']);
+});
+test('대기 중이어도 하나 틀리면 즉시 miss', () => {
+  assert.deepStrictEqual(pick2(L.scorePrediction(HIGH, decided({ p1: 'b' }))), ['miss', -1]);
+  assert.deepStrictEqual(pick2(L.scorePrediction(SAFE, decided({ p1: 'b' }))), ['miss', 0]);
+});
+test('고른 경기가 편성에서 사라지면 check, 보너스 0', () => {
+  const w = decided({ p1: 'a', p2: 'b', p4: 'b' });
+  w.matches = w.matches.filter(m => m.id !== 'p3');
+  const r = L.scorePrediction(HIGH, w);
+  assert.deepStrictEqual(pick2(r), ['check', 0]);
+  assert.strictEqual(r.picks[2].result, 'check');
+});
+test('사라진 경기가 있으면 다른 경기가 틀려도 check (자동 처리 안 함)', () => {
+  const w = decided({ p1: 'b' });
+  w.matches = w.matches.filter(m => m.id !== 'p3');
+  assert.deepStrictEqual(pick2(L.scorePrediction(HIGH, w)), ['check', 0]);
+});
+test('선수 자리가 빈 경기(무효)는 check', () => {
+  const w = decided({ p1: 'a', p2: 'b', p3: 'a', p4: 'b' });
+  w.matches[3].a = ['x', ''];
+  assert.deepStrictEqual(pick2(L.scorePrediction(HIGH, w)), ['check', 0]);
+});
+test('주가 없거나 픽이 4개가 아니면 check', () => {
+  assert.strictEqual(L.scorePrediction(HIGH, null).status, 'check');
+  assert.strictEqual(L.scorePrediction({ mode: 'high', picks: pk('p1a p2b p3a') }, decided({})).status, 'check');
+});
+
+console.log('돼블스플랜: 보너스·순위');
+function predState() {
+  const st = JSON.parse(JSON.stringify(state));
+  st.weeks[0].published = true;
+  st.weeks.push(decided({ p1: 'a', p2: 'b', p3: 'a', p4: 'b' }));
+  return st;
+}
+test('bonusByPlayer: 주차별 합계, 공개 안 된 주·없는 주는 0', () => {
+  const st = predState();
+  st.weeks.push(Object.assign(JSON.parse(JSON.stringify(st.weeks[1])), { date: '2026-11-25', published: false }));
+  const preds = [
+    { week_date: '2026-11-18', player_id: 'f', mode: 'high', picks: HIGH.picks },            // +3
+    { week_date: '2026-11-18', player_id: 'c', mode: 'high', picks: pk('p1b p2b p3a p4b') }, // -1
+    { week_date: '2026-11-18', player_id: 'e', mode: 'safe', picks: HIGH.picks },            // +1
+    { week_date: '2026-11-25', player_id: 'f', mode: 'high', picks: HIGH.picks },            // 공개 전 → 0
+    { week_date: '2026-12-02', player_id: 'f', mode: 'high', picks: HIGH.picks },            // 없는 주 → 0
+  ];
+  assert.deepStrictEqual(L.bonusByPlayer(st, preds), { f: 3, c: -1, e: 1 });
+});
+test('standings: 보너스 없으면 기존과 같은 순서·순위', () => {
+  const a = L.standings(state).A, b = L.standings(state, { bonus: {} }).A;
+  assert.deepStrictEqual(b.map(r => [r.id, r.wins, r.losses, r.rank, r.contender, r.lottery]), a.map(r => [r.id, r.wins, r.losses, r.rank, r.contender, r.lottery]));
+  assert(b.every(r => r.bonus === 0 && r.total === r.wins));
+});
+test('standings: 보너스 합산으로 순위, 공식 승은 그대로', () => {
+  // 공식: 조영재 2, 김성곤 1, 박지섭 1, 유성준 0, 최신웅 0, 주성모 0
+  const s = L.standings(state, { bonus: { f: 3, a: -1 } }).A;
+  const f = s.find(r => r.name === '유성준'), a = s.find(r => r.name === '조영재');
+  assert.strictEqual(s[0].name, '유성준');
+  assert.deepStrictEqual([f.wins, f.bonus, f.total, f.rank], [0, 3, 3, 1]);
+  assert.deepStrictEqual([a.wins, a.bonus, a.total], [2, -1, 1]);
+  assert(f.contender && !a.contender, '다승왕권도 합계 기준');
+});
+test('standings: 합계 동률은 같은 순위, 패 적은 쪽이 위 (기존 동률 규칙)', () => {
+  // 조영재 2승 0패, 김성곤 1승 1패 +1 → 둘 다 2
+  const s = L.standings(state, { bonus: { b: 1 } }).A;
+  const a = s.find(r => r.name === '조영재'), b = s.find(r => r.name === '김성곤');
+  assert.strictEqual(a.rank, b.rank);
+  assert(s.indexOf(a) < s.indexOf(b), '패가 적은 조영재가 위');
+  assert(a.lottery && b.lottery, '다승왕 1명 자리에 합계 동률 2명 → 추첨');
+});
+test('지옥도·천국도는 보너스와 무관 (공식 경기 결과만)', () => {
+  const st = predState();
+  const before = ['a', 'b', 'c', 'd', 'e', 'f'].map(id => L.tierOf(st, id, '2026-11-25').tier);
+  L.standings(st, { bonus: { d: 3, a: -1 } });
+  const after = ['a', 'b', 'c', 'd', 'e', 'f'].map(id => L.tierOf(st, id, '2026-11-25').tier);
+  assert.deepStrictEqual(after, before);
+});
+
+console.log('돼블스플랜: 인기 픽·배지·장 마감 리포트');
+const C = (s) => s.split(' ').map(t => { const [k, mode, n] = t.split(':'); return { match_id: k.slice(0, 2), side: k.slice(2), mode, n: +n }; });
+const COUNTS = C('p1a:high:5 p1a:safe:4 p1b:high:3 p2a:safe:2 p2b:high:2 p3a:high:0 p9a:high:7');
+test('popularPicks: 팀별 인원 순위, 경기 안 비율, 0명·없는 경기 제외', () => {
+  const r = L.popularPicks(COUNTS, PW);
+  assert.deepStrictEqual(r.map(x => [x.match, x.side, x.n, x.total, x.rank]), [['p1', 'a', 9, 12, 1], ['p1', 'b', 3, 12, 2], ['p2', 'a', 2, 4, 3], ['p2', 'b', 2, 4, 3]]);
+  assert.strictEqual(r[0].share, 0.75);
+});
+test('popularPicks: 방식 필터', () => {
+  const r = L.popularPicks(COUNTS, PW, 'high');
+  assert.deepStrictEqual(r.map(x => [x.match + x.side, x.n, x.total]), [['p1a', 5, 8], ['p1b', 3, 8], ['p2b', 2, 2]]);
+});
+test('pickChanges: 최근 1시간 이벤트의 증감 합 (방식 필터)', () => {
+  const now = Date.parse('2026-11-18T10:00:00Z');
+  const ev = [
+    { match_id: 'p1', side: 'a', mode: 'high', delta: 1, at: '2026-11-18T09:30:00Z' },
+    { match_id: 'p1', side: 'a', mode: 'safe', delta: 1, at: '2026-11-18T09:40:00Z' },
+    { match_id: 'p1', side: 'b', mode: 'high', delta: -1, at: '2026-11-18T09:50:00Z' },
+    { match_id: 'p2', side: 'a', mode: 'high', delta: 1, at: '2026-11-18T08:59:59Z' }, // 1시간 넘음
+  ];
+  assert.deepStrictEqual(L.pickChanges(ev, now), { p1a: 2, p1b: -1 });
+  assert.deepStrictEqual(L.pickChanges(ev, now, 'high'), { p1a: 1, p1b: -1 });
+});
+test('pickBadges: 상한가는 경기 안 70% 이상, 작전주는 가장 많이 걸린 선수 1명', () => {
+  // p1: a 9 / b 3 → 75% 상한가. p2: 2/2 → 50%
+  const b = L.pickBadges(COUNTS, PW);
+  assert.deepStrictEqual(b.upper, { p1a: 1 });
+  // 걸린 횟수: a = p1a 9 + p2a 2 = 11, b = p1a 9 + p2b 2 = 11, c,d = 3, e = 2, f = 2 → 동률이면 id 순으로 a
+  assert.strictEqual(b.sneaky, 'a');
+  assert.strictEqual(L.pickBadges(C('p1a:high:7 p1b:high:3'), PW).upper.p1a, 1, '정확히 70%도 상한가');
+  assert.deepStrictEqual(L.pickBadges(C('p1a:high:69 p1b:high:31'), PW).upper, {}, '69%는 아님');
+  assert.deepStrictEqual(L.pickBadges([], PW), { upper: {}, sneaky: null });
+});
+test('closeFromPredictions: 두 방식 합산 마감 비율 (prediction_close 모양)', () => {
+  const preds = [
+    { player_id: 'f', mode: 'high', picks: pk('p1a p2b p3a p4b') },
+    { player_id: 'c', mode: 'safe', picks: pk('p1a p2a p3a p5a') },
+    { player_id: 'e', mode: 'high', picks: pk('p1b p2b p3b p4b') },
+  ];
+  const r = L.closeFromPredictions(preds);
+  const get = k => r.find(x => x.match_id + x.side === k);
+  assert.deepStrictEqual([get('p1a').n, get('p1a').total], [2, 3]);
+  assert.deepStrictEqual([get('p5a').n, get('p5a').total], [1, 1]);
+  assert.strictEqual(get('p5b'), undefined, '0명인 쪽은 행 없음');
+});
+const REPORT_PREDS = [
+  { player_id: 'f', mode: 'high', picks: pk('p1a p2b p3a p4b') }, // 적중 +3
+  { player_id: 'c', mode: 'safe', picks: pk('p1a p2b p3a p4b') }, // 적중 +1
+  { player_id: 'e', mode: 'high', picks: pk('p1a p2a p3a p4b') }, // 실패 -1
+  { player_id: 'd', mode: 'safe', picks: pk('p1b p2a p3b p5a') }, // 실패 0
+];
+const ALL_DONE = { p1: 'a', p2: 'b', p3: 'a', p4: 'b', p5: 'b' };
+test('closingReport: 결과가 다 안 나오면 ready false', () => {
+  assert.strictEqual(L.closingReport(decided({ p1: 'a' }), [], REPORT_PREDS).ready, false);
+});
+test('closingReport: 상한가·폭락주·역배 적중·수익·적중자', () => {
+  const close = [
+    { match_id: 'p1', side: 'a', n: 9, total: 12 }, { match_id: 'p1', side: 'b', n: 3, total: 12 },
+    { match_id: 'p2', side: 'a', n: 8, total: 10 }, { match_id: 'p2', side: 'b', n: 2, total: 10 },
+    { match_id: 'p3', side: 'a', n: 4, total: 4 },
+  ];
+  const r = L.closingReport(decided(ALL_DONE), close, REPORT_PREDS);
+  assert.strictEqual(r.ready, true);
+  assert.deepStrictEqual([r.participants, r.hits, r.misses], [4, 2, 2]);
+  assert.deepStrictEqual([r.upper.match, r.upper.side, r.upper.n, r.upper.share], ['p1', 'a', 9, 0.75]); // 최다 픽 중 승
+  assert.deepStrictEqual([r.crash.match, r.crash.side, r.crash.n], ['p2', 'a', 8]);                    // 최다 픽 중 패
+  assert.deepStrictEqual([r.contrarian.match, r.contrarian.side, r.contrarian.n, r.contrarian.share], ['p2', 'b', 2, 0.2]); // 소수 픽 승
+  assert.deepStrictEqual(r.profit, { total: 4, high: 1, safe: 1 });
+  assert.deepStrictEqual(r.hitters.map(h => [h.player, h.bonus]), [['f', 3], ['c', 1]]);
+});
+test('closingReport: 마감 스냅숏이 있으면 그 비율을 씀 (마감 후 수정과 무관)', () => {
+  const close = [{ match_id: 'p4', side: 'b', n: 1, total: 4 }, { match_id: 'p4', side: 'a', n: 3, total: 4 }];
+  const r = L.closingReport(decided(ALL_DONE), close, REPORT_PREDS);
+  assert.deepStrictEqual([r.contrarian.match, r.contrarian.side, r.contrarian.share], ['p4', 'b', 0.25]);
+});
+test('closingReport: 스냅숏이 없으면 예측으로 계산, 소수 픽 승이 없으면 역배 null', () => {
+  const r = L.closingReport(decided(ALL_DONE), [], REPORT_PREDS.slice(0, 2));
+  assert.strictEqual(r.contrarian, null);
+  assert.strictEqual(r.crash, null);
+  assert.deepStrictEqual([r.upper.match, r.upper.n, r.upper.share], ['p1', 2, 1]);
+});
+
 console.log(`\n${passed} passed`);
