@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8">
+<style>
+@font-face { font-family: 'BHS'; src: url('../fonts/node_modules/@fontsource/black-han-sans/files/black-han-sans-korean-400-normal.woff2') format('woff2'); }
+:root {
+  --bg:#F4F7FC; --card:#fff; --navy:#20264F; --yellow:#FFC928; --text:#202535; --text-2:#626C80; --text-3:#8A93A6; --line:#E6EAF1;
+  --up:#B42F2F; --up-bg:#FDECEC; --down:#2A66B8; --down-bg:#EAF1FB; --win:#1B7350; --win-bg:#E7F4EE;
+  --plan-bg:#14080D; --plan:#F02068; --plan-text:#C2185B; --plan-tint:#FDEAF1;
+  --A:#6E1B26; --B:#1E5B3D; --C:#8E2C4B;
+}
+* { box-sizing:border-box; margin:0; padding:0; }
+body { background:#DDE3EC; font-family:'Noto Sans CJK KR',sans-serif; color:var(--text); padding:28px 32px 36px; width:1350px; }
+.num { font-variant-numeric: tabular-nums; }
+.row3 { display:flex; gap:36px; align-items:flex-start; }
+.cap { font-size:15px; font-weight:700; color:#3B4358; margin:0 0 12px 4px; }
+.cap span { color:var(--text-2); font-weight:500; margin-left:6px; }
+.phone { width:390px; height:844px; background:var(--bg); border-radius:36px; overflow:hidden; position:relative; box-shadow:0 18px 40px rgba(20,30,60,.18); }
+.scroll { padding:0 16px 120px; }
+
+/* 상단 탭 */
+.tabs { display:flex; gap:4px; background:#fff; border:1px solid var(--line); border-radius:16px; padding:5px; margin:14px 0 12px; }
+.tabs b { flex:1; text-align:center; font-size:14px; font-weight:700; color:var(--text-2); padding:9px 0; border-radius:11px; }
+.tabs b.on { background:var(--navy); color:#fff; }
+.tabs b.on i { font-style:normal; color:var(--plan); margin-left:2px; }
+
+/* 배너 */
+.banner { position:relative; height:160px; border-radius:22px; overflow:hidden; background:
+  radial-gradient(120% 90% at 85% 120%, rgba(240,32,104,.45), transparent 60%),
+  radial-gradient(60% 60% at 0% 0%, rgba(255,255,255,.06), transparent 70%), var(--plan-bg); color:#fff; padding:18px 18px; }
+.banner .pig { position:absolute; right:-18px; top:0; width:200px; height:160px; background:url(pig.png) center/cover; -webkit-mask-image:linear-gradient(90deg,transparent,#000 35%); mask-image:linear-gradient(90deg,transparent,#000 35%); opacity:.95; }
+.banner .eyebrow { font-size:12px; font-weight:700; color:#F7B7CC; letter-spacing:.02em; position:relative; }
+.banner h1 { font-family:'BHS'; font-weight:400; font-size:38px; line-height:1.05; margin-top:6px; position:relative; }
+.banner h1 em { font-style:normal; color:var(--plan); }
+.banner .sub { font-size:13px; color:#E9DCE1; margin-top:4px; position:relative; }
+.banner .meta { position:absolute; left:18px; bottom:16px; display:flex; gap:6px; }
+.chip-d { font-size:12px; font-weight:700; background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.18); padding:5px 9px; border-radius:999px; }
+.chip-d.cd { background:var(--plan); border-color:var(--plan); }
+
+/* 섹션 */
+.sec-h { display:flex; align-items:baseline; justify-content:space-between; margin:16px 2px 6px; }
+.sec-h h2 { font-size:18px; font-weight:800; }
+.sec-h small { font-size:12px; color:var(--text-3); }
+.live { display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--plan); margin-right:6px; box-shadow:0 0 0 4px rgba(240,32,104,.15); vertical-align:2px; }
+.seg { display:flex; gap:18px; border-bottom:1px solid var(--line); margin:0 2px 4px; }
+.seg b { font-size:14px; padding:8px 0 10px; color:var(--text-3); font-weight:700; }
+.seg b.on { color:var(--text); box-shadow:inset 0 -2px 0 var(--text); }
+
+.card { background:var(--card); border-radius:20px; padding:6px 14px; }
+.stock { display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid #F0F2F6; }
+.stock:last-child { border-bottom:0; }
+.rk { width:18px; font-size:16px; font-weight:800; color:var(--text); text-align:center; }
+.rk.t { color:var(--plan-text); }
+.nm { flex:1; min-width:0; }
+.nm b { font-size:15px; font-weight:700; display:block; white-space:nowrap; }
+.nm small { font-size:12px; color:var(--text-3); display:flex; gap:6px; align-items:center; margin-top:2px; white-space:nowrap; }
+.nm b .badge { margin-left:6px; vertical-align:2px; }
+.dot { width:6px; height:6px; border-radius:2px; display:inline-block; }
+.badge { font-size:11px; font-weight:700; padding:1px 6px; border-radius:6px; white-space:nowrap; }
+.badge.up { color:var(--up); background:var(--up-bg); }
+.badge.op { color:var(--plan-text); background:var(--plan-tint); }
+.spark { width:52px; height:24px; }
+.px { text-align:right; min-width:62px; }
+.px b { font-size:16px; font-weight:800; display:block; }
+.px small { font-size:12px; font-weight:700; }
+.up { color:var(--up); } .down { color:var(--down); } .flat { color:var(--text-3); }
+
+/* 체결 */
+.feed { background:#fff; border-radius:20px; padding:10px 14px; margin-top:10px; }
+.feed h3 { font-size:14px; font-weight:800; margin-bottom:6px; }
+.fl { display:flex; align-items:center; gap:8px; font-size:13px; padding:6px 0; }
+.fl .t { color:var(--text-3); width:38px; }
+.mode { font-size:11px; font-weight:700; padding:2px 6px; border-radius:6px; }
+.mode.h { color:var(--plan-text); background:var(--plan-tint); }
+.mode.s { color:var(--text-2); background:#EEF1F6; }
+.fl .buy { margin-left:auto; font-weight:700; color:var(--up); }
+
+/* 하단 고정 */
+.bottom { position:absolute; left:0; right:0; bottom:0; padding:12px 16px 26px; background:linear-gradient(180deg, rgba(244,247,252,0), var(--bg) 28%); }
+.btn { display:block; width:100%; text-align:center; font-size:16px; font-weight:800; padding:16px 0; border-radius:16px; background:var(--yellow); color:#1E2233; }
+.btn small { font-weight:600; font-size:13px; color:#4A4F60; margin-left:6px; }
+
+/* 주문 화면 */
+.top { display:flex; align-items:center; justify-content:space-between; padding:18px 2px 8px; }
+.top b { font-size:18px; font-weight:800; }
+.top .cdl { font-size:12px; font-weight:700; color:var(--plan-text); background:var(--plan-tint); padding:5px 9px; border-radius:999px; }
+.modes { display:flex; gap:10px; margin-top:8px; }
+.mc { flex:1; background:#fff; border:1.5px solid var(--line); border-radius:18px; padding:14px; }
+.mc.on { border:2px solid var(--navy); }
+.mc .k { font-size:11px; font-weight:800; color:var(--plan-text); letter-spacing:.06em; }
+.mc b { display:block; font-size:16px; font-weight:800; margin-top:2px; }
+.mc .pl { margin-top:8px; font-size:13px; display:flex; justify-content:space-between; }
+.mc .pl span:first-child { color:var(--text-2); }
+.prog { display:flex; align-items:center; justify-content:space-between; margin:18px 2px 8px; }
+.prog b { font-size:16px; font-weight:800; }
+.prog .dots { display:flex; gap:5px; }
+.prog .dots i { width:22px; height:6px; border-radius:3px; background:#D5DBE5; }
+.prog .dots i.f { background:var(--navy); }
+.match { background:#fff; border-radius:18px; padding:12px; margin-bottom:10px; }
+.match.dim { opacity:.42; }
+.mh { font-size:12px; font-weight:700; display:flex; justify-content:space-between; color:var(--text-2); margin-bottom:8px; }
+.mh .g { display:flex; align-items:center; gap:6px; }
+.sides { display:flex; gap:8px; }
+.side { flex:1; border:1.5px solid var(--line); border-radius:12px; padding:9px 10px; font-size:14px; font-weight:700; position:relative; }
+.side small { display:block; font-size:12px; font-weight:600; color:var(--text-3); margin-top:1px; }
+.side.on { border:2px solid var(--navy); background:#F3F5FB; }
+.side.on::after { content:'✓'; position:absolute; right:9px; top:8px; width:18px; height:18px; border-radius:50%; background:var(--navy); color:#fff; font-size:11px; text-align:center; line-height:18px; }
+.ratio { display:flex; height:4px; border-radius:2px; overflow:hidden; margin-top:9px; background:#EEF1F6; }
+.ratio i:first-child { background:var(--navy); } .ratio i:last-child { background:#C9D1DE; }
+.order { position:absolute; left:0; right:0; bottom:0; background:#fff; border-radius:24px 24px 0 0; padding:16px 16px 26px; box-shadow:0 -8px 24px rgba(20,30,60,.08); }
+.order .l { display:flex; justify-content:space-between; font-size:14px; margin-bottom:4px; }
+.order .l span:first-child { color:var(--text-2); }
+.order .l b { font-weight:800; }
+
+/* 장 마감 리포트 */
+.rep { background:
+  radial-gradient(90% 50% at 50% 0%, rgba(240,32,104,.28), transparent 70%), var(--plan-bg); color:#fff; height:100%; padding:24px 18px; position:relative; }
+.rep .hd { display:flex; align-items:center; gap:12px; }
+.rep .pg { width:64px; height:64px; border-radius:50%; background:url(pig.png) 60% 30%/180% no-repeat; border:2px solid var(--plan); flex:none; }
+.rep .hd small { font-size:12px; color:#F7B7CC; font-weight:700; }
+.rep .hd h1 { font-family:'BHS'; font-weight:400; font-size:30px; line-height:1.1; }
+.rep .hd h1 em { font-style:normal; color:var(--plan); }
+.sum { display:flex; margin:18px 0 14px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.1); border-radius:16px; }
+.sum div { flex:1; text-align:center; padding:12px 0; }
+.sum div + div { border-left:1px solid rgba(255,255,255,.1); }
+.sum b { display:block; font-size:22px; font-weight:800; }
+.sum small { font-size:12px; color:#C9BCC2; }
+.grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.tile { background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.1); border-radius:16px; padding:13px 12px; min-height:150px; }
+.tile .h { font-size:13px; font-weight:800; color:#F3E6EB; }
+.tile b { display:block; font-size:16px; font-weight:800; margin-top:10px; }
+.tile .big { font-size:26px; font-weight:800; margin-top:4px; }
+.tile .big.u { color:#FF6B7F; } .tile .big.d { color:#6FA8FF; } .tile .big.p { color:var(--plan); }
+.tile p { font-size:12px; color:#C9BCC2; margin-top:4px; line-height:1.45; }
+.winners { margin-top:12px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.1); border-radius:16px; padding:12px 14px; }
+.winners .h { font-size:13px; font-weight:800; color:#F3E6EB; }
+.winners .names { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+.winners .names span { font-size:13px; font-weight:700; background:rgba(240,32,104,.18); border:1px solid rgba(240,32,104,.45); padding:4px 9px; border-radius:999px; }
+.foot { position:absolute; left:18px; right:18px; bottom:22px; display:flex; justify-content:space-between; font-size:12px; color:#9C8D94; }
+</style></head><body>
+<div class="row3">
+
+<!-- ① 예측 홈 -->
+<div>
+<p class="cap">① 예측 홈<span>실시간 인기 픽 · 체결</span></p>
+<div class="phone"><div class="scroll">
+  <div class="tabs"><b>이번 주</b><b>순위</b><b class="on">예측</b><b>내 기록</b></div>
+  <div class="banner">
+    <div class="pig"></div>
+    <div class="eyebrow">11/18(수) · 승리를 예측하라!</div>
+    <h1>돼블스<em>플랜</em></h1>
+    <div class="sub">4경기 모두 맞히면 승수 보너스</div>
+    <div class="meta"><span class="chip-d cd num">마감까지 02:14:05</span><span class="chip-d num">참여 18명</span></div>
+  </div>
+
+  <div class="sec-h"><h2><span class="live"></span>실시간 인기 픽</h2><small class="num">19:12 기준</small></div>
+  <div class="seg"><b class="on">전체</b><b>하이리스크</b><b>안전형</b><b>급상승</b></div>
+  <div class="card">
+    <div class="stock"><span class="rk t">1</span>
+      <div class="nm"><b>조영재·김성곤<span class="badge up">상한가</span></b><small><i class="dot" style="background:var(--A)"></i>캐비어·랍스터 1경기</small></div>
+      <svg class="spark" viewBox="0 0 52 24"><polyline fill="none" stroke="#B42F2F" stroke-width="2" points="0,20 10,18 18,16 26,12 34,13 42,7 52,4"/></svg>
+      <div class="px num"><b>12명</b><small class="up">▲3 · 75%</small></div></div>
+    <div class="stock"><span class="rk t">2</span>
+      <div class="nm"><b>이영승·주성모</b><small><i class="dot" style="background:var(--C)"></i>돼지·닭갈비 3경기</small></div>
+      <svg class="spark" viewBox="0 0 52 24"><polyline fill="none" stroke="#B42F2F" stroke-width="2" points="0,18 10,17 18,14 26,15 34,10 42,9 52,8"/></svg>
+      <div class="px num"><b>11명</b><small class="up">▲1 · 68%</small></div></div>
+    <div class="stock"><span class="rk t">3</span>
+      <div class="nm"><b>이민석·최서연<span class="badge op">작전주</span></b><small><i class="dot" style="background:var(--B)"></i>소갈비·양갈비 2경기</small></div>
+      <svg class="spark" viewBox="0 0 52 24"><polyline fill="none" stroke="#B42F2F" stroke-width="2" points="0,22 10,20 18,19 26,14 34,9 42,6 52,3"/></svg>
+      <div class="px num"><b>9명</b><small class="up">▲5 · 56%</small></div></div>
+    <div class="stock"><span class="rk">4</span>
+      <div class="nm"><b>서주영·박복균</b><small><i class="dot" style="background:var(--B)"></i>소갈비·양갈비 4경기</small></div>
+      <svg class="spark" viewBox="0 0 52 24"><polyline fill="none" stroke="#2A66B8" stroke-width="2" points="0,6 10,8 18,7 26,11 34,12 42,15 52,16"/></svg>
+      <div class="px num"><b>7명</b><small class="down">▼2 · 47%</small></div></div>
+  </div>
+
+  <div class="feed"><h3><span class="live"></span>체결</h3>
+    <div class="fl num"><span class="t">19:12</span><span class="mode h">하이리스크</span>조영재·김성곤<span class="buy">매수</span></div>
+    <div class="fl num"><span class="t">19:11</span><span class="mode s">안전형</span>서주영·박복균<span class="buy">매수</span></div>
+    <div class="fl num"><span class="t">19:09</span><span class="mode h">하이리스크</span>이민석·최서연<span class="buy">매수</span></div>
+  </div>
+</div>
+<div class="bottom"><span class="btn">내 예측 하기<small>4경기 고르기</small></span></div>
+</div></div>
+
+<!-- ② 예측하기 -->
+<div>
+<p class="cap">② 예측하기<span>주문 화면처럼 · 4경기 선택</span></p>
+<div class="phone"><div class="scroll">
+  <div class="top"><b>← 예측하기</b><span class="cdl num">마감 02:14:05</span></div>
+  <div class="modes">
+    <div class="mc on"><div class="k">HIGH RISK</div><b>🔥 하이리스크</b>
+      <div class="pl"><span>적중</span><span class="up" style="font-weight:800">+3승</span></div>
+      <div class="pl"><span>실패</span><span class="down" style="font-weight:800">-1승</span></div></div>
+    <div class="mc"><div class="k" style="color:var(--text-3)">SAFE</div><b>🛡️ 안전형</b>
+      <div class="pl"><span>적중</span><span class="up" style="font-weight:800">+1승</span></div>
+      <div class="pl"><span>실패</span><span style="font-weight:800;color:var(--text-3)">0</span></div></div>
+  </div>
+  <div class="prog"><b>경기 선택 <span class="num">4/4</span></b><span class="dots"><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i></span></div>
+
+  <div class="match"><div class="mh"><span class="g"><i class="dot" style="background:var(--A)"></i>캐비어·랍스터 1경기</span><span class="num">75 : 25</span></div>
+    <div class="sides"><div class="side on">조영재·김성곤<small class="num">12명</small></div><div class="side">최신웅·주성모<small class="num">4명</small></div></div>
+    <div class="ratio"><i style="width:75%"></i><i style="width:25%"></i></div></div>
+  <div class="match"><div class="mh"><span class="g"><i class="dot" style="background:var(--B)"></i>소갈비·양갈비 2경기</span><span class="num">56 : 44</span></div>
+    <div class="sides"><div class="side">이민석·최서연<small class="num">9명</small></div><div class="side on">김예슬·전철민<small class="num">7명</small></div></div>
+    <div class="ratio"><i style="width:56%"></i><i style="width:44%"></i></div></div>
+  <div class="match"><div class="mh"><span class="g"><i class="dot" style="background:var(--C)"></i>돼지·닭갈비 3경기</span><span class="num">68 : 32</span></div>
+    <div class="sides"><div class="side on">이영승·주성모<small class="num">11명</small></div><div class="side">조인규·이선미<small class="num">5명</small></div></div>
+    <div class="ratio"><i style="width:68%"></i><i style="width:32%"></i></div></div>
+  <div class="match"><div class="mh"><span class="g"><i class="dot" style="background:var(--B)"></i>소갈비·양갈비 4경기</span><span class="num">47 : 53</span></div>
+    <div class="sides"><div class="side">서주영·박복균<small class="num">7명</small></div><div class="side on">이우성·황규연<small class="num">8명</small></div></div>
+    <div class="ratio"><i style="width:47%"></i><i style="width:53%"></i></div></div>
+  <div class="match dim"><div class="mh"><span class="g"><i class="dot" style="background:var(--C)"></i>돼지·닭갈비 5경기</span><span class="num">50 : 50</span></div>
+    <div class="sides"><div class="side">박희수·육민주<small class="num">6명</small></div><div class="side">김용숙·여현서<small class="num">6명</small></div></div></div>
+</div>
+<div class="order">
+  <div class="l"><span>방식</span><b>🔥 하이리스크</b></div>
+  <div class="l"><span>4경기 모두 적중하면</span><b class="up">+3승</b></div>
+  <div class="l" style="margin-bottom:12px"><span>하나라도 틀리면</span><b class="down">-1승</b></div>
+  <span class="btn">제출하기<small>마감 전까지 수정 가능</small></span>
+</div>
+</div></div>
+
+<!-- ③ 장 마감 리포트 -->
+<div>
+<p class="cap">③ 장 마감 리포트<span>돼장 캡처 → 밴드 공유용</span></p>
+<div class="phone"><div class="rep">
+  <div class="hd"><div class="pg"></div><div><small class="num">11/18(수) 21:40 · 결과 확정</small><h1>돼블스플랜<br><em>장 마감</em></h1></div></div>
+  <div class="sum num"><div><b>18</b><small>참여</small></div><div><b style="color:#FF6B7F">5</b><small>적중</small></div><div><b style="color:#6FA8FF">13</b><small>실패</small></div></div>
+  <div class="grid">
+    <div class="tile"><div class="h">📈 오늘의 상한가</div><b>조영재·김성곤</b><div class="big u num">75%</div><p>가장 많이 걸렸고<br>기대대로 승리</p></div>
+    <div class="tile"><div class="h">📉 폭락주</div><b>이영승·주성모</b><div class="big d num">68%</div><p>11명이 함께<br>날렸습니다</p></div>
+    <div class="tile"><div class="h">🎯 역배 적중</div><b>김용숙·여현서</b><div class="big p num">18%</div><p>3명만 맞힌<br>오늘의 반전</p></div>
+    <div class="tile"><div class="h">💰 이번 주 수익</div><b>적중 보너스 합계</b><div class="big u num">+11승</div><p>하이리스크 3명 × 3승<br>안전형 2명 × 1승</p></div>
+  </div>
+  <div class="winners"><div class="h">🏆 적중자</div><div class="names"><span>서민희 +3</span><span>김예슬 +3</span><span>주성모 +3</span><span>양회욱 +1</span><span>박기옥 +1</span></div></div>
+  <div class="foot"><span>라켓뚱보단 돼블스플랜</span><span>예측한 자에게 달콤한 승리를</span></div>
+</div></div></div>
+
+</div>
+</body></html>
