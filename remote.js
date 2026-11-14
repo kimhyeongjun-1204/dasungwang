@@ -2,7 +2,9 @@
 var Remote = (function () {
   'use strict';
   var TOKEN_KEY = 'ddw-admin-token', TOKEN_DAYS = 30;
-  var CODES = ['unauthorized', 'stale_rev', 'no_pin', 'bad_pin', 'bad_new_pin', 'too_large', 'bad_state', 'ai_limit', 'ai_failed', 'ai_refused', 'bad_request'];
+  var CODES = ['unauthorized', 'stale_rev', 'no_pin', 'bad_pin', 'bad_new_pin', 'too_large', 'bad_state', 'ai_limit', 'ai_failed', 'ai_refused', 'bad_request',
+    // 돼블스플랜 제출 검사 (schema.sql pred_check / submit_prediction)
+    'closed', 'bad_mode', 'bad_player', 'no_week', 'bad_count', 'bad_side', 'dup_match', 'bad_match'];
 
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
   // 서버로 보내는 state: PIN 해시와 서버가 관리하는 rev/savedAt은 뺀다
@@ -37,7 +39,9 @@ var Remote = (function () {
   function clearToken(ls) { try { ls.del(TOKEN_KEY); } catch (e) { } }
 
   // client: supabase-js 클라이언트 (테스트에서는 흉내 객체)
-  function api(client) {
+  // opts.realtime === false: Realtime 구독 안 함 (로컬 가짜 서버)
+  function api(client, opts) {
+    opts = opts || {};
     function call(p) {
       return Promise.resolve(p).then(function (r) {
         if (r.error) { var e = errorCode(r.error); throw e; }
@@ -60,12 +64,39 @@ var Remote = (function () {
           return { plan: d.plan || {}, explanation: d.explanation || '', usage: d.usage || null };
         });
       },
+
+      // ---- 돼블스플랜 ----
+      // 이름 없는 집계·피드·마감 비율은 누구나, 누가 골랐는지(predictions)는 DB가 마감된 주만 돌려줌
+      predCounts: function (d) { return call(client.from('prediction_counts').select('match_id,side,mode,n').eq('week_date', d)); },
+      predEvents: function (d) { return call(client.from('prediction_events').select('id,match_id,side,mode,delta,at').eq('week_date', d).order('id', { ascending: false }).limit(300)); },
+      predClose: function (d) { return call(client.from('prediction_close').select('match_id,side,n,total').eq('week_date', d)); },
+      predictions: function () { return call(client.from('predictions').select('week_date,player_id,mode,picks,updated_at')); },
+      submitPrediction: function (d, pid, mode, picks) { return rpc('submit_prediction', { week_date: d, player_id: pid, mode: mode, picks: picks }); },
+      closeSnapshot: function (d) { return rpc('close_snapshot', { week_date: d }); },
+      adminListPredictions: function (token, d) { return rpc('admin_list_predictions', { token: token, week_date: d }); },
+      adminUpsertPrediction: function (token, d, pid, mode, picks) { return rpc('admin_upsert_prediction', { token: token, week_date: d, player_id: pid, mode: mode, picks: picks }); },
+      adminDeletePrediction: function (token, d, pid) { return rpc('admin_delete_prediction', { token: token, week_date: d, player_id: pid }); },
+      // counts·events가 바뀌면 onChange(). live(): 구독 중인지(아니면 앱이 주기적으로 다시 읽음)
+      watchPredictions: function (d, onChange) {
+        var live = false, ch = null;
+        if (opts.realtime !== false && client.channel) {
+          ch = client.channel('daebles-' + d);
+          ['prediction_counts', 'prediction_events'].forEach(function (t) {
+            ch = ch.on('postgres_changes', { event: '*', schema: 'public', table: t, filter: 'week_date=eq.' + d }, function () { onChange(); });
+          });
+          ch.subscribe(function (status) { live = status === 'SUBSCRIBED'; });
+        }
+        return {
+          live: function () { return live; },
+          stop: function () { live = false; if (ch && client.removeChannel) { try { client.removeChannel(ch); } catch (e) { } } ch = null; },
+        };
+      },
     };
   }
   function connect(cfg, lib) {
     if (!cfg || !cfg.url || /YOUR-/.test(cfg.url + cfg.anonKey)) throw { code: 'config' };
     if (!lib || !lib.createClient) throw { code: 'network' };
-    return api(lib.createClient(cfg.url, cfg.anonKey, { auth: { persistSession: false, autoRefreshToken: false } }));
+    return api(lib.createClient(cfg.url, cfg.anonKey, { auth: { persistSession: false, autoRefreshToken: false } }), { realtime: cfg.realtime });
   }
 
   return {

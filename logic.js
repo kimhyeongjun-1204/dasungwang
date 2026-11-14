@@ -62,7 +62,10 @@ var Logic = (function () {
   }
 
   // 조별 순위. countBy: 'registered'(현재 등록 조) | 'pool'(경기한 조)
-  function standings(state) {
+  // opts.bonus: {pid: 돼블스플랜 보너스} → 원소속 조 행에 bonus·total(공식 승 + 보너스)을 넣고 total로 순위
+  function standings(state, opts) {
+    var useBonus = !!(opts && opts.bonus);
+    var bonus = useBonus ? opts.bonus : {};
     var pm = playerMap(state);
     var mode = state.settings.countBy || 'registered';
     var rows = {};
@@ -90,25 +93,29 @@ var Logic = (function () {
         });
       });
     });
+    if (useBonus) Object.keys(bonus).forEach(function (pid) { if (pm[pid] && bonus[pid]) row(pm[pid].group, pid); });
+    // 순위 기준 승수: 보너스가 있으면 합계, 없으면 공식 승 (기존과 같음)
+    var W = function (r) { return useBonus ? r.total : r.wins; };
     var out = {};
     Object.keys(rows).forEach(function (gid) {
       var g = state.settings.groups.filter(function (x) { return x.id === gid; })[0];
       var winners = g ? g.winners : 1;
       var list = Object.keys(rows[gid]).map(function (k) { return rows[gid][k]; });
+      if (useBonus) list.forEach(function (r) { r.bonus = pm[r.id] && pm[r.id].group === gid ? bonus[r.id] || 0 : 0; r.total = r.wins + r.bonus; });
       list.sort(function (x, y) {
-        return y.wins - x.wins || x.losses - y.losses || x.name.localeCompare(y.name, 'ko');
+        return W(y) - W(x) || x.losses - y.losses || x.name.localeCompare(y.name, 'ko');
       });
       list.forEach(function (r, i) {
-        r.rank = i > 0 && list[i - 1].wins === r.wins ? list[i - 1].rank : i + 1;
+        r.rank = i > 0 && W(list[i - 1]) === W(r) ? list[i - 1].rank : i + 1;
       });
       var cutoff = list[winners - 1];
       list.forEach(function (r) {
-        r.contender = !!cutoff && cutoff.wins > 0 && r.wins >= cutoff.wins;
+        r.contender = !!cutoff && W(cutoff) > 0 && W(r) >= W(cutoff);
         r.lottery = false;
       });
-      if (cutoff && cutoff.wins > 0) {
-        var tied = list.filter(function (r) { return r.wins === cutoff.wins; });
-        var above = list.filter(function (r) { return r.wins > cutoff.wins; }).length;
+      if (cutoff && W(cutoff) > 0) {
+        var tied = list.filter(function (r) { return W(r) === W(cutoff); });
+        var above = list.filter(function (r) { return W(r) > W(cutoff); }).length;
         if (above + tied.length > winners) tied.forEach(function (r) { r.lottery = true; });
       }
       out[gid] = list;
@@ -571,7 +578,167 @@ var Logic = (function () {
     return d <= 0.15 ? 'even' : d <= 0.4 ? 'ok' : 'lopsided';
   }
 
+  // ---------- 돼블스플랜(승부 예측) ----------
+  // 규칙 숫자는 여기서만 바꿈. 마감 시각은 앱에서 바꿀 수 없음(테스트는 now 인자로 시험)
+  var PREDICT = {
+    picks: 4,
+    closeUtc: { h: 8, m: 30 },                 // 수요일 17:30 KST = 08:30 UTC
+    bonus: { high: { hit: 3, miss: -1 }, safe: { hit: 1, miss: 0 } },
+    upperShare: 0.7,                            // 🔺상한가: 한 경기 안에서 이 비율 이상
+    changeWindowMs: 3600e3,                     // 인기 픽 ▲▼: 최근 1시간 증감
+  };
+  function predictionDeadline(weekDate) {
+    var p = String(weekDate).split('-');
+    return new Date(Date.UTC(+p[0], +p[1] - 1, +p[2], PREDICT.closeUtc.h, PREDICT.closeUtc.m));
+  }
+  function isPredictionClosed(weekDate, now) { return now >= predictionDeadline(weekDate).getTime(); }
+  function matchOf(week, id) { return week && (week.matches || []).filter(function (m) { return m.id === id; })[0] || null; }
+  function matchValid(m) { return !!m && m.a.length === 2 && m.b.length === 2 && m.a.concat(m.b).every(Boolean); }
+
+  // 오류 코드 목록: count(4개 아님) / dup_match / no_match / bad_side
+  function validatePicks(picks, week) {
+    if (!Array.isArray(picks) || picks.length !== PREDICT.picks) return ['count'];
+    var out = [], seen = {};
+    picks.forEach(function (p) {
+      var id = p && p.match;
+      if (seen[id] && out.indexOf('dup_match') < 0) out.push('dup_match');
+      seen[id] = 1;
+      if (!matchOf(week, id) && out.indexOf('no_match') < 0) out.push('no_match');
+      if (!p || (p.side !== 'a' && p.side !== 'b')) { if (out.indexOf('bad_side') < 0) out.push('bad_side'); }
+    });
+    return out;
+  }
+
+  // → {status: pending|hit|miss|check, bonus, picks:[{match, side, result}]}
+  // 사라졌거나 무효인 경기가 있으면 다른 결과와 상관없이 check(돼장 확인). 그다음 하나라도 틀리면 miss
+  function scorePrediction(pred, week) {
+    var picks = (pred && pred.picks) || [];
+    var rs = (Array.isArray(picks) ? picks : []).map(function (p) {
+      var m = matchOf(week, p && p.match);
+      var r = !matchValid(m) ? 'check' : !m.win ? 'pending' : m.win === p.side ? 'hit' : 'miss';
+      return { match: p && p.match, side: p && p.side, result: r };
+    });
+    var has = function (k) { return rs.some(function (x) { return x.result === k; }); };
+    var status = !week || validatePicks(picks, week).length || has('check') ? 'check' : has('miss') ? 'miss' : has('pending') ? 'pending' : 'hit';
+    var table = PREDICT.bonus[pred && pred.mode] || { hit: 0, miss: 0 };
+    var bonus = status === 'hit' ? table.hit : status === 'miss' ? table.miss : 0;
+    return { status: status, bonus: bonus, picks: rs };
+  }
+
+  // predictions: [{week_date, player_id, mode, picks}] → {pid: 보너스 합계}. 공개된 주만
+  function bonusByPlayer(state, predictions) {
+    var out = {};
+    (predictions || []).forEach(function (p) {
+      var w = state.weeks.filter(function (x) { return x.date === p.week_date; })[0];
+      if (!w || w.published === false) return;
+      var b = scorePrediction(p, w).bonus;
+      if (b) out[p.player_id] = (out[p.player_id] || 0) + b;
+    });
+    return out;
+  }
+
+  function weekMatchIndex(week) { var r = {}; (week && week.matches || []).forEach(function (m, i) { r[m.id] = i; }); return r; }
+  // counts: [{match_id, side, mode, n}] → 이 주 경기만, (mode 필터) → {key: {match, side, n}}, 경기별 합계
+  function sumCounts(counts, week, mode) {
+    var idx = weekMatchIndex(week), sides = {}, totals = {};
+    (counts || []).forEach(function (c) {
+      if (!(c.match_id in idx) || (mode && c.mode !== mode) || !(c.n > 0)) return;
+      var k = c.match_id + c.side;
+      var s = sides[k] || (sides[k] = { match: c.match_id, side: c.side, n: 0 });
+      s.n += c.n;
+      totals[c.match_id] = (totals[c.match_id] || 0) + c.n;
+    });
+    return { sides: sides, totals: totals, idx: idx };
+  }
+  // 팀(경기의 한쪽)별 선택 인원 순위 → [{match, side, n, total, share, rank, index}]
+  function popularPicks(counts, week, mode) {
+    var s = sumCounts(counts, week, mode);
+    var list = Object.keys(s.sides).map(function (k) {
+      var x = s.sides[k], t = s.totals[x.match];
+      return { match: x.match, side: x.side, n: x.n, total: t, share: x.n / t, index: s.idx[x.match] };
+    });
+    list.sort(function (x, y) { return y.n - x.n || y.share - x.share || x.index - y.index || (x.side < y.side ? -1 : 1); });
+    list.forEach(function (r, i) { r.rank = i > 0 && list[i - 1].n === r.n ? list[i - 1].rank : i + 1; });
+    return list;
+  }
+  // events: [{match_id, side, mode, delta, at}] → {match+side: 최근 1시간 증감}
+  function pickChanges(events, now, mode) {
+    var from = now - PREDICT.changeWindowMs, out = {};
+    (events || []).forEach(function (e) {
+      var t = Date.parse(e.at);
+      if (t < from || t > now || (mode && e.mode !== mode)) return;
+      var k = e.match_id + e.side;
+      out[k] = (out[k] || 0) + (e.delta == null ? 1 : e.delta);
+      if (!out[k]) delete out[k];
+    });
+    return out;
+  }
+  // 인기 픽 작은 추세선: 지금 인원 n에서 이벤트 증감을 거꾸로 빼서 만든 누적 인원 (오래된 것부터, 최대 12점)
+  function pickTrend(events, match, side, n, mode) {
+    var ev = (events || []).filter(function (e) { return e.match_id === match && e.side === side && (!mode || e.mode === mode); })
+      .sort(function (a, b) { return Date.parse(a.at) - Date.parse(b.at) || (a.id || 0) - (b.id || 0); });
+    var cur = n - ev.reduce(function (t, e) { return t + (e.delta == null ? 1 : e.delta); }, 0), s = [cur];
+    ev.forEach(function (e) { cur += e.delta == null ? 1 : e.delta; s.push(cur); });
+    if (s.length <= 12) return s;
+    var out = [];
+    for (var i = 0; i < 12; i++) out.push(s[Math.round(i * (s.length - 1) / 11)]);
+    return out;
+  }
+  // 🔺상한가: 경기 안 70% 이상인 쪽 / 🕵️작전주: 고른 인원이 가장 많이 걸린 선수 1명(동률이면 id 순)
+  function pickBadges(counts, week) {
+    var s = sumCounts(counts, week), upper = {}, load = {};
+    Object.keys(s.sides).forEach(function (k) {
+      var x = s.sides[k];
+      if (x.n / s.totals[x.match] >= PREDICT.upperShare) upper[k] = 1;
+      matchOf(week, x.match)[x.side].forEach(function (pid) { if (pid) load[pid] = (load[pid] || 0) + x.n; });
+    });
+    var sneaky = Object.keys(load).sort(function (a, b) { return load[b] - load[a] || (a < b ? -1 : 1); })[0] || null;
+    return { upper: upper, sneaky: sneaky };
+  }
+  // 마감 비율 스냅숏(prediction_close와 같은 모양): 두 방식 합산 → [{match_id, side, n, total}]
+  function closeFromPredictions(predictions) {
+    var n = {}, total = {};
+    (predictions || []).forEach(function (p) {
+      (p.picks || []).forEach(function (k) {
+        n[k.match + '|' + k.side] = (n[k.match + '|' + k.side] || 0) + 1;
+        total[k.match] = (total[k.match] || 0) + 1;
+      });
+    });
+    return Object.keys(n).map(function (k) { var p = k.split('|'); return { match_id: p[0], side: p[1], n: n[k], total: total[p[0]] }; });
+  }
+  // 장 마감 리포트: 그 주 경기 결과가 모두 들어오면 ready
+  function closingReport(week, close, predictions) {
+    var ms = (week && week.matches) || [];
+    var ready = ms.length > 0 && ms.every(function (m) { return m.win; }) && (predictions || []).length > 0;
+    var rows = (close && close.length ? close : closeFromPredictions(predictions)).filter(function (r) { return matchOf(week, r.match_id) && r.total > 0; })
+      .map(function (r) { var m = matchOf(week, r.match_id); return { match: r.match_id, side: r.side, n: r.n, total: r.total, share: r.n / r.total, won: m.win === r.side, lost: !!m.win && m.win !== r.side }; });
+    var idx = weekMatchIndex(week);
+    var most = function (a, b) { return b.n - a.n || b.share - a.share || idx[a.match] - idx[b.match]; };
+    var upper = rows.filter(function (r) { return r.won; }).sort(most)[0] || null;
+    var crash = rows.filter(function (r) { return r.lost; }).sort(most)[0] || null;
+    var contrarian = rows.filter(function (r) { return r.won && r.share < 0.5; })
+      .sort(function (a, b) { return a.share - b.share || b.n - a.n || idx[a.match] - idx[b.match]; })[0] || null;
+    var scored = (predictions || []).map(function (p) { return { p: p, s: scorePrediction(p, week) }; });
+    var hitters = scored.filter(function (x) { return x.s.status === 'hit'; })
+      .map(function (x) { return { player: x.p.player_id, mode: x.p.mode, bonus: x.s.bonus }; })
+      .sort(function (a, b) { return b.bonus - a.bonus; });
+    return {
+      ready: ready, participants: scored.length,
+      hits: hitters.length, misses: scored.filter(function (x) { return x.s.status === 'miss'; }).length,
+      upper: upper, crash: crash, contrarian: contrarian,
+      profit: {
+        total: hitters.reduce(function (t, h) { return t + h.bonus; }, 0),
+        high: hitters.filter(function (h) { return h.mode === 'high'; }).length,
+        safe: hitters.filter(function (h) { return h.mode === 'safe'; }).length,
+      },
+      hitters: hitters,
+    };
+  }
+
   return {
+    PREDICT: PREDICT, predictionDeadline: predictionDeadline, isPredictionClosed: isPredictionClosed, validatePicks: validatePicks,
+    scorePrediction: scorePrediction, bonusByPlayer: bonusByPlayer, popularPicks: popularPicks, pickChanges: pickChanges,
+    pickBadges: pickBadges, pickTrend: pickTrend, closeFromPredictions: closeFromPredictions, closingReport: closingReport,
     encodeSeeds: encodeSeeds, decodeSeeds: decodeSeeds, parseOrder: parseOrder, strengthOf: strengthOf, balanceOf: balanceOf,
     mulberry32: mulberry32, wednesdays: wednesdays, seasonDays: seasonDays, isOfficial: isOfficial, playersOf: playersOf,
     weekTally: weekTally, standings: standings, tierOf: tierOf, skillOf: skillOf, HEAT: HEAT,

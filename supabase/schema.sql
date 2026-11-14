@@ -135,3 +135,271 @@ revoke all on function public.admin_login(text), public.admin_check(uuid), publi
 grant execute on function public.admin_login(text), public.admin_check(uuid), public.admin_logout(uuid),
   public.save_state(uuid, jsonb, int), public.change_pin(uuid, text, text)
   to anon, authenticated;
+
+-- ================= 돼블스플랜(승부 예측) =================
+-- 예측은 app_state와 따로 저장(app_state는 읽기만). anon은 직접 쓰기 불가, 아래 RPC로만.
+-- 점수는 저장하지 않음(앱이 경기 결과로 계산). 마감: 그 주 수요일 17:30 KST (prediction_deadline)
+-- verify_db.js용 가짜 주는 2000년·2099년 날짜에만 만들 수 있고, 끝나면 admin_test_purge로 모두 지움
+
+create table if not exists public.predictions (
+  week_date date not null,
+  player_id text not null,
+  mode text not null check (mode in ('high', 'safe')),
+  picks jsonb not null,                       -- [{"match":"m0101","side":"a"}, …] 4개
+  updated_at timestamptz not null default now(),
+  primary key (week_date, player_id)
+);
+-- 팀별 선택 인원(이름 없음): 인기 픽 실시간용
+create table if not exists public.prediction_counts (
+  week_date date not null,
+  match_id text not null,
+  side text not null check (side in ('a', 'b')),
+  mode text not null check (mode in ('high', 'safe')),
+  n int not null default 0,
+  primary key (week_date, match_id, side, mode)
+);
+-- 체결 피드(이름 없음): 새로 고른 픽 +1, 빠진 픽 -1 (인기 픽 ▲▼ 계산용)
+create table if not exists public.prediction_events (
+  id bigserial primary key,
+  week_date date not null,
+  match_id text not null,
+  side text not null,
+  mode text not null,
+  delta smallint not null default 1,
+  at timestamptz not null default now()
+);
+create index if not exists prediction_events_week on public.prediction_events (week_date, id);
+-- 마감 시점 비율(종가). close_snapshot이 마감 후 처음 호출될 때 한 번만 채움
+create table if not exists public.prediction_close (
+  week_date date not null,
+  match_id text not null,
+  side text not null,
+  n int not null,
+  total int not null,
+  primary key (week_date, match_id, side)
+);
+-- verify_db.js 전용 가짜 주(경기 id 목록). 실제 주차와 겹치지 않게 2000년·2099년만
+create table if not exists public.prediction_test_weeks (
+  week_date date primary key check (extract(year from week_date) in (2000, 2099)),
+  match_ids jsonb not null
+);
+
+alter table public.predictions enable row level security;
+alter table public.prediction_counts enable row level security;
+alter table public.prediction_events enable row level security;
+alter table public.prediction_close enable row level security;
+alter table public.prediction_test_weeks enable row level security;
+revoke all on public.predictions, public.prediction_counts, public.prediction_events, public.prediction_close, public.prediction_test_weeks
+  from anon, authenticated;
+revoke all on sequence public.prediction_events_id_seq from anon, authenticated;
+grant select on public.predictions, public.prediction_counts, public.prediction_events, public.prediction_close to anon, authenticated;
+
+create or replace function public.prediction_deadline(d date) returns timestamptz
+language sql stable set search_path = public as $$
+  select (d + time '17:30') at time zone 'Asia/Seoul'
+$$;
+
+-- 누가 골랐는지는 마감 후에만 공개
+drop policy if exists predictions_read_closed on public.predictions;
+create policy predictions_read_closed on public.predictions for select to anon, authenticated
+  using (now() >= public.prediction_deadline(week_date));
+drop policy if exists prediction_counts_read on public.prediction_counts;
+create policy prediction_counts_read on public.prediction_counts for select to anon, authenticated using (true);
+drop policy if exists prediction_events_read on public.prediction_events;
+create policy prediction_events_read on public.prediction_events for select to anon, authenticated using (true);
+drop policy if exists prediction_close_read on public.prediction_close;
+create policy prediction_close_read on public.prediction_close for select to anon, authenticated using (true);
+
+-- 그 주 경기 id 목록 (app_state의 공개된 주, 없으면 가짜 주). 읽기만 함
+create or replace function public.prediction_match_ids(d date) returns jsonb
+language sql stable security definer set search_path = public as $$
+  select coalesce(
+    (select jsonb_agg(m->>'id')
+       from public.app_state s,
+            jsonb_array_elements(s.state->'weeks') w,
+            jsonb_array_elements(coalesce(w->'matches', '[]'::jsonb)) m
+      where s.id = 1 and w->>'date' = to_char(d, 'YYYY-MM-DD') and coalesce(w->>'published', 'true') <> 'false'),
+    (select t.match_ids from public.prediction_test_weeks t where t.week_date = d));
+$$;
+
+-- 앱 선수 명단(활동 중)에 있는지
+create or replace function public.prediction_player_ok(pid text) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.app_state s, jsonb_array_elements(s.state->'players') p
+                  where s.id = 1 and p->>'id' = pid and coalesce(p->>'active', 'true') <> 'false');
+$$;
+
+-- 검사: bad_mode / bad_player / no_week / bad_count / bad_side / dup_match / bad_match
+create or replace function public.pred_check(p_week date, p_player text, p_mode text, p_picks jsonb) returns void
+language plpgsql stable security definer set search_path = public as $$
+declare
+  ids jsonb;
+  e jsonb;
+  seen text[] := '{}';
+begin
+  if p_mode is null or p_mode not in ('high', 'safe') then raise exception 'bad_mode'; end if;
+  if p_player is null or not public.prediction_player_ok(p_player) then raise exception 'bad_player'; end if;
+  ids := public.prediction_match_ids(p_week);
+  if ids is null then raise exception 'no_week'; end if;
+  if p_picks is null or jsonb_typeof(p_picks) <> 'array' or jsonb_array_length(p_picks) <> 4 then raise exception 'bad_count'; end if;
+  for e in select x.value from jsonb_array_elements(p_picks) x loop
+    if jsonb_typeof(e) <> 'object' or jsonb_typeof(e->'match') is distinct from 'string' then raise exception 'bad_match'; end if;
+    if (e->>'side') is null or (e->>'side') not in ('a', 'b') then raise exception 'bad_side'; end if;
+    if (e->>'match') = any(seen) then raise exception 'dup_match'; end if;
+    if not ids ? (e->>'match') then raise exception 'bad_match'; end if;
+    seen := seen || (e->>'match');
+  end loop;
+end $$;
+
+-- 저장 + counts 증감 (+ p_log면 바뀐 픽만 이벤트). 한 트랜잭션
+create or replace function public.pred_apply(p_week date, p_player text, p_mode text, p_picks jsonb, p_log boolean) returns timestamptz
+language plpgsql security definer set search_path = public as $$
+declare
+  prev public.predictions%rowtype;
+  clean jsonb;
+  t timestamptz := now();
+begin
+  perform pg_advisory_xact_lock(hashtext('pred:' || p_week::text || ':' || p_player));
+  select jsonb_agg(jsonb_build_object('match', x.e->>'match', 'side', x.e->>'side') order by x.ord) into clean
+    from jsonb_array_elements(p_picks) with ordinality as x(e, ord);
+  select * into prev from public.predictions p where p.week_date = p_week and p.player_id = p_player for update;
+  if prev.player_id is not null then
+    update public.prediction_counts c set n = c.n - 1
+      from jsonb_array_elements(prev.picks) o
+     where c.week_date = p_week and c.match_id = o->>'match' and c.side = o->>'side' and c.mode = prev.mode;
+    if p_log then
+      insert into public.prediction_events (week_date, match_id, side, mode, delta, at)
+        select p_week, o->>'match', o->>'side', prev.mode, -1, t from jsonb_array_elements(prev.picks) o
+         where prev.mode <> p_mode or not clean @> jsonb_build_array(o);
+    end if;
+  end if;
+  insert into public.prediction_counts as c (week_date, match_id, side, mode, n)
+    select p_week, x->>'match', x->>'side', p_mode, 1 from jsonb_array_elements(clean) x
+    on conflict (week_date, match_id, side, mode) do update set n = c.n + 1;
+  if p_log then
+    insert into public.prediction_events (week_date, match_id, side, mode, delta, at)
+      select p_week, x->>'match', x->>'side', p_mode, 1, t from jsonb_array_elements(clean) x
+       where prev.player_id is null or prev.mode <> p_mode or not prev.picks @> jsonb_build_array(x);
+  end if;
+  insert into public.predictions as p (week_date, player_id, mode, picks, updated_at) values (p_week, p_player, p_mode, clean, t)
+    on conflict (week_date, player_id) do update set mode = excluded.mode, picks = excluded.picks, updated_at = excluded.updated_at;
+  return t;
+end $$;
+
+create or replace function public.pred_remove(p_week date, p_player text) returns boolean
+language plpgsql security definer set search_path = public as $$
+declare
+  prev public.predictions%rowtype;
+begin
+  perform pg_advisory_xact_lock(hashtext('pred:' || p_week::text || ':' || p_player));
+  select * into prev from public.predictions p where p.week_date = p_week and p.player_id = p_player for update;
+  if prev.player_id is null then return false; end if;
+  update public.prediction_counts c set n = c.n - 1
+    from jsonb_array_elements(prev.picks) o
+   where c.week_date = p_week and c.match_id = o->>'match' and c.side = o->>'side' and c.mode = prev.mode;
+  delete from public.predictions p where p.week_date = p_week and p.player_id = p_player;
+  return true;
+end $$;
+
+-- 회원 제출: 마감 전에만 (closed). 마감 전에는 수정 가능(같은 주·같은 사람은 덮어씀)
+create or replace function public.submit_prediction(week_date date, player_id text, mode text, picks jsonb) returns timestamptz
+language plpgsql security definer set search_path = public as $$
+begin
+  if now() >= public.prediction_deadline(submit_prediction.week_date) then raise exception 'closed'; end if;
+  perform public.pred_check(submit_prediction.week_date, submit_prediction.player_id, submit_prediction.mode, submit_prediction.picks);
+  return public.pred_apply(submit_prediction.week_date, submit_prediction.player_id, submit_prediction.mode, submit_prediction.picks, true);
+end $$;
+
+-- 돼장: 마감과 무관하게 수정·삭제·전체 보기 (체결 피드에는 안 남김)
+create or replace function public.admin_upsert_prediction(token uuid, week_date date, player_id text, mode text, picks jsonb) returns timestamptz
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.admin_check(admin_upsert_prediction.token) then raise exception 'unauthorized'; end if;
+  perform public.pred_check(admin_upsert_prediction.week_date, admin_upsert_prediction.player_id, admin_upsert_prediction.mode, admin_upsert_prediction.picks);
+  return public.pred_apply(admin_upsert_prediction.week_date, admin_upsert_prediction.player_id, admin_upsert_prediction.mode, admin_upsert_prediction.picks, false);
+end $$;
+
+create or replace function public.admin_delete_prediction(token uuid, week_date date, player_id text) returns boolean
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.admin_check(admin_delete_prediction.token) then raise exception 'unauthorized'; end if;
+  return public.pred_remove(admin_delete_prediction.week_date, admin_delete_prediction.player_id);
+end $$;
+
+create or replace function public.admin_list_predictions(token uuid, week_date date) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if not public.admin_check(admin_list_predictions.token) then raise exception 'unauthorized'; end if;
+  return (select coalesce(jsonb_agg(jsonb_build_object('week_date', p.week_date, 'player_id', p.player_id, 'mode', p.mode,
+                                                       'picks', p.picks, 'updated_at', p.updated_at) order by p.updated_at), '[]'::jsonb)
+            from public.predictions p where p.week_date = admin_list_predictions.week_date);
+end $$;
+
+-- 마감 비율 스냅숏: 마감 후 처음 호출될 때 한 번만 채움(이미 있으면 0). 반환: 넣은 행 수
+create or replace function public.close_snapshot(week_date date) returns int
+language plpgsql security definer set search_path = public as $$
+declare
+  k int;
+begin
+  if now() < public.prediction_deadline(close_snapshot.week_date) then return 0; end if;
+  perform pg_advisory_xact_lock(hashtext('close:' || close_snapshot.week_date::text));
+  if exists (select 1 from public.prediction_close c where c.week_date = close_snapshot.week_date) then return 0; end if;
+  insert into public.prediction_close (week_date, match_id, side, n, total)
+    select close_snapshot.week_date, x.m, x.s, count(*), sum(count(*)) over (partition by x.m)
+      from (select e->>'match' as m, e->>'side' as s
+              from public.predictions p, jsonb_array_elements(p.picks) e
+             where p.week_date = close_snapshot.week_date) x
+     group by x.m, x.s;
+  get diagnostics k = row_count;
+  return k;
+end $$;
+
+-- verify_db.js 전용: 2000년·2099년 가짜 주 만들기 / 그 날짜들의 예측 관련 행 전부 지우기
+create or replace function public.admin_test_week(token uuid, week_date date, match_ids jsonb) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.admin_check(admin_test_week.token) then raise exception 'unauthorized'; end if;
+  if extract(year from admin_test_week.week_date) not in (2000, 2099) then raise exception 'test_date_only'; end if;
+  insert into public.prediction_test_weeks as t (week_date, match_ids) values (admin_test_week.week_date, admin_test_week.match_ids)
+    on conflict on constraint prediction_test_weeks_pkey do update set match_ids = excluded.match_ids;
+end $$;
+
+create or replace function public.admin_test_purge(token uuid) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare
+  a int; b int; c int; d int; e int;
+begin
+  if not public.admin_check(admin_test_purge.token) then raise exception 'unauthorized'; end if;
+  delete from public.predictions x where extract(year from x.week_date) in (2000, 2099); get diagnostics a = row_count;
+  delete from public.prediction_counts x where extract(year from x.week_date) in (2000, 2099); get diagnostics b = row_count;
+  delete from public.prediction_events x where extract(year from x.week_date) in (2000, 2099); get diagnostics c = row_count;
+  delete from public.prediction_close x where extract(year from x.week_date) in (2000, 2099); get diagnostics d = row_count;
+  delete from public.prediction_test_weeks x where extract(year from x.week_date) in (2000, 2099); get diagnostics e = row_count;
+  return jsonb_build_object('predictions', a, 'prediction_counts', b, 'prediction_events', c, 'prediction_close', d, 'prediction_test_weeks', e);
+end $$;
+
+revoke all on function public.prediction_deadline(date), public.prediction_match_ids(date), public.prediction_player_ok(text),
+  public.pred_check(date, text, text, jsonb), public.pred_apply(date, text, text, jsonb, boolean), public.pred_remove(date, text),
+  public.submit_prediction(date, text, text, jsonb), public.admin_upsert_prediction(uuid, date, text, text, jsonb),
+  public.admin_delete_prediction(uuid, date, text), public.admin_list_predictions(uuid, date), public.close_snapshot(date),
+  public.admin_test_week(uuid, date, jsonb), public.admin_test_purge(uuid)
+  from public, anon, authenticated;
+-- prediction_deadline은 RLS 정책(predictions_read_closed)이 anon 권한으로 계산하므로 실행 가능해야 함
+grant execute on function public.prediction_deadline(date),
+  public.submit_prediction(date, text, text, jsonb), public.admin_upsert_prediction(uuid, date, text, text, jsonb),
+  public.admin_delete_prediction(uuid, date, text), public.admin_list_predictions(uuid, date), public.close_snapshot(date),
+  public.admin_test_week(uuid, date, jsonb), public.admin_test_purge(uuid)
+  to anon, authenticated;
+
+-- Realtime: 인기 픽(counts)과 체결 피드(events) 변경 구독 (이미 등록돼 있으면 건너뜀)
+do $$
+begin
+  if exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
+    if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'prediction_counts') then
+      alter publication supabase_realtime add table public.prediction_counts;
+    end if;
+    if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'prediction_events') then
+      alter publication supabase_realtime add table public.prediction_events;
+    end if;
+  end if;
+end $$;

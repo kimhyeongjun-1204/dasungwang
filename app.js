@@ -167,7 +167,7 @@
       '<span class="tagline">이기면 <b>지옥도</b>, 지면 천국도!</span></div>' +
       '<span class="hero-side hell" aria-hidden="true">지옥도</span><span class="hero-side heaven" aria-hidden="true">천국도</span></header>' +
       '<div class="season"><span class="season-label">시즌 진행</span><div class="season-bar" aria-label="시즌 진행 ' + done + '/' + ds.length + '주">' + bar + '</div><span class="season-txt num">' + md(ds[0]) + '–' + md(ds[ds.length - 1]) + ' · ' + done + '/' + ds.length + '주 완료</span></div>' +
-      '<nav class="tabs" role="tablist">' + [['week', '이번 주'], ['rank', '순위'], ['me', '내 기록'], ['admin', '관리']].map(function (t) {
+      '<nav class="tabs" role="tablist">' + [['week', '이번 주'], ['rank', '순위'], ['plan', '예측'], ['me', '내 기록'], ['admin', '관리']].map(function (t) {
         return '<button role="tab" data-act="tab" data-v="' + t[0] + '" aria-selected="' + (ui.tab === t[0]) + '">' + t[1] + (t[0] === 'admin' && !ui.admin ? ' <span class="lock">PIN</span>' : '') + '</button>';
       }).join('') + '</nav>';
   }
@@ -251,15 +251,15 @@
   }
 
   function viewRank() {
-    var S = L.standings(work), P = pm();
+    var S = L.standings(work, { bonus: bonusMap() }), P = pm();
     var meP = P[ui.me];
     var gid = ui.rankGroup || (meP ? meP.group : groups()[0].id);
     var g = groups().filter(function (x) { return x.id === gid; })[0] || groups()[0];
     var list = S[g.id] || [];
     var ds = L.seasonDays(work.settings);
     var remain = ds.filter(function (d) { return weekStatus(getWeek(d)) !== 'done'; }).length;
-    var played = list.filter(function (r) { return r.wins + r.losses + r.pending > 0; });
-    var idle = list.filter(function (r) { return r.wins + r.losses + r.pending === 0; });
+    var played = list.filter(function (r) { return r.wins + r.losses + r.pending > 0 || r.bonus; });
+    var idle = list.filter(function (r) { return r.wins + r.losses + r.pending === 0 && !r.bonus; });
     var out = '<div class="gsel" role="group" aria-label="조 선택">' + groups().map(function (x) {
       return '<button class="g' + x.id + '" data-act="rankg" data-v="' + x.id + '" aria-pressed="' + (x.id === g.id) + '">' + esc(x.name) + '</button>';
     }).join('') + '</div>';
@@ -267,13 +267,13 @@
     if (!played.length) {
       out += '<div class="card empty"><div class="pig" aria-hidden="true"></div><b>아직 입력된 결과가 없어요</b><p class="muted">돼장이 경기 결과를 입력하면 승수와 순위가 바로 계산돼요.</p></div>';
     } else {
-      out += '<div class="board"><div class="rrow rhead" aria-hidden="true"><span>순위</span><span>이름</span><span>승</span><span>패</span><span>승률</span></div>' + played.map(function (r) {
+      out += '<div class="board"><div class="rrow rhead" aria-hidden="true"><span>순위</span><span>이름</span><span>승</span><span>보너스</span><span>패</span><span>승률</span></div>' + played.map(function (r) {
         var tag = r.lottery ? ' <span class="chip lot">동률 추첨</span>' : r.contender ? ' <span class="chip king">다승왕권</span>' : '';
         var dec = r.wins + r.losses;
-        return '<div class="rrow' + (r.contender ? ' contender' : '') + (r.id === ui.me ? ' me' : '') + '"><span class="medal num' + (r.rank <= 3 && r.wins > 0 ? ' m' + r.rank : '') + '">' + (dec ? r.rank : '–') + '</span>' +
+        return '<div class="rrow' + (r.contender ? ' contender' : '') + (r.id === ui.me ? ' me' : '') + '"><span class="medal num' + (r.rank <= 3 && r.wins > 0 ? ' m' + r.rank : '') + '">' + (dec || r.bonus ? r.rank : '–') + '</span>' +
           '<span class="rname"><b>' + esc(r.name) + '</b>' + tag + '<span class="sub num">' + r.weeks + '주 참가' + (r.pending ? ' · 결과 미입력 ' + r.pending + '경기' : '') + '</span></span>' +
-          '<span class="rnum strong num">' + r.wins + '</span><span class="rnum num">' + r.losses + '</span><span class="rnum num">' + (dec ? Math.round(r.wins / dec * 100) + '%' : '–') + '</span></div>';
-      }).join('') + '</div>';
+          '<span class="rnum strong num">' + r.wins + '</span><span class="rnum num bonus' + (r.bonus > 0 ? ' plus' : r.bonus < 0 ? ' minus' : '') + '" aria-label="보너스 ' + r.bonus + '">' + (r.bonus ? signed(r.bonus) : '–') + '</span><span class="rnum num">' + r.losses + '</span><span class="rnum num">' + (dec ? Math.round(r.wins / dec * 100) + '%' : '–') + '</span></div>';
+      }).join('') + '</div><p class="small muted">승수 = 공식 경기 + 돼블스플랜 보너스</p>';
     }
     out += '</div>';
     if (idle.length) out += '<details><summary>아직 기록 없는 ' + idle.length + '명</summary><p class="small muted">' + idle.map(function (r) { return esc(r.name); }).join(', ') + '</p></details>';
@@ -303,7 +303,7 @@
     var P = pm(), me = P[ui.me];
     var pick = mePicker();
     if (!me) return pick + '<div class="card empty"><div class="pig" aria-hidden="true"></div><b>이름을 고르면 내 경기만 모아 보여 줘요</b><p class="muted">내 매칭, 누적 승수, 다음 주 지옥도·천국도 배정까지. 이 기기에만 기억돼요.</p></div>';
-    var S = L.standings(work);
+    var S = L.standings(work, { bonus: bonusMap() });
     var gid = work.settings.countBy === 'pool' ? null : me.group;
     var row = null, gsize = 0, gw = 1;
     Object.keys(S).forEach(function (k) {
@@ -352,6 +352,383 @@
     return wrap(out);
   }
 
+  // ---------- 돼블스플랜(승부 예측) ----------
+  // 마감 전: 집계(인원·비율)와 이름 없는 체결 피드만 서버에서 읽고, 내 제출은 이 기기에도 보관
+  // 마감 후: 전원 예측(predictions)을 읽어 경기 결과로 채점. 보너스는 저장하지 않고 매번 계산
+  var PRED_KEY = 'ddw-pred';
+  var MODE_LABEL = { high: '하이리스크', safe: '안전형' };
+  var pred = { week: null, ok: null, counts: [], events: [], close: [], at: 0, sig: '', loading: false, closedAt: {}, watch: null,
+    all: [], allOk: null, newEvent: 0, admWeek: null, admList: null, admErr: '' };
+  ui.pred = { mode: '', picks: [], filter: '', more: false, edit: false, busy: false, full: false, adm: null, admDel: '' };
+
+  function predWeek() { var w = getWeek(ui.week); return w && w.published !== false && w.matches.length ? w : null; }
+  function isClosed(d) { return L.isPredictionClosed(d, Date.now()); }
+  function localPreds() { try { var o = JSON.parse(LS.get(PRED_KEY) || '{}'); return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; } }
+  function localPred(d, pid) { var a = localPreds()[d]; return (a && pid && a[pid]) || null; }
+  function setLocalPred(d, pid, v) {
+    var a = localPreds();
+    a[d] = a[d] || {}; a[d][pid] = v;
+    Object.keys(a).sort().slice(0, -8).forEach(function (k) { delete a[k]; }); // 최근 8주만
+    LS.set(PRED_KEY, JSON.stringify(a));
+  }
+  function matchLabel(w, m) {
+    var same = w.matches.filter(function (x) { return x.pool === m.pool; });
+    return (poolOrder(m.pool) === 99 ? '' : gname(m.pool) + ' ') + (same.indexOf(m) + 1) + '경기';
+  }
+  function teamText(m, side, P) { return m ? m[side].map(function (p) { return P[p] ? P[p].name : '?'; }).join('·') : '(빠진 경기)'; }
+  function matchById(w, id) { return w.matches.filter(function (m) { return m.id === id; })[0] || null; }
+  function bonusMap() { return pred.allOk ? L.bonusByPlayer(work, pred.all) : {}; }
+  function fmtLeft(ms) {
+    var s = Math.max(0, Math.floor(ms / 1000)), d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60), x = s % 60;
+    var p2 = function (n) { return (n < 10 ? '0' : '') + n; };
+    return d ? d + '일 ' + h + '시간' : h + ':' + p2(m) + ':' + p2(x); // 하루 넘게 남으면 초는 생략
+  }
+  function hhmm(t) { try { return new Date(t).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Seoul' }); } catch (e) { return ''; } }
+  function pct(x) { return Math.round(x * 100); }
+  function signed(n) { return n > 0 ? '+' + n : n < 0 ? '−' + Math.abs(n) : '0'; }
+  function resultLabel(s, mode) {
+    var b = L.PREDICT.bonus[mode] || { hit: 0, miss: 0 };
+    if (s.status === 'hit') return '적중 +' + b.hit + '승';
+    if (s.status === 'miss') return '실패 ' + (b.miss ? '−' + Math.abs(b.miss) + '승' : '0');
+    if (s.status === 'check') return '확인 필요';
+    return '진행 중 ' + s.picks.filter(function (p) { return p.result === 'hit'; }).length + '/' + L.PREDICT.picks;
+  }
+  var PK_ICON = { hit: '✓', miss: '✕', pending: '⏳', check: '!' }, PK_SR = { hit: '적중', miss: '실패', pending: '대기', check: '확인 필요' };
+  function pickCells(w, s, P, small) {
+    return '<div class="pick4' + (small ? ' sm' : '') + '">' + s.picks.map(function (p) {
+      var m = matchById(w, p.match);
+      return '<span class="pk ' + p.result + '"><i aria-hidden="true">' + PK_ICON[p.result] + '</i><span>' + esc(teamText(m, p.side, P)) + '</span><span class="sr">' + PK_SR[p.result] + '</span></span>';
+    }).join('') + '</div>';
+  }
+
+  // ---- 서버에서 읽기 ----
+  function loadAllPreds() {
+    return remote.predictions().then(function (rows) { pred.all = rows || []; pred.allOk = true; }, function () { pred.allOk = false; });
+  }
+  function loadWeekPreds(d) {
+    if (pred.loading) return Promise.resolve(false);
+    pred.loading = true;
+    var closed = isClosed(d);
+    var close = !closed ? Promise.resolve([]) :
+      (pred.closedAt[d] ? Promise.resolve() : remote.closeSnapshot(d).then(function () { pred.closedAt[d] = 1; }, function () { }))
+        .then(function () { return remote.predClose(d); });
+    return Promise.all([remote.predCounts(d), remote.predEvents(d), close]).then(function (r) {
+      pred.loading = false;
+      if (pred.week !== d) return false;
+      var prevTop = (pred.events.filter(function (e) { return e.delta > 0; })[0] || {}).id || 0;
+      pred.counts = r[0] || []; pred.events = r[1] || []; pred.close = r[2] || []; pred.ok = true; pred.at = Date.now();
+      var top = (pred.events.filter(function (e) { return e.delta > 0; })[0] || {}).id || 0;
+      if (prevTop && top > prevTop) { pred.newEvent = top; setTimeout(function () { pred.newEvent = 0; }, 1200); }
+      var sig = JSON.stringify([pred.counts, pred.events.length && pred.events[0].id, pred.close.length]);
+      var changed = sig !== pred.sig; pred.sig = sig;
+      return changed;
+    }, function () { pred.loading = false; if (pred.week === d) { pred.ok = false; pred.at = Date.now(); } return true; });
+  }
+  function refreshPred() { var d = pred.week; if (d) loadWeekPreds(d).then(function (ch) { if (ch && pred.week === d) render(); }); }
+  // 예측 탭에서 보고 있는 주가 바뀌면 다시 읽고, 마감 전이면 Realtime 구독
+  function ensurePredWeek(d) {
+    if (pred.week === d) return;
+    if (pred.watch) { pred.watch.stop(); pred.watch = null; }
+    pred.week = d; pred.ok = null; pred.counts = []; pred.events = []; pred.close = []; pred.sig = ''; pred.at = 0;
+    var t = null;
+    if (!isClosed(d)) pred.watch = remote.watchPredictions(d, function () { clearTimeout(t); t = setTimeout(refreshPred, 400); });
+    setTimeout(function () { loadWeekPreds(d).then(function () { if (pred.week === d) render(); }); }, 0);
+  }
+  function loadAdminList(d) {
+    pred.admWeek = d; pred.admList = null; pred.admErr = '';
+    remote.adminListPredictions(token, d).then(function (rows) {
+      if (pred.admWeek === d) { pred.admList = rows || []; render(); }
+    }, function (e) {
+      if (e.code === 'unauthorized') { dropAdmin(); ui.admin = false; ui.pinMsg = '관리자 로그인이 만료됐어요. PIN을 다시 입력하세요.'; }
+      else pred.admErr = e.code === 'network' ? '인터넷 연결을 확인해 주세요.' : '예측 목록을 불러오지 못했어요 (' + e.code + ').';
+      render();
+    });
+  }
+  // 1초마다: 카운트다운 글자만 바꿈. 마감 순간에는 공개 목록을 다시 읽음. Realtime이 안 되면 20초마다 다시 읽음
+  function predTick() {
+    if (!work) return;
+    var els = document.querySelectorAll('[data-cd]'), rerender = false;
+    for (var i = 0; i < els.length; i++) {
+      var left = L.predictionDeadline(els[i].getAttribute('data-cd')).getTime() - Date.now();
+      if (left <= 0) rerender = true; else els[i].textContent = (els[i].getAttribute('data-pre') || '마감까지 ') + fmtLeft(left);
+    }
+    var d = pred.week;
+    if (d && pred.watch && isClosed(d)) {
+      pred.watch.stop(); pred.watch = null; pred.sig = '';
+      Promise.all([loadAllPreds(), loadWeekPreds(d)]).then(function () { render(); });
+      return;
+    }
+    if (rerender) { render(); return; }
+    if (ui.tab === 'plan' && d && !isClosed(d) && (!pred.watch || !pred.watch.live()) && !pred.loading &&
+      Date.now() - pred.at > 20000 && document.visibilityState !== 'hidden') refreshPred();
+  }
+
+  // ---- 화면 ----
+  function planBanner(w, closed, people) {
+    var dl = L.predictionDeadline(w.date).getTime();
+    return '<section class="plan-banner" aria-label="돼블스플랜 ' + md(w.date) + '(수)">' +
+      '<div class="pb-text"><span class="pb-kicker num">' + md(w.date) + '(수) · 승리를 예측하라!</span>' +
+      '<h2 class="pb-title">돼블스<em>플랜</em></h2>' +
+      '<p class="pb-sub">4경기 모두 맞히면 승수 보너스</p>' +
+      '<div class="pb-chips">' + (closed ? '<span class="pb-cd">장 마감</span>' : '<span class="pb-cd num" data-cd="' + w.date + '">마감까지 ' + fmtLeft(dl - Date.now()) + '</span>') +
+      (people != null ? '<span class="pb-n num">참여 ' + people + '명</span>' : '') + '</div></div>' +
+      '<i class="pb-pig" role="img" aria-label="후드 쓴 돼지 캐릭터"></i></section>';
+  }
+  function predNotReady() {
+    return pred.ok === false ? '<div class="card"><b>예측 정보를 불러오지 못했어요.</b><p class="small muted">인터넷 연결을 확인하고 다시 시도해 주세요. 계속 안 되면 돼장에게 알려 주세요.</p><div><button class="btn sm" data-act="pred-retry">다시 시도</button></div></div>' : '';
+  }
+  function viewPopular(w, P, closed) {
+    var f = ui.pred.filter || undefined;
+    var list = L.popularPicks(pred.counts, w, f), ch = closed ? {} : L.pickChanges(pred.events, Date.now(), f), badge = L.pickBadges(pred.counts, w);
+    var shown = ui.pred.more ? list : list.slice(0, 5);
+    var out = '<div class="card pp"><div class="pp-head"><h2><span class="live-dot" aria-hidden="true"></span>' + (closed ? '마감 인기 픽' : '실시간 인기 픽') + '</h2>' +
+      (pred.at ? '<span class="small muted num">' + hhmm(pred.at) + ' 기준</span>' : '') + '</div>' +
+      '<div class="seg" role="group" aria-label="방식">' + [['', '전체'], ['high', '하이리스크'], ['safe', '안전형']].map(function (o) {
+        return '<button data-act="pp-filter" data-v="' + o[0] + '" aria-pressed="' + ((ui.pred.filter || '') === o[0]) + '">' + o[1] + '</button>';
+      }).join('') + '</div>';
+    if (pred.ok === null) return out + '<p class="small muted">불러오는 중…</p></div>';
+    if (!list.length) return out + '<p class="small muted">' + (f ? MODE_LABEL[f] + ' 제출이 아직 없어요.' : '아직 제출이 없어요. 첫 예측을 해 보세요!') + '</p></div>';
+    out += '<ol class="pp-list">' + shown.map(function (r) {
+      var m = matchById(w, r.match), k = r.match + r.side, c = ch[k] || 0;
+      var tags = (badge.upper[k] ? '<span class="chip up">상한가</span>' : '') + (badge.sneaky && m[r.side].indexOf(badge.sneaky) >= 0 ? '<span class="chip sneaky" title="' + esc((P[badge.sneaky] || {}).name || '') + ' 이번 주 가장 많이 걸림">작전주</span>' : '');
+      var move = c > 0 ? '<span class="mv-up">▲' + c + '</span> · ' : c < 0 ? '<span class="mv-down">▼' + (-c) + '</span> · ' : '';
+      return '<li class="pp-row"><span class="pp-rank num">' + r.rank + '</span><div class="pp-main"><div class="pp-name"><b>' + esc(teamText(m, r.side, P)) + '</b>' + tags + '</div>' +
+        '<span class="pp-sub gdot g' + m.pool + '">' + esc(matchLabel(w, m)) + '</span><span class="pp-bar" aria-hidden="true"><i style="width:' + pct(r.share) + '%"></i></span></div>' +
+        spark(L.pickTrend(pred.events, r.match, r.side, r.n, f), c) +
+        '<div class="pp-nums"><b class="num">' + r.n + '명</b><span class="num">' + move + pct(r.share) + '%</span></div></li>';
+    }).join('') + '</ol>';
+    if (list.length > 5) out += '<button class="btn sm" data-act="pp-more">' + (ui.pred.more ? '접기' : '전체 보기 (' + list.length + '팀)') + '</button>';
+    if (!closed) out += '<p class="small muted">▲▼ 최근 1시간 인원 변화 · 상한가: 한 경기에서 70% 이상이 고른 팀 · 작전주: 이번 주 가장 많이 걸린 선수</p>';
+    return out + '</div>';
+  }
+  // 작은 추세선(이름 없는 체결 이벤트로 만든 누적 인원). 최근 1시간 오르면 빨강, 내리면 파랑
+  function spark(vals, change) {
+    if (vals.length < 2) return '<span class="pp-spark" aria-hidden="true"></span>';
+    var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals), W = 56, H = 22;
+    var pts = vals.map(function (v, i) { return (i * W / (vals.length - 1)).toFixed(1) + ',' + (hi === lo ? H / 2 : H - 2 - (v - lo) / (hi - lo) * (H - 4)).toFixed(1); }).join(' ');
+    return '<svg class="pp-spark ' + (change > 0 ? 'rise' : change < 0 ? 'fall' : '') + '" viewBox="0 0 ' + W + ' ' + H + '" aria-hidden="true"><polyline points="' + pts + '" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/></svg>';
+  }
+  function viewFeed(w, P) {
+    var ev = pred.events.filter(function (e) { return e.delta > 0; }).slice(0, 3);
+    if (!ev.length) return '';
+    return '<div class="card feed" aria-live="polite"><h3><span class="live-dot" aria-hidden="true"></span>체결</h3>' + ev.map(function (e) {
+      var m = matchById(w, e.match_id);
+      return '<div class="feed-row' + (e.id === pred.newEvent ? ' new' : '') + '"><span class="num feed-t">' + hhmm(e.at) + '</span><span class="mchip ' + e.mode + '">' + MODE_LABEL[e.mode] + '</span>' +
+        '<span class="feed-team">' + esc(teamText(m, e.side, P)) + '</span><b class="buy">매수</b></div>';
+    }).join('') + '</div>';
+  }
+  function viewPredict() {
+    var w = predWeek(), P = pm();
+    var out = weekChips();
+    if (!w) {
+      return out + '<div class="card empty"><div class="pig" aria-hidden="true"></div><b>' + md(ui.week) + '(수) 편성이 공개되면 예측할 수 있어요</b>' +
+        '<p class="muted">마감은 그 주 수요일 17:30이에요.</p></div>';
+    }
+    ensurePredWeek(w.date);
+    var closed = isClosed(w.date);
+    if (!closed && ui.pred.edit) return viewPredEdit(w, P);
+    var weekAll = pred.all.filter(function (p) { return p.week_date === w.date; });
+    var people = closed ? (pred.allOk ? weekAll.length : null) : (pred.ok ? Math.round(pred.counts.reduce(function (t, c) { return t + c.n; }, 0) / L.PREDICT.picks) : null);
+    out += planBanner(w, closed, people) + predNotReady();
+    if (closed) return out + viewPredClosed(w, P, weekAll);
+    var mine = localPred(w.date, ui.me);
+    if (mine) {
+      var s = L.scorePrediction(mine, w);
+      out += '<div class="card my-pred"><div class="mp-head"><h3>내 예측 · ' + esc((P[ui.me] || {}).name || '') + '</h3><span class="mchip ' + mine.mode + '">' + MODE_LABEL[mine.mode] + '</span></div>' +
+        pickCells(w, s, P) + (s.status === 'check' ? '<p class="small" style="color:var(--hell-text)">편성이 바뀌어서 빠진 경기가 있어요. 다시 골라 제출해 주세요.</p>' : '') +
+        '<p class="small muted">' + hhmm(mine.at) + ' 제출 · 마감 전까지 수정할 수 있어요 (이 기기에 보관)</p></div>';
+    }
+    out += viewPopular(w, P, false) + viewFeed(w, P);
+    if (!dirty() && !ui.busy) out += '<div class="plan-cta"><div class="in"><button class="btn primary" data-act="pe-open"><b>' + (mine ? '내 예측 고치기' : '내 예측 하기') + '</b><small>4경기 고르기</small></button></div></div>';
+    else out += '<button class="btn primary" data-act="pe-open">' + (mine ? '내 예측 고치기' : '내 예측 하기') + '</button>';
+    return out;
+  }
+  function openPredEdit() {
+    var w = predWeek(); if (!w) return;
+    var mine = localPred(w.date, ui.me);
+    var ids = w.matches.map(function (m) { return m.id; });
+    ui.pred.mode = mine ? mine.mode : '';
+    ui.pred.picks = mine ? mine.picks.filter(function (p) { return ids.indexOf(p.match) >= 0; }).map(function (p) { return { match: p.match, side: p.side }; }) : [];
+    ui.pred.edit = true;
+  }
+  function viewPredEdit(w, P) {
+    var d = ui.pred, n = d.picks.length, max = L.PREDICT.picks, B = L.PREDICT.bonus;
+    var out = '<div class="pe-head"><button class="btn sm" data-act="pe-close" aria-label="예측 화면으로 돌아가기">←</button><h2>예측하기 <span class="muted small num">' + md(w.date) + '(수)</span></h2>' +
+      '<span class="pe-cd num" data-cd="' + w.date + '" data-pre="마감 ">마감 ' + fmtLeft(L.predictionDeadline(w.date).getTime() - Date.now()) + '</span></div>';
+    out += mePicker();
+    out += '<div class="mode-cards" role="radiogroup" aria-label="방식">' + ['high', 'safe'].map(function (k) {
+      return '<button class="mode-card" role="radio" aria-checked="' + (d.mode === k) + '" data-act="pe-mode" data-v="' + k + '">' +
+        (k === 'high' ? '<span class="mc-tag">HIGH RISK</span>' : '') + '<b class="mc-name">' + (k === 'high' ? '🔥 ' : '🛡️ ') + MODE_LABEL[k] + '</b>' +
+        '<span class="mc-line"><span>4경기 모두 적중</span><b class="up num">+' + B[k].hit + '승</b></span>' +
+        '<span class="mc-line"><span>하나라도 틀리면</span><b class="' + (B[k].miss ? 'down ' : '') + 'num">' + (B[k].miss ? '−' + Math.abs(B[k].miss) + '승' : '0') + '</b></span></button>';
+    }).join('') + '</div>';
+    out += '<div class="pe-step"><h3>경기 선택 <span class="num">' + n + '/' + max + '</span></h3><span class="pe-dots" aria-hidden="true">' +
+      [0, 1, 2, 3].map(function (i) { return '<i' + (i < n ? ' class="on"' : '') + '></i>'; }).join('') + '</span></div>' +
+      '<p class="small muted">서로 다른 4경기에서 이길 팀을 눌러 주세요. 내 경기도 고를 수 있어요.</p>';
+    var tot = {};
+    pred.counts.forEach(function (c) { var k = c.match_id + c.side; tot[k] = (tot[k] || 0) + c.n; });
+    out += '<div class="pe-list">' + w.matches.map(function (m) {
+      var sel = d.picks.filter(function (p) { return p.match === m.id; })[0], full = n >= max && !sel;
+      var na = tot[m.id + 'a'] || 0, nb = tot[m.id + 'b'] || 0, t = na + nb;
+      return '<article class="pe-match' + (full ? ' dim' : '') + '"><div class="pe-mhead"><span class="gdot g' + m.pool + '">' + esc(matchLabel(w, m)) + '</span>' +
+        '<span class="num muted small">' + (t ? pct(na / t) + ' : ' + (100 - pct(na / t)) : '아직 0명') + '</span></div><div class="pe-teams">' + ['a', 'b'].map(function (side) {
+          var on = !!sel && sel.side === side;
+          return '<button class="pe-team" data-act="pe-pick" data-m="' + m.id + '" data-side="' + side + '" aria-pressed="' + on + '"' + (full ? ' disabled' : '') + '>' +
+            '<span class="pe-tn">' + esc(teamText(m, side, P)) + '</span><span class="pe-tc num">' + (side === 'a' ? na : nb) + '명</span><i class="pe-ck" aria-hidden="true">✓</i></button>';
+        }).join('') + '</div><span class="pe-bar" aria-hidden="true"><i style="width:' + (t ? pct(na / t) : 0) + '%"></i></span></article>';
+    }).join('') + '</div>';
+    var md2 = d.mode ? (d.mode === 'high' ? '🔥 ' : '🛡️ ') + MODE_LABEL[d.mode] + ' <span class="up num">+' + B[d.mode].hit + '</span> / <span class="' + (B[d.mode].miss ? 'down ' : '') + 'num">' + (B[d.mode].miss ? '−' + Math.abs(B[d.mode].miss) : '0') + '</span>' : '방식을 골라 주세요';
+    out += '<div class="plan-cta pe-bar-fixed"><div class="in"><div class="pe-sum"><span>선택 <b class="num">' + n + '/' + max + '</b></span><span>' + md2 + '</span></div>' +
+      '<button class="btn primary" data-act="pe-submit"' + (d.busy ? ' disabled' : '') + '><b>' + (d.busy ? '제출 중…' : '제출하기') + '</b><small>마감 전까지 수정 가능</small></button></div></div>';
+    return out;
+  }
+  var SUBMIT_ERR = {
+    closed: '마감됐어요(수요일 17:30). 이제는 돼장만 고칠 수 있어요.', bad_player: '명단에서 이름을 찾지 못했어요. 이름을 다시 골라 주세요.',
+    no_week: '이번 주 편성이 아직 공개 전이에요.', bad_match: '편성이 바뀌었어요. 새로고침한 뒤 다시 골라 주세요.', dup_match: '같은 경기를 두 번 골랐어요.',
+    bad_count: '4경기를 골라 주세요.', bad_side: '팀을 다시 골라 주세요.', bad_mode: '방식을 골라 주세요.', network: '인터넷 연결을 확인하고 다시 제출해 주세요.',
+  };
+  function submitPred() {
+    var w = predWeek(), d = ui.pred;
+    if (!w || d.busy) return;
+    if (!ui.me) return toast('먼저 내 이름을 골라 주세요.');
+    if (!d.mode) return toast('하이리스크와 안전형 중 하나를 골라 주세요.');
+    var errs = L.validatePicks(d.picks, w);
+    if (errs.length) return toast(errs[0] === 'count' ? '서로 다른 4경기를 골라 주세요 (지금 ' + d.picks.length + '개).' : SUBMIT_ERR.bad_match);
+    var me = ui.me, picks = d.picks.slice(), mode = d.mode;
+    d.busy = true; render();
+    remote.submitPrediction(w.date, me, mode, picks).then(function (at) {
+      setLocalPred(w.date, me, { mode: mode, picks: picks, at: at || new Date().toISOString() });
+      d.busy = false; d.edit = false; window.scrollTo(0, 0);
+      toast('제출했어요. 마감 전까지 고칠 수 있어요.');
+      refreshPred();
+    }, function (e) {
+      d.busy = false;
+      toast(SUBMIT_ERR[e.code] || '제출하지 못했어요 (' + (e.code || '알 수 없는 오류') + ').');
+    });
+  }
+  function viewPredClosed(w, P, rows) {
+    if (pred.allOk === false) return '<div class="card"><b>예측 결과를 불러오지 못했어요.</b><div><button class="btn sm" data-act="pred-retry">다시 시도</button></div></div>';
+    if (pred.allOk === null) return '<div class="card"><p class="small muted">불러오는 중…</p></div>';
+    if (!rows.length) return '<div class="card empty"><b>이번 주 예측 제출이 없었어요</b></div>';
+    var out = '', rep = L.closingReport(w, pred.close, rows);
+    if (rep.ready) out += viewReport(w, rep, P) + '<button class="btn sm" data-act="rp-full">캡처용으로 크게 보기</button>';
+    else {
+      var done = w.matches.filter(function (m) { return m.win; }).length;
+      out += '<div class="card"><h3>장 마감</h3><p class="small muted num">경기 결과가 모두 들어오면 장 마감 리포트가 떠요 (' + done + '/' + w.matches.length + '경기 입력)</p></div>';
+    }
+    var order = { hit: 0, pending: 1, check: 2, miss: 3 };
+    var scored = rows.map(function (p) { return { p: p, s: L.scorePrediction(p, w), name: (P[p.player_id] || {}).name || '(명단에 없음)' }; })
+      .sort(function (a, b) { return order[a.s.status] - order[b.s.status] || a.name.localeCompare(b.name, 'ko'); });
+    var mine = scored.filter(function (x) { return x.p.player_id === ui.me; })[0];
+    if (mine) out += '<div class="card my-pred"><div class="mp-head"><h3>내 예측 · ' + esc(mine.name) + '</h3><span class="mchip ' + mine.p.mode + '">' + MODE_LABEL[mine.p.mode] + '</span></div>' +
+      pickCells(w, mine.s, P) + '<b class="pred-res ' + mine.s.status + '">' + resultLabel(mine.s, mine.p.mode) + '</b></div>';
+    out += '<div class="card"><h3>전원 공개 <span class="small muted num">' + rows.length + '명</span></h3><div class="pub">' + scored.map(function (x) {
+      return '<div class="pub-row' + (x.p.player_id === ui.me ? ' me' : '') + '"><div class="pub-who"><b>' + esc(x.name) + '</b><span class="mchip ' + x.p.mode + '">' + MODE_LABEL[x.p.mode] + '</span>' +
+        '<span class="pred-res ' + x.s.status + '">' + resultLabel(x.s, x.p.mode) + '</span></div>' + pickCells(w, x.s, P, true) + '</div>';
+    }).join('') + '</div></div>';
+    out += viewPopular(w, P, true) + viewPredKing(P);
+    return out;
+  }
+  function viewReport(w, r, P) {
+    var tn = function (x) { return x ? esc(teamText(matchById(w, x.match), x.side, P)) : '없음'; };
+    var cell = function (cls, title, x, big, desc) {
+      return '<div class="rp-cell ' + cls + '"><span class="rp-ct">' + title + '</span><b class="rp-team">' + x + '</b><strong class="rp-big num">' + big + '</strong><span class="rp-desc">' + desc + '</span></div>';
+    };
+    var B = L.PREDICT.bonus;
+    var date = w.date.replace(/-/g, '.');
+    return '<section class="report" aria-label="돼블스플랜 장 마감 리포트">' +
+      '<div class="rp-head"><i class="rp-pig" aria-hidden="true"></i><div><span class="rp-date num">' + md(w.date) + '(수) · 결과 확정</span><h2 class="rp-title">돼블스플랜<br><em>장 마감</em></h2></div></div>' +
+      '<div class="rp-stats"><div><b class="num">' + r.participants + '</b><span>참여</span></div><div class="hit"><b class="num">' + r.hits + '</b><span>적중</span></div><div class="miss"><b class="num">' + r.misses + '</b><span>실패</span></div></div>' +
+      '<div class="rp-grid">' +
+      cell('rp-up', '📈 오늘의 상한가', tn(r.upper), r.upper ? pct(r.upper.share) + '%' : '–', r.upper ? '가장 많이 걸렸고 기대대로 승리' : '이긴 팀을 고른 사람이 없어요') +
+      cell('rp-down', '📉 폭락주', tn(r.crash), r.crash ? pct(r.crash.share) + '%' : '–', r.crash ? r.crash.n + '명이 함께 날렸습니다' : '진 팀을 고른 사람이 없어요') +
+      cell('rp-up', '🎯 역배 적중', tn(r.contrarian), r.contrarian ? pct(r.contrarian.share) + '%' : '–', r.contrarian ? r.contrarian.n + '명만 맞힌 오늘의 반전' : '소수 픽 승리가 없었어요') +
+      cell('rp-up', '💰 이번 주 수익', '적중 보너스 합계', '+' + r.profit.total + '승', '하이리스크 ' + r.profit.high + '명 × ' + B.high.hit + '승<br>안전형 ' + r.profit.safe + '명 × ' + B.safe.hit + '승') +
+      '</div><div class="rp-hitters"><b>🏆 적중자</b><div class="rp-chips">' + (r.hitters.length ? r.hitters.map(function (h) {
+        return '<span>' + esc((P[h.player] || {}).name || '?') + ' +' + h.bonus + '</span>';
+      }).join('') : '<em>이번 주 적중자는 없어요</em>') + '</div></div>' +
+      '<div class="rp-foot"><span>라켓뚱보단 돼블스플랜</span><span class="num">' + date + '</span></div></section>';
+  }
+  function viewPredKing(P) {
+    var b = bonusMap(), weeks = {};
+    pred.all.forEach(function (p) { weeks[p.player_id] = (weeks[p.player_id] || 0) + 1; });
+    var list = Object.keys(b).filter(function (id) { return P[id]; }).map(function (id) { return { id: id, v: b[id] }; })
+      .sort(function (x, y) { return y.v - x.v || P[x.id].name.localeCompare(P[y.id].name, 'ko'); });
+    if (!list.length) return '';
+    return '<div class="card"><h3>예측왕 <span class="small muted">시즌 누적 보너스</span></h3><ol class="king">' + list.slice(0, 10).map(function (x, i) {
+      return '<li' + (x.id === ui.me ? ' class="me"' : '') + '><span class="num">' + (i + 1) + '</span><b>' + esc(P[x.id].name) + '</b><span class="small muted num">' + weeks[x.id] + '주 참여</span><b class="bonus num ' + (x.v > 0 ? 'plus' : 'minus') + '">' + signed(x.v) + '</b></li>';
+    }).join('') + '</ol></div>';
+  }
+  function reportOverlay() {
+    var w = predWeek();
+    if (!ui.pred.full || !w || ui.tab !== 'plan') return '';
+    var rows = pred.all.filter(function (p) { return p.week_date === w.date; }), r = L.closingReport(w, pred.close, rows);
+    if (!r.ready) return '';
+    return '<div class="rp-overlay" role="dialog" aria-label="장 마감 리포트 크게 보기">' + viewReport(w, r, pm()) + '<button class="btn sm" data-act="rp-close">닫기</button></div>';
+  }
+
+  // ---- 관리 › 예측 ----
+  function viewAdminPred() {
+    var w = predWeek(), P = pm();
+    if (!w) return weekChips() + '<div class="card empty"><b>' + md(ui.week) + '(수)는 공개된 편성이 없어요</b></div>';
+    if (pred.admWeek !== w.date) loadAdminList(w.date);
+    var closed = isClosed(w.date);
+    var out = weekChips() + '<div class="card"><div class="mp-head"><h2>' + md(w.date) + '(수) 예측' + (pred.admList ? ' <span class="num">' + pred.admList.length + '명</span>' : '') + '</h2>' +
+      '<span class="chip lot">' + (closed ? '마감됨' : '마감 전') + '</span></div>' +
+      '<p class="small muted">' + (closed ? '마감 후에도 고치거나 지울 수 있어요. 고치면 보너스가 바로 다시 계산돼요.' : '회원에게는 마감 전까지 인원·비율만 보이고, 여기서는 누가 골랐는지 다 보여요.') + '</p>';
+    if (pred.admErr) return out + '<p class="small" style="color:var(--hell-text)">' + esc(pred.admErr) + '</p><div><button class="btn sm" data-act="pa-reload">다시 불러오기</button></div></div>';
+    if (!pred.admList) return out + '<p class="small muted">불러오는 중…</p></div>';
+    var rows = pred.admList.map(function (p) { return { p: p, s: L.scorePrediction(p, w), name: (P[p.player_id] || {}).name || p.player_id }; })
+      .sort(function (a, b) { return (a.s.status === 'check' ? 0 : 1) - (b.s.status === 'check' ? 0 : 1) || a.name.localeCompare(b.name, 'ko'); });
+    var checks = rows.filter(function (x) { return x.s.status === 'check'; }).length;
+    if (checks) out += '<div class="banner warn">확인 필요 ' + checks + '명: 고른 경기가 편성에서 빠졌거나 선수 자리가 비었어요. 다른 경기로 고치거나 삭제하세요.</div>';
+    if (ui.pred.adm) out += adminPredEditor(w, P);
+    else out += '<div><button class="btn sm" data-act="pa-new">예측 대신 넣기</button></div>';
+    out += '<div class="pub">' + (rows.length ? rows.map(function (x) {
+      var del = ui.pred.admDel === x.p.player_id;
+      return '<div class="pub-row"><div class="pub-who"><b>' + esc(x.name) + '</b><span class="mchip ' + x.p.mode + '">' + MODE_LABEL[x.p.mode] + '</span><span class="pred-res ' + x.s.status + '">' + resultLabel(x.s, x.p.mode) + '</span>' +
+        '<span class="small muted num">' + hhmm(x.p.updated_at) + '</span></div>' + pickCells(w, x.s, P, true) +
+        (del ? '<div class="banner warn"><span>' + esc(x.name) + ' 예측을 삭제할까요? 되돌릴 수 없어요.</span><span class="row"><button class="btn sm danger" data-act="pa-del-yes" data-p="' + x.p.player_id + '">삭제</button><button class="btn sm" data-act="pa-del-no">취소</button></span></div>' :
+          '<div class="row"><button class="btn sm" data-act="pa-edit" data-p="' + x.p.player_id + '">고치기</button><button class="btn sm danger" data-act="pa-del" data-p="' + x.p.player_id + '">삭제</button></div>') + '</div>';
+    }).join('') : '<p class="small muted">아직 제출이 없어요.</p>') + '</div></div>';
+    return out;
+  }
+  function adminPredEditor(w, P) {
+    var a = ui.pred.adm, opts = '<option value="">경기와 팀 고르기</option>' + w.matches.map(function (m) {
+      return ['a', 'b'].map(function (side) { return '<option value="' + m.id + '|' + side + '">' + esc(matchLabel(w, m) + ' · ' + teamText(m, side, P)) + '</option>'; }).join('');
+    }).join('');
+    var sel = function (v) { return opts.replace('value="' + v + '"', 'value="' + v + '" selected'); };
+    var who = a.isNew ? '<label class="f" for="pa-player">선수<select id="pa-player" data-act="pa-player"><option value="">이름을 선택하세요</option>' + groups().map(function (g) {
+      return '<optgroup label="' + esc(g.name) + '">' + work.players.filter(function (p) { return p.group === g.id && p.active !== false; }).sort(function (x, y) { return x.name.localeCompare(y.name, 'ko'); })
+        .map(function (p) { return '<option value="' + p.id + '"' + (a.player === p.id ? ' selected' : '') + '>' + esc(p.name) + '</option>'; }).join('') + '</optgroup>';
+    }).join('') + '</select></label>' : '<b>' + esc((P[a.player] || {}).name || a.player) + '</b>';
+    return '<div class="pa-edit">' + who +
+      '<label class="f" for="pa-mode">방식<select id="pa-mode" data-act="pa-mode">' + ['high', 'safe'].map(function (k) { return '<option value="' + k + '"' + (a.mode === k ? ' selected' : '') + '>' + MODE_LABEL[k] + '</option>'; }).join('') + '</select></label>' +
+      [0, 1, 2, 3].map(function (i) { return '<label class="f" for="pa-pick-' + i + '">' + (i + 1) + '번째 픽<select id="pa-pick-' + i + '" data-act="pa-pick" data-i="' + i + '">' + sel(a.picks[i] || '') + '</select></label>'; }).join('') +
+      '<div class="row"><button class="btn sm primary" data-act="pa-save"' + (a.busy ? ' disabled' : '') + '>' + (a.busy ? '저장 중…' : '저장') + '</button><button class="btn sm" data-act="pa-cancel">취소</button></div></div>';
+  }
+  function adminPredSave() {
+    var w = predWeek(), a = ui.pred.adm;
+    if (!w || !a || a.busy) return;
+    if (!a.player) return toast('선수를 골라 주세요.');
+    var picks = a.picks.filter(Boolean).map(function (v) { var x = v.split('|'); return { match: x[0], side: x[1] }; });
+    var errs = L.validatePicks(picks, w);
+    if (errs.length) return toast(errs[0] === 'count' ? '서로 다른 4경기를 골라 주세요.' : errs[0] === 'dup_match' ? '같은 경기를 두 번 골랐어요.' : '편성에 없는 경기가 있어요.');
+    a.busy = true; render();
+    remote.adminUpsertPrediction(token, w.date, a.player, a.mode, picks).then(function () {
+      ui.pred.adm = null; toast('예측을 저장했어요.'); afterAdminPred(w.date);
+    }, function (e) { a.busy = false; adminPredFail(e); });
+  }
+  function adminPredFail(e) {
+    if (e.code === 'unauthorized') { dropAdmin(); ui.admin = false; ui.pinMsg = '관리자 로그인이 만료됐어요. PIN을 다시 입력하세요.'; render(); return; }
+    toast(SUBMIT_ERR[e.code] || '저장하지 못했어요 (' + (e.code || '알 수 없는 오류') + ').');
+  }
+  function afterAdminPred(d) {
+    loadAdminList(d);
+    if (pred.week === d) { pred.sig = ''; refreshPred(); }
+    loadAllPreds().then(render);
+  }
+
   // ---------- 관리 ----------
   // PIN은 서버(admin_secret)에만 있음. 처음 PIN은 설치 때 SQL Editor에서 정함(README)
   function viewLock() {
@@ -368,11 +745,12 @@
   function viewAdmin() {
     if (!ui.admin) return viewLock();
     var out = '<div class="row" style="justify-content:space-between"><div class="seg" role="group" aria-label="관리 메뉴">' +
-      [['plan', '참석·편성'], ['seeds', '실력 순위'], ['settings', '설정']].map(function (s) {
+      [['plan', '참석·편성'], ['seeds', '실력 순위'], ['pred', '예측'], ['settings', '설정']].map(function (s) {
         return '<button data-act="sec" data-v="' + s[0] + '" aria-pressed="' + (ui.sec === s[0]) + '">' + s[1] + '</button>';
       }).join('') + '</div><button class="btn sm" data-act="lock">잠그기</button></div>';
     if (ui.sec === 'seeds') return out + viewSeeds();
     if (ui.sec === 'settings') return out + viewSettings();
+    if (ui.sec === 'pred') return out + viewAdminPred();
     return out + viewPlan();
   }
 
@@ -675,12 +1053,13 @@
   function render() {
     var app = document.getElementById('app');
     var focusId = document.activeElement && document.activeElement.id;
-    var main = ui.tab === 'rank' ? viewRank() : ui.tab === 'me' ? viewMe() : ui.tab === 'admin' ? viewAdmin() : viewWeek();
+    var main = ui.tab === 'rank' ? viewRank() : ui.tab === 'plan' ? viewPredict() : ui.tab === 'me' ? viewMe() : ui.tab === 'admin' ? viewAdmin() : viewWeek();
     var html = header() + '<main>' + saveBar() + main + '</main>';
     if (dirty() || ui.busy && ui.busy.indexOf('편성') !== 0) {
       html += '<div class="savebar" role="region" aria-label="저장"><div class="in"><span>' + esc(ui.busy || '저장 안 된 변경이 있어요') + '</span>' +
         (ui.busy ? '' : '<span class="row"><button class="btn sm" data-act="revert">되돌리기</button><button class="btn sm primary" data-act="save">저장</button></span>') + '</div></div>';
     }
+    html += reportOverlay();
     if (ui.toast) html += '<div class="toast" role="status">' + esc(ui.toast) + '</div>';
     app.innerHTML = html;
     if (focusId) { var f = document.getElementById(focusId); if (f && f.focus) try { f.focus({ preventScroll: true }); } catch (e) { } }
@@ -750,8 +1129,8 @@
     if (!work) return;
     var w, m, P;
     switch (act) {
-      case 'tab': ui.tab = v; LS.set(KEY.tab, v); ui.notice = null; render(); window.scrollTo(0, 0); break;
-      case 'week': ui.week = v; SS.set(SKEY.week, v); ui.confirm = null; ui.notice = null; ui.ai.res = null; ui.ai.err = ''; ui.shiftSel = { p: '', dir: 'up' }; render(); break;
+      case 'tab': ui.tab = v; LS.set(KEY.tab, v); ui.notice = null; ui.pred.edit = false; ui.pred.full = false; render(); window.scrollTo(0, 0); break;
+      case 'week': ui.week = v; SS.set(SKEY.week, v); ui.confirm = null; ui.notice = null; ui.ai.res = null; ui.ai.err = ''; ui.shiftSel = { p: '', dir: 'up' }; ui.pred.edit = false; ui.pred.more = false; ui.pred.adm = null; ui.pred.admDel = ''; render(); break;
       case 'rankg': ui.rankGroup = v; render(); break;
       case 'sec': ui.sec = v; SS.set(SKEY.sec, v); render(); break;
       case 'lock': ui.admin = false; forgetAdmin(); render(); break;
@@ -840,6 +1219,37 @@
         else { var j = act === 'seed-up' ? ix - 1 : ix + 1; if (ix < 0 || j < 0 || j >= lst.length) return; var tmp = lst[ix]; lst[ix] = lst[j]; lst[j] = tmp; }
         so2[ui.seedGroup] = lst; setSeeds(so2); commit(); break;
       case 'save': save(); break;
+      // 돼블스플랜
+      case 'pp-filter': ui.pred.filter = v; render(); break;
+      case 'pp-more': ui.pred.more = !ui.pred.more; render(); break;
+      case 'pred-retry': pred.sig = ''; refreshPred(); loadAllPreds().then(render); break;
+      case 'pe-open': openPredEdit(); render(); window.scrollTo(0, 0); break;
+      case 'pe-close': ui.pred.edit = false; render(); window.scrollTo(0, 0); break;
+      case 'pe-mode': ui.pred.mode = v; render(); break;
+      case 'pe-pick':
+        var pk = ui.pred.picks, pmid = el.getAttribute('data-m'), pside = el.getAttribute('data-side');
+        var cur = pk.filter(function (x) { return x.match === pmid; })[0];
+        if (cur && cur.side === pside) ui.pred.picks = pk.filter(function (x) { return x !== cur; });
+        else if (cur) cur.side = pside;
+        else if (pk.length < L.PREDICT.picks) pk.push({ match: pmid, side: pside });
+        render(); break;
+      case 'pe-submit': submitPred(); break;
+      case 'rp-full': ui.pred.full = true; render(); break;
+      case 'rp-close': ui.pred.full = false; render(); break;
+      case 'pa-reload': pred.admWeek = null; render(); break;
+      case 'pa-new': ui.pred.adm = { isNew: true, player: '', mode: 'high', picks: ['', '', '', ''] }; ui.pred.admDel = ''; render(); break;
+      case 'pa-edit':
+        var ep = (pred.admList || []).filter(function (x) { return x.player_id === el.getAttribute('data-p'); })[0]; if (!ep) return;
+        ui.pred.adm = { isNew: false, player: ep.player_id, mode: ep.mode, picks: ep.picks.map(function (x) { return x.match + '|' + x.side; }).concat(['', '', '', '']).slice(0, 4) };
+        ui.pred.admDel = ''; render(); window.scrollTo(0, 0); break;
+      case 'pa-cancel': ui.pred.adm = null; render(); break;
+      case 'pa-save': adminPredSave(); break;
+      case 'pa-del': ui.pred.admDel = el.getAttribute('data-p'); render(); break;
+      case 'pa-del-no': ui.pred.admDel = ''; render(); break;
+      case 'pa-del-yes':
+        var dp = el.getAttribute('data-p'), dw = predWeek(); ui.pred.admDel = ''; if (!dw) return;
+        remote.adminDeletePrediction(token, dw.date, dp).then(function () { toast('예측을 삭제했어요.'); afterAdminPred(dw.date); }, adminPredFail);
+        break;
       case 'err-close': ui.saveError = null; render(); break;
       case 'revert': work = clone(saved); LS.del(KEY.draft); ui.unknown = []; ui.confirm = null; render(); toast('저장된 상태로 되돌렸어요.'); break;
       case 'draft-load': work = ui.draftConflict.state; ui.draftConflict = null; work.rev = saved.rev; commit(); toast('내 변경을 불러왔어요. 저장하면 최신 버전을 덮어써요.'); break;
@@ -852,7 +1262,10 @@
     if (!act || !work) return;
     var m, P = pm();
     switch (act) {
-      case 'me': ui.me = el.value; if (el.value) LS.set(KEY.me, el.value); else LS.del(KEY.me); ui.rankGroup = null; render(); break;
+      case 'me': ui.me = el.value; if (el.value) LS.set(KEY.me, el.value); else LS.del(KEY.me); ui.rankGroup = null; if (ui.pred.edit && localPred(ui.week, ui.me)) openPredEdit(); render(); break;
+      case 'pa-player': if (ui.pred.adm) ui.pred.adm.player = el.value; break;
+      case 'pa-mode': if (ui.pred.adm) ui.pred.adm.mode = el.value; break;
+      case 'pa-pick': if (ui.pred.adm) ui.pred.adm.picks[+el.getAttribute('data-i')] = el.value; break;
       case 'slot':
         m = findMatch(el.getAttribute('data-m')); if (!m) return;
         m[el.getAttribute('data-side')][+el.getAttribute('data-k')] = el.value;
@@ -930,6 +1343,10 @@
     token = R.loadToken(LS, Date.now());
     ui.admin = !!token;
     render();
+    // 돼블스플랜: 마감된 주의 예측(보너스 계산용), 카운트다운·다시 읽기 타이머
+    loadAllPreds().then(render);
+    setInterval(predTick, 1000);
+    document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible' && pred.week) { refreshPred(); loadAllPreds().then(render); } });
     // 기억한 토큰이 만료·무효(PIN 변경 등)면 PIN 입력 화면으로
     if (token) remote.check(token).then(function (ok) { if (!ok) { dropAdmin(); ui.admin = false; render(); } }, function () { });
   }

@@ -9,12 +9,12 @@
 ## 파일
 | 파일 | 내용 |
 |---|---|
-| `logic.js` | 순수 로직: 자동 편성(hill-climbing, 편성 조건 반영), 승수 집계·순위, 지옥도/천국도 등급, 시드→실력 점수, 주차 점검, 밴드 명단 파싱, 돼장 요청 계획 적용(`applyPlan`) |
-| `logic.test.js` | 로직 테스트 64개 |
+| `logic.js` | 순수 로직: 자동 편성(hill-climbing, 편성 조건 반영), 승수 집계·순위, 지옥도/천국도 등급, 시드→실력 점수, 주차 점검, 밴드 명단 파싱, 돼장 요청 계획 적용(`applyPlan`), 돼블스플랜 마감·채점·보너스·인기 픽·장 마감 리포트 |
+| `logic.test.js` | 로직 테스트 103개 |
 | `app.js` | 화면 렌더링·이벤트 처리. 저장은 `remote.js`를 통해 Supabase로 |
 | `remote.js` | Supabase 읽기/RPC 호출, 관리자 토큰(30일) 보관, 에러 구분(`stale_rev`, `unauthorized`, `no_pin` …) |
 | `config.js` | Supabase Project URL과 anon(publishable) key. **공개돼도 되는 값만** |
-| `deploy.test.js` | 배포 관련 테스트 17개(remote.js, 빌드 결과, service worker, rematch 함수 설정) |
+| `deploy.test.js` | 배포 관련 테스트 21개(remote.js, 빌드 결과, service worker, rematch 함수 설정) |
 | `supabase/functions/rematch/index.ts` | 돼장 요청을 Claude로 보내 편성 수정 계획(JSON)을 받는 Edge Function |
 | `verify_ai.js` | 돼장 요청 기능 실제 시험(실제 데이터로 계획만 받아 보고 저장 안 함, 토큰 비용 출력) |
 | `app.css`, `images.css` | 포스터 스타일 디자인, 이미지(WebP base64) |
@@ -22,9 +22,10 @@
 | `manifest.webmanifest`, `sw.js`, `icons/` | 홈 화면 앱 설정, 최소 service worker, 아이콘(돼장 이미지로 생성: `py tools/make_icons.py`) |
 | `supabase/schema.sql` | DB 테이블·권한·함수. SQL Editor에서 실행 |
 | `seed_db.js` | `live_state.json` → `seed.local.sql`(초기 데이터 SQL, PIN 해시 제외). 로컬 전용 |
-| `verify_db.js` | 실제 Supabase에 anon 권한으로 접속해 권한·로그인·저장 규칙 확인 |
+| `verify_db.js` | 실제 Supabase에 anon 권한으로 접속해 권한·로그인·저장 규칙 확인. `--predict`는 돼블스플랜 예측 검증만(app_state는 읽기만, 테스트 전용 날짜 2000·2099년에만 쓰고 끝나면 지움) |
 | `seed.js` | 최초 예시 데이터 (live_state.json이 없을 때) |
-| `tools/mock_supabase.js` | 로컬 화면 확인용 가짜 Supabase (개발 전용, PIN 1234, 돼장 요청은 낱말로 흉내) |
+| `tools/mock_supabase.js` | 로컬 화면 확인용 가짜 Supabase (개발 전용, PIN 1234, 돼장 요청은 낱말로 흉내, 예측 테이블·RPC 흉내). `MOCK_DEMO=1` 돼블스플랜 가짜 주차·예측, `MOCK_NOW` 서버 시계(마감 시험용), `MOCK_DIST` 다른 빌드 비교 |
+| `tools/daebles_demo.js` | `MOCK_DEMO=1`일 때 seed.js 명단으로 만드는 가짜 주차·예측 |
 | `docs/deploy-log.md` | 실제로 실행한 명령과 출력 기록 |
 
 `live_state.json`, `seed.local.sql`, `.env`, `dist/`는 `.gitignore` 대상이에요. 실제 부원 데이터는 저장소에 올리지 않아요.
@@ -106,6 +107,7 @@ node logic.test.js      # 로직 테스트
 node deploy.test.js     # 배포 테스트 (빌드도 함께 실행)
 node build.js           # dist\ 생성
 node tools\mock_supabase.js   # 로컬 확인: http://localhost:8787 (가짜 데이터, PIN 1234)
+$env:MOCK_DEMO="1"; node tools\mock_supabase.js   # 돼블스플랜 가짜 예측까지 (끝나면 Remove-Item Env:MOCK_DEMO)
 git add -A; git commit -m "수정 내용"; git push   # push하면 자동 배포
 ```
 Node.js만 있으면 되고 설치할 패키지는 없어요.
@@ -128,3 +130,11 @@ Node.js만 있으면 되고 설치할 패키지는 없어요.
 
 ## 참고
 - 규칙·결정 사항은 Claude 프로젝트 문서 '다승왕앱_설계메모', '기능정의서_충돌검토' 참고.
+
+## 돼블스플랜(승부 예측)
+- 명세: `docs/돼블스플랜_명세.md`, 시안: `docs/ref/daebles_mock.png`
+- 예측은 `app_state`와 따로 `predictions` 표에 저장. 회원은 `submit_prediction` RPC로만 제출(마감: 그 주 수요일 17:30 KST, 앱에서 바꿀 수 없음)
+- 마감 전에는 팀별 인원·비율(`prediction_counts`)과 이름 없는 체결 피드(`prediction_events`)만 공개, 누가 골랐는지는 마감 후 공개(RLS)
+- 보너스는 저장하지 않고 앱이 경기 결과로 계산(하이리스크 적중 +3/실패 -1, 안전형 +1/0). 순위는 공식 승 + 보너스, 지옥도·천국도는 공식 경기만
+- 관리 › 예측: 그 주 제출 전체 보기, 고치기·삭제(마감 후에도), '확인 필요'(고른 경기가 편성에서 빠짐) 처리
+- DB 검증: `node verify_db.js --predict` (PIN 입력, app_state는 읽기만)
