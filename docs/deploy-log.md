@@ -557,3 +557,21 @@ LINE 213: language sql stable security definer set search_path = public as $$
 UTF8 읽기 213번째 줄: -- 그 주 경기 id 목록 (app_state의 공개된 주, 없으면 가짜 주). 읽기만 함
 ```
 → 복사 명령에 `-Encoding UTF8` 필요. schema.sql 파일은 그대로.
+
+### 사용자 SQL Editor 실행 2회차 (`Get-Content supabase\schema.sql -Raw -Encoding UTF8 | Set-Clipboard` 후 Run) → `node verify_db.js --predict`
+사용자가 알려 준 결과(전체 출력은 사용자 터미널에만 있음):
+```
+27 passed, 0 failed
+```
+그 뒤 anon 키로 실제 DB를 읽기만 해서 확인 (2026-11-14):
+```
+predictions        전체 200 */0 | 테스트 날짜 200 */0
+prediction_counts  전체 200 */0 | 테스트 날짜 200 */0
+prediction_events  전체 200 */0 | 테스트 날짜 200 */0
+prediction_close   전체 200 */0 | 테스트 날짜 200 */0
+prediction_test_weeks (anon) 401 {"code":"42501", …}
+app_state 200 [{"rev":382,"saved_at":"2026-11-12T01:42:17.602166+00:00"}]
+```
+- 새 표 4개가 있고 행 0개(테스트 날짜 2000·2099년 행도 0개 → 정리됨). prediction_test_weeks는 anon 읽기 거부
+- app_state 마지막 저장은 11/12 그대로(검증이 쓰지 않음)
+- 확인 못 한 것: 실제 DB에서 브라우저 2개로 Realtime 반영(실제 주에 제출해야 해서 하지 않음)
