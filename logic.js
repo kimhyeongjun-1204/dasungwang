@@ -673,27 +673,32 @@ var Logic = (function () {
     });
     return out;
   }
-  // 인기 픽 작은 추세선: 지금 인원 n에서 이벤트 증감을 거꾸로 빼서 만든 누적 인원 (오래된 것부터, 최대 12점)
-  function pickTrend(events, match, side, n, mode) {
-    var ev = (events || []).filter(function (e) { return e.match_id === match && e.side === side && (!mode || e.mode === mode); })
-      .sort(function (a, b) { return Date.parse(a.at) - Date.parse(b.at) || (a.id || 0) - (b.id || 0); });
-    var cur = n - ev.reduce(function (t, e) { return t + (e.delta == null ? 1 : e.delta); }, 0), s = [cur];
-    ev.forEach(function (e) { cur += e.delta == null ? 1 : e.delta; s.push(cur); });
-    if (s.length <= 12) return s;
-    var out = [];
-    for (var i = 0; i < 12; i++) out.push(s[Math.round(i * (s.length - 1) / 11)]);
-    return out;
+  // 선수별 인기: 그 선수가 들어간 팀을 고른 수의 합(두 경기 모두 고르면 2로 셈) → [{player, n, rank, change}]
+  // week 대신 {matches: 고른 경기만} 을 넘기면 그 경기들만 셈. changes: pickChanges 결과(선택)
+  function playerPicks(counts, week, changes) {
+    var s = sumCounts(counts, week), load = {}, ch = {};
+    Object.keys(s.sides).forEach(function (k) {
+      var x = s.sides[k];
+      matchOf(week, x.match)[x.side].forEach(function (pid) {
+        if (!pid) return;
+        load[pid] = (load[pid] || 0) + x.n;
+        ch[pid] = (ch[pid] || 0) + ((changes && changes[k]) || 0);
+      });
+    });
+    var list = Object.keys(load).map(function (pid) { return { player: pid, n: load[pid], change: ch[pid] }; })
+      .sort(function (a, b) { return b.n - a.n || (a.player < b.player ? -1 : 1); });
+    list.forEach(function (r, i) { r.rank = i > 0 && list[i - 1].n === r.n ? list[i - 1].rank : i + 1; });
+    return list;
   }
   // 🔺상한가: 경기 안 70% 이상인 쪽 / 🕵️작전주: 고른 인원이 가장 많이 걸린 선수 1명(동률이면 id 순)
   function pickBadges(counts, week) {
-    var s = sumCounts(counts, week), upper = {}, load = {};
+    var s = sumCounts(counts, week), upper = {};
     Object.keys(s.sides).forEach(function (k) {
       var x = s.sides[k];
       if (x.n / s.totals[x.match] >= PREDICT.upperShare) upper[k] = 1;
-      matchOf(week, x.match)[x.side].forEach(function (pid) { if (pid) load[pid] = (load[pid] || 0) + x.n; });
     });
-    var sneaky = Object.keys(load).sort(function (a, b) { return load[b] - load[a] || (a < b ? -1 : 1); })[0] || null;
-    return { upper: upper, sneaky: sneaky };
+    var top = playerPicks(counts, week)[0];
+    return { upper: upper, sneaky: top ? top.player : null };
   }
   // 마감 비율 스냅숏(prediction_close와 같은 모양): 두 방식 합산 → [{match_id, side, n, total}]
   function closeFromPredictions(predictions) {
@@ -738,7 +743,7 @@ var Logic = (function () {
   return {
     PREDICT: PREDICT, predictionDeadline: predictionDeadline, isPredictionClosed: isPredictionClosed, validatePicks: validatePicks,
     scorePrediction: scorePrediction, bonusByPlayer: bonusByPlayer, popularPicks: popularPicks, pickChanges: pickChanges,
-    pickBadges: pickBadges, pickTrend: pickTrend, closeFromPredictions: closeFromPredictions, closingReport: closingReport,
+    pickBadges: pickBadges, playerPicks: playerPicks, closeFromPredictions: closeFromPredictions, closingReport: closingReport,
     encodeSeeds: encodeSeeds, decodeSeeds: decodeSeeds, parseOrder: parseOrder, strengthOf: strengthOf, balanceOf: balanceOf,
     mulberry32: mulberry32, wednesdays: wednesdays, seasonDays: seasonDays, isOfficial: isOfficial, playersOf: playersOf,
     weekTally: weekTally, standings: standings, tierOf: tierOf, skillOf: skillOf, HEAT: HEAT,

@@ -687,22 +687,17 @@ test('pickChanges: 최근 1시간 이벤트의 증감 합 (방식 필터)', () =
   assert.deepStrictEqual(L.pickChanges(ev, now), { p1a: 2, p1b: -1 });
   assert.deepStrictEqual(L.pickChanges(ev, now, 'high'), { p1a: 1, p1b: -1 });
 });
-test('pickTrend: 지금 인원에서 거꾸로 빼 가며 만든 누적 인원 추이 (오래된 것부터, 최대 12점)', () => {
-  const ev = [
-    { match_id: 'p1', side: 'a', mode: 'high', delta: 1, at: '2026-11-18T09:00:00Z' },
-    { match_id: 'p1', side: 'a', mode: 'safe', delta: 1, at: '2026-11-18T09:10:00Z' },
-    { match_id: 'p1', side: 'b', mode: 'high', delta: 1, at: '2026-11-18T09:15:00Z' },
-    { match_id: 'p1', side: 'a', mode: 'high', delta: -1, at: '2026-11-18T09:20:00Z' },
-    { match_id: 'p1', side: 'a', mode: 'high', delta: 1, at: '2026-11-18T09:30:00Z' },
-  ];
-  // 지금 p1a 5명 → 이벤트 전 3명: 3 → 4 → 5 → 4 → 5
-  assert.deepStrictEqual(L.pickTrend(ev, 'p1', 'a', 5), [3, 4, 5, 4, 5]);
-  assert.deepStrictEqual(L.pickTrend(ev, 'p1', 'a', 3, 'high'), [2, 3, 2, 3]);
-  assert.deepStrictEqual(L.pickTrend([], 'p1', 'a', 5), [5]);
-  const many = Array.from({ length: 30 }, (_, i) => ({ match_id: 'p2', side: 'a', mode: 'high', delta: 1, at: new Date(Date.UTC(2026, 10, 18, 9, i)).toISOString() }));
-  const t = L.pickTrend(many, 'p2', 'a', 30);
-  assert.strictEqual(t.length, 12);
-  assert.strictEqual(t[0], 0); assert.strictEqual(t[11], 30);
+test('playerPicks: 선수가 들어간 팀을 고른 수를 합친 순위 (동률은 같은 순위, id 순)', () => {
+  // a = p1a 9 + p2a 2, b = p1a 9 + p2b 2, c·d = p1b 3, e = p2a 2, f = p2b 2
+  const r = L.playerPicks(COUNTS, PW);
+  assert.deepStrictEqual(r.map(x => [x.player, x.n, x.rank]), [['a', 11, 1], ['b', 11, 1], ['c', 3, 3], ['d', 3, 3], ['e', 2, 5], ['f', 2, 5]]);
+});
+test('playerPicks: 최근 증감(pickChanges 결과)을 선수별로 합침, 고른 경기만 넘기면 그 경기들만', () => {
+  const r = L.playerPicks(COUNTS, PW, { p1a: 2, p1b: -1 });
+  assert.deepStrictEqual(r.map(x => [x.player, x.change]), [['a', 2], ['b', 2], ['c', -1], ['d', -1], ['e', 0], ['f', 0]]);
+  const only2 = L.playerPicks(COUNTS, { matches: PW.matches.filter(m => m.id === 'p2') });
+  assert.deepStrictEqual(only2.map(x => [x.player, x.n, x.rank]), [['a', 2, 1], ['b', 2, 1], ['e', 2, 1], ['f', 2, 1]]);
+  assert.deepStrictEqual(L.playerPicks([], PW), []);
 });
 test('pickBadges: 상한가는 경기 안 70% 이상, 작전주는 가장 많이 걸린 선수 1명', () => {
   // p1: a 9 / b 3 → 75% 상한가. p2: 2/2 → 50%

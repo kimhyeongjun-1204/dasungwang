@@ -575,3 +575,26 @@ app_state 200 [{"rev":382,"saved_at":"2026-11-12T01:42:17.602166+00:00"}]
 - 새 표 4개가 있고 행 0개(테스트 날짜 2000·2099년 행도 0개 → 정리됨). prediction_test_weeks는 anon 읽기 거부
 - app_state 마지막 저장은 11/12 그대로(검증이 쓰지 않음)
 - 확인 못 한 것: 실제 DB에서 브라우저 2개로 Realtime 반영(실제 주에 제출해야 해서 하지 않음)
+
+## 21. 인기 픽 바꾸기 (사용자 요청, 브랜치 feat/daebles-popular-tabs, 2026-11-15)
+요청: 하이리스크/안전형 필터 대신 조 탭(전체·캐비어·랍스터·소갈비·양갈비·돼지갈비·닭갈비), 선수별로 몇 명이 골랐는지 순위, 막대를 바탕+색 채움으로, 빨간 추세선 빼기.
+```
+$ node logic.test.js   (선수별 집계 playerPicks 테스트 2개 먼저 추가, 추세선 pickTrend 테스트 1개 삭제)
+  FAIL playerPicks: 선수가 들어간 팀을 고른 수를 합친 순위 (동률은 같은 순위, id 순)
+       L.playerPicks is not a function
+  FAIL playerPicks: 최근 증감(pickChanges 결과)을 선수별로 합침, 고른 경기만 넘기면 그 경기들만
+       L.playerPicks is not a function
+102 passed
+$ node logic.test.js   (구현 후)
+104 passed
+$ node deploy.test.js
+21 passed
+```
+화면 확인:
+| 확인 | 결과 |
+|---|---|
+| 실제 데이터 복사본(로컬 가짜 서버 8793, 실제 DB 읽기만 해서 복사) + 가짜 예측 20명, 390px | 조 탭 4개 "전체 / 캐비어·랍스터 / 소갈비·양갈비 / 돼지갈비·닭갈비", 추세선 0개, 가로 넘침 없음(scrollWidth 390) |
+| 소갈비·양갈비 탭 + 팀별 | 그 조 경기만: 1위 6명 86%, 2위 5명 83% 두 팀(동률 2위) |
+| 전체 + 선수별 | 1위 14명(작전주 배지), "전체 보기 (27명)" |
+| 360px | 카드 16~344px, 마지막 조 탭 오른쪽 끝 327px, 조 탭 높이 51px, 막대 높이 10px, scrollWidth 360 |
+| PR 스크린숏 | MOCK_DEMO(seed.js 가짜 데이터)로 찍음: docs/screenshots/daebles/390-popular-team.jpg, 390-popular-player.jpg |

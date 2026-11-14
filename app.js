@@ -359,7 +359,7 @@
   var MODE_LABEL = { high: '하이리스크', safe: '안전형' };
   var pred = { week: null, ok: null, counts: [], events: [], close: [], at: 0, sig: '', loading: false, closedAt: {}, watch: null,
     all: [], allOk: null, newEvent: 0, admWeek: null, admList: null, admErr: '' };
-  ui.pred = { mode: '', picks: [], filter: '', more: false, edit: false, busy: false, full: false, adm: null, admDel: '' };
+  ui.pred = { mode: '', picks: [], filter: '', view: 'team', more: false, edit: false, busy: false, full: false, adm: null, admDel: '' };
 
   function predWeek() { var w = getWeek(ui.week); return w && w.published !== false && w.matches.length ? w : null; }
   function isClosed(d) { return L.isPredictionClosed(d, Date.now()); }
@@ -477,36 +477,44 @@
   function predNotReady() {
     return pred.ok === false ? '<div class="card"><b>예측 정보를 불러오지 못했어요.</b><p class="small muted">인터넷 연결을 확인하고 다시 시도해 주세요. 계속 안 되면 돼장에게 알려 주세요.</p><div><button class="btn sm" data-act="pred-retry">다시 시도</button></div></div>' : '';
   }
+  // 인기 픽: 조 탭(전체·조별) × 보기(팀별·선수별). 막대는 회색 바탕 안에 색 채움
   function viewPopular(w, P, closed) {
-    var f = ui.pred.filter || undefined;
-    var list = L.popularPicks(pred.counts, w, f), ch = closed ? {} : L.pickChanges(pred.events, Date.now(), f), badge = L.pickBadges(pred.counts, w);
+    var g = ui.pred.filter || '', byPlayer = ui.pred.view === 'player';
+    var wf = g ? { date: w.date, matches: w.matches.filter(function (m) { return m.pool === g; }) } : w;
+    var ch = closed ? {} : L.pickChanges(pred.events, Date.now()), badge = L.pickBadges(pred.counts, w);
+    var list = byPlayer ? L.playerPicks(pred.counts, wf, ch) : L.popularPicks(pred.counts, wf);
     var shown = ui.pred.more ? list : list.slice(0, 5);
+    var move = function (c) { return c > 0 ? '<span class="mv-up">▲' + c + '</span>' : c < 0 ? '<span class="mv-down">▼' + (-c) + '</span>' : ''; };
+    var bar = function (x) { return '<span class="pp-bar" aria-hidden="true"><i style="width:' + Math.max(2, Math.round(x * 100)) + '%"></i></span>'; };
     var out = '<div class="card pp"><div class="pp-head"><h2><span class="live-dot" aria-hidden="true"></span>' + (closed ? '마감 인기 픽' : '실시간 인기 픽') + '</h2>' +
       (pred.at ? '<span class="small muted num">' + hhmm(pred.at) + ' 기준</span>' : '') + '</div>' +
-      '<div class="seg" role="group" aria-label="방식">' + [['', '전체'], ['high', '하이리스크'], ['safe', '안전형']].map(function (o) {
-        return '<button data-act="pp-filter" data-v="' + o[0] + '" aria-pressed="' + ((ui.pred.filter || '') === o[0]) + '">' + o[1] + '</button>';
+      '<div class="gsel pp-groups" role="group" aria-label="조">' + [{ id: '', name: '전체' }].concat(groups()).map(function (x) {
+        return '<button class="' + (x.id ? 'g' + x.id : 'gall') + '" data-act="pp-filter" data-v="' + x.id + '" aria-pressed="' + (g === x.id) + '">' + esc(x.name).split('·').join('·<br>') + '</button>';
+      }).join('') + '</div>' +
+      '<div class="seg" role="group" aria-label="보기">' + [['team', '팀별'], ['player', '선수별']].map(function (o) {
+        return '<button data-act="pp-view" data-v="' + o[0] + '" aria-pressed="' + ((byPlayer ? 'player' : 'team') === o[0]) + '">' + o[1] + '</button>';
       }).join('') + '</div>';
     if (pred.ok === null) return out + '<p class="small muted">불러오는 중…</p></div>';
-    if (!list.length) return out + '<p class="small muted">' + (f ? MODE_LABEL[f] + ' 제출이 아직 없어요.' : '아직 제출이 없어요. 첫 예측을 해 보세요!') + '</p></div>';
+    if (!list.length) return out + '<p class="small muted">' + (g ? gname(g) + '조 경기를 고른 사람이 아직 없어요.' : '아직 제출이 없어요. 첫 예측을 해 보세요!') + '</p></div>';
+    var top = list[0].n;
     out += '<ol class="pp-list">' + shown.map(function (r) {
-      var m = matchById(w, r.match), k = r.match + r.side, c = ch[k] || 0;
+      if (byPlayer) {
+        var p = P[r.player] || {};
+        return '<li class="pp-row"><span class="pp-rank num">' + r.rank + '</span><div class="pp-main"><div class="pp-name"><b>' + esc(p.name || '?') + '</b>' +
+          (r.player === badge.sneaky ? '<span class="chip sneaky">작전주</span>' : '') + '</div>' +
+          (p.group ? '<span class="pp-sub gdot g' + p.group + '">' + esc(gname(p.group)) + '조</span>' : '') + bar(r.n / top) + '</div>' +
+          '<div class="pp-nums"><b class="num">' + r.n + '명</b><span class="num">' + move(r.change) + '</span></div></li>';
+      }
+      var m = matchById(w, r.match), k = r.match + r.side;
       var tags = (badge.upper[k] ? '<span class="chip up">상한가</span>' : '') + (badge.sneaky && m[r.side].indexOf(badge.sneaky) >= 0 ? '<span class="chip sneaky" title="' + esc((P[badge.sneaky] || {}).name || '') + ' 이번 주 가장 많이 걸림">작전주</span>' : '');
-      var move = c > 0 ? '<span class="mv-up">▲' + c + '</span> · ' : c < 0 ? '<span class="mv-down">▼' + (-c) + '</span> · ' : '';
       return '<li class="pp-row"><span class="pp-rank num">' + r.rank + '</span><div class="pp-main"><div class="pp-name"><b>' + esc(teamText(m, r.side, P)) + '</b>' + tags + '</div>' +
-        '<span class="pp-sub gdot g' + m.pool + '">' + esc(matchLabel(w, m)) + '</span><span class="pp-bar" aria-hidden="true"><i style="width:' + pct(r.share) + '%"></i></span></div>' +
-        spark(L.pickTrend(pred.events, r.match, r.side, r.n, f), c) +
-        '<div class="pp-nums"><b class="num">' + r.n + '명</b><span class="num">' + move + pct(r.share) + '%</span></div></li>';
+        '<span class="pp-sub gdot g' + m.pool + '">' + esc(matchLabel(w, m)) + '</span>' + bar(r.share) + '</div>' +
+        '<div class="pp-nums"><b class="num">' + r.n + '명</b><span class="num">' + (ch[k] ? move(ch[k]) + ' · ' : '') + pct(r.share) + '%</span></div></li>';
     }).join('') + '</ol>';
-    if (list.length > 5) out += '<button class="btn sm" data-act="pp-more">' + (ui.pred.more ? '접기' : '전체 보기 (' + list.length + '팀)') + '</button>';
-    if (!closed) out += '<p class="small muted">▲▼ 최근 1시간 인원 변화 · 상한가: 한 경기에서 70% 이상이 고른 팀 · 작전주: 이번 주 가장 많이 걸린 선수</p>';
+    if (list.length > 5) out += '<button class="btn sm" data-act="pp-more">' + (ui.pred.more ? '접기' : '전체 보기 (' + list.length + (byPlayer ? '명' : '팀') + ')') + '</button>';
+    out += '<p class="small muted">' + (byPlayer ? '선수가 들어간 팀을 고른 수를 합쳤어요(두 경기를 다 고르면 2번 세요). 막대는 1위 대비' :
+      '막대·%는 그 경기를 고른 사람 중 이 팀을 고른 비율 · 상한가: 70% 이상 · 작전주: 이번 주 가장 많이 걸린 선수') + (closed ? '' : ' · ▲▼ 최근 1시간 변화') + '</p>';
     return out + '</div>';
-  }
-  // 작은 추세선(이름 없는 체결 이벤트로 만든 누적 인원). 최근 1시간 오르면 빨강, 내리면 파랑
-  function spark(vals, change) {
-    if (vals.length < 2) return '<span class="pp-spark" aria-hidden="true"></span>';
-    var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals), W = 56, H = 22;
-    var pts = vals.map(function (v, i) { return (i * W / (vals.length - 1)).toFixed(1) + ',' + (hi === lo ? H / 2 : H - 2 - (v - lo) / (hi - lo) * (H - 4)).toFixed(1); }).join(' ');
-    return '<svg class="pp-spark ' + (change > 0 ? 'rise' : change < 0 ? 'fall' : '') + '" viewBox="0 0 ' + W + ' ' + H + '" aria-hidden="true"><polyline points="' + pts + '" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/></svg>';
   }
   function viewFeed(w, P) {
     var ev = pred.events.filter(function (e) { return e.delta > 0; }).slice(0, 3);
@@ -1220,7 +1228,8 @@
         so2[ui.seedGroup] = lst; setSeeds(so2); commit(); break;
       case 'save': save(); break;
       // 돼블스플랜
-      case 'pp-filter': ui.pred.filter = v; render(); break;
+      case 'pp-filter': ui.pred.filter = v; ui.pred.more = false; render(); break;
+      case 'pp-view': ui.pred.view = v; ui.pred.more = false; render(); break;
       case 'pp-more': ui.pred.more = !ui.pred.more; render(); break;
       case 'pred-retry': pred.sig = ''; refreshPred(); loadAllPreds().then(render); break;
       case 'pe-open': openPredEdit(); render(); window.scrollTo(0, 0); break;
