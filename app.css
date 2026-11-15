@@ -397,6 +397,9 @@ textarea { width: 100%; min-height: 84px; resize: vertical; }
 .gsel button[aria-pressed="true"]::before { background: rgb(255 255 255 / .75); }
 /* 경기 카드: 번호 글자 + 왼쪽 얇은 선만 팀색 */
 .group .match { border-left: 3px solid var(--t-mid); }
+/* 슈퍼매치 경기: 조 색 테두리 2px + 아주 연한 조 색 배경(기존 조 토큰 --t-mid / --t-tint 재사용). 선수 칸은 흰색으로 두어 이름이 또렷하게 */
+.group .match.super { border: 2px solid var(--t-mid); background: var(--t-tint); box-shadow: none; }
+.group .match.super .team:not(.win) { background: var(--surface); border-color: var(--t-line); }
 .group .m-no { color: var(--t-deep); }
 /* 이긴 칸만 팀색(연한 바탕 + 옅은 테두리 + 진한 WIN), 카드 바탕은 흰색 유지 */
 .group .team.win { background: var(--t-tint); border-color: var(--t-line); color: var(--t-deep); }
@@ -460,28 +463,61 @@ textarea { width: 100%; min-height: 84px; resize: vertical; }
 @media (min-width: 600px) { .plan-banner { min-height: 148px; } .pb-text { padding: 18px 0 18px 22px; } .pb-pig { right: 8px; } }
 /* 인기 픽·체결 */
 .live-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--plan); margin-right: 6px; vertical-align: 2px; box-shadow: 0 0 0 3px rgb(240 32 104 / .18); }
+.pp .live-dot { background: var(--rose); box-shadow: none; }
+/* 인기 픽 색 체계: 네이비(1팀·왼쪽) + 뮤트 로즈(2팀·오른쪽). 팀 색은 비율과 상관없이 고정, 인기 픽·역배 후보는 배지로만 표현
+   그라데이션·그림자 없음, 수치는 막대 바깥. 이 카드 안에서만 적용 */
+.pp { --navy: #252D59; --rose: #C65378; --rose-text: #A94365; --text: #24283A; --text-2: #737B90; --line: #DCE2EF; --line-2: #E9EDF5;
+  background: #FFFFFF; border-color: var(--line); color: var(--text); box-shadow: none; }
+.pp .muted { color: var(--text-2); }
 .pp-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .pp-list { list-style: none; margin: 0; padding: 0; display: grid; }
-.pp-row { display: grid; grid-template-columns: 22px minmax(0, 1fr) 56px 78px; gap: 10px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line-2); }
+.pp-row { display: grid; grid-template-columns: 22px minmax(0, 1fr) 78px; gap: 10px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line-2); }
 .pp-row:first-child { border-top: 0; }
-.pp-rank { font-size: 17px; font-weight: 700; color: var(--plan-text); text-align: center; }
+.pp-rank { font-size: 17px; font-weight: 700; color: var(--navy); text-align: center; }
 .pp-main { min-width: 0; display: grid; gap: 2px; }
 .pp-name { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; }
 .pp-name b { font-size: 15px; font-weight: 700; }
 .pp-sub { font-size: var(--fs-cap); font-weight: 500; color: var(--text-2); }
-.pp-bar, .pe-bar { display: block; height: 4px; border-radius: 2px; background: var(--line-2); overflow: hidden; margin-top: 4px; }
-.pp-bar i, .pe-bar i { display: block; height: 100%; background: var(--navy); border-radius: 2px; }
-.pp-spark { width: 56px; height: 22px; color: var(--text-2); }
-.pp-spark.rise { color: var(--hell-text); }
-.pp-spark.fall { color: var(--heaven-text); }
-@media (max-width: 360px) { .pp-row { grid-template-columns: 22px minmax(0, 1fr) 40px 74px; gap: 8px; } .pp-spark { width: 40px; } }
+.pe-bar { display: block; height: 4px; border-radius: 2px; background: var(--line-2); overflow: hidden; margin-top: 4px; }
+.pe-bar i { display: block; height: 100%; background: var(--navy); border-radius: 2px; }
+/* 인기 픽 막대: 회색 바탕(테두리) 안에 핑크 채움 */
+.pp-bar { display: block; height: 10px; margin-top: 6px; border-radius: 5px; background: var(--line-2); overflow: hidden; }
+.pp-bar i { display: block; height: 100%; border-radius: 5px; background: var(--navy); }
+/* 인기 픽 조 탭: 전체 + 조 3개 */
+.pp-groups { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.pp-groups button { font-size: 13px; padding: 6px 2px; }
+.pp-groups button.gall::before { background: var(--navy); }
 .pp-nums { display: grid; justify-items: end; gap: 2px; }
 .pp-nums b { font-size: 16px; font-weight: 700; color: var(--navy); }
 .pp-nums span { font-size: var(--fs-cap); font-weight: 700; color: var(--text-2); }
-.mv-up, .pp-nums .mv-up { color: var(--hell-text); }
-.mv-down, .pp-nums .mv-down { color: var(--heaven-text); }
-.chip.up { background: var(--hell-50); color: var(--hell-text); border-color: #F1CACA; }
-.chip.sneaky { background: #FCE8F0; color: var(--plan-text); border-color: #F5C3D7; }
+/* 인기 픽 배지: 인기 픽(빨강) · 역배 후보(파랑) · 슈퍼매치(노랑, 불꽃) — 뜻이 다르므로 색도 다르게 */
+.chip.hot { background: #FBE8EF; color: #A94365; border-color: #F3CDDA; }
+.chip.under { background: #EAF1FF; color: #315CA8; border-color: #CADAF7; }
+.chip.super { background: #FFF2D5; color: #8B6418; border-color: #F0DCA6; }
+.m-head .chip.super { margin-right: auto; }
+/* 팀별 인기 픽: 경기 하나 = 카드 하나. 왼쪽 팀 navy, 오른쪽 팀 핑크로 고정 */
+.mb-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.mb { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: var(--r-card); background: #FFFFFF; }
+.mb-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.mb-title { font-size: 14px; color: var(--navy); }
+.mb-total { justify-self: center; font-size: 14px; font-weight: 700; color: var(--text); }
+.mb-teams { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.mb-team { display: grid; gap: 2px; justify-items: start; align-content: start; min-width: 0; }
+.mb-team.b { justify-items: end; text-align: right; }
+.mb-name { font-size: 15px; font-weight: 700; overflow-wrap: anywhere; }
+.mb-fig { display: flex; align-items: baseline; gap: 6px; }
+.mb-team.b .mb-fig { flex-direction: row-reverse; }
+.mb-fig b { font-size: 26px; font-weight: 900; line-height: 1.15; }
+.mb-fig span { font-size: 15px; font-weight: 700; color: var(--text); }
+.mb-team.a .mb-fig b { color: var(--navy); }
+.mb-team.b .mb-fig b { color: var(--rose); }
+.mb-bar { display: flex; height: 14px; border-radius: 7px; overflow: hidden; background: var(--line-2); }
+.mb-bar i { display: block; height: 100%; }
+.mb-bar i.a { background: var(--navy); }
+.mb-bar i.b { background: var(--rose); }
+.mb-bar i.a + i.b { box-shadow: -2px 0 0 #fff; }
+.pp-nums .pp-pct { font-size: 14px; color: var(--text); }
+.chip.sneaky { background: #FBE8EF; color: #A94365; border-color: #F3CDDA; }
 .feed { gap: 6px; }
 .feed-row { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; gap: 8px; align-items: center; font-size: 14px; min-height: 32px; }
 .feed-t { color: var(--text-2); font-size: var(--fs-sm); }

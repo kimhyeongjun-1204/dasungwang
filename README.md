@@ -9,8 +9,8 @@
 ## 파일
 | 파일 | 내용 |
 |---|---|
-| `logic.js` | 순수 로직: 자동 편성(hill-climbing, 편성 조건 반영), 승수 집계·순위, 지옥도/천국도 등급, 시드→실력 점수, 주차 점검, 밴드 명단 파싱, 돼장 요청 계획 적용(`applyPlan`), 돼블스플랜 마감·채점·보너스·인기 픽·장 마감 리포트 |
-| `logic.test.js` | 로직 테스트 103개 |
+| `logic.js` | 순수 로직: 자동 편성(hill-climbing, 편성 조건 반영), 승수 집계·순위, 지옥도/천국도 등급, 시드→실력 점수, 주차 점검, 밴드 명단 파싱, 돼장 요청 계획 적용(`applyPlan`), 돼블스플랜 마감·채점·보너스·인기 픽(경기별·선수별)·조별 슈퍼매치·장 마감 리포트 |
+| `logic.test.js` | 로직 테스트 110개 |
 | `app.js` | 화면 렌더링·이벤트 처리. 저장은 `remote.js`를 통해 Supabase로 |
 | `remote.js` | Supabase 읽기/RPC 호출, 관리자 토큰(30일) 보관, 에러 구분(`stale_rev`, `unauthorized`, `no_pin` …) |
 | `config.js` | Supabase Project URL과 anon(publishable) key. **공개돼도 되는 값만** |
