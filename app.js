@@ -222,7 +222,7 @@
       out += '<section class="group g' + g.id + '">' + teamBanner(g, [Object.keys(ppl).length + '명', ms.length + '경기', dn === ms.length ? '결과 완료' : '결과 ' + dn + '/' + ms.length]) + '<div class="match-list">';
       ms.forEach(function (m, i) {
         var state = m.win ? '<span class="m-state done">결과 입력됨</span>' : '<span class="m-state">결과 대기</span>';
-        out += '<article class="match' + (m.win ? ' decided' : '') + '"><div class="m-head"><span class="m-no num">' + (i + 1) + '경기</span>' + (sm[m.id] ? '<span class="chip super num">🔥 슈퍼매치 · ' + sm[m.id] + '명 참여</span>' : '') + state + '</div><div class="m-teams">';
+        out += '<article class="match' + (m.win ? ' decided' : '') + (sm[m.id] ? ' super' : '') + '"><div class="m-head"><span class="m-no num">' + (i + 1) + '경기</span>' + (sm[m.id] ? '<span class="chip super num">🔥 슈퍼매치 · ' + sm[m.id] + '명 참여</span>' : '') + state + '</div><div class="m-teams">';
         ['a', 'b'].forEach(function (side, si) {
           var st = m.win ? (m.win === side ? ' win' : ' lose') : '';
           var names = '<span class="names">' + m[side].map(function (pid) { return plHtml(pid, m, w.date, P); }).join('<span class="sep">·</span>') + '</span>';
@@ -503,12 +503,12 @@
       return out + '<p class="small muted">' + (g ? gname(g) + '조 경기를 고른 사람이 아직 없어요.' : '아직 제출이 없어요. 첫 예측을 해 보세요!') + '</p></div>';
     }
     if (byPlayer) {
-      var list = L.playerPicks(cs, wf), sneaky = L.pickBadges(cs, w).sneaky;
+      var list = L.playerPicks(cs, wf); // 지금 보는 탭(전체 또는 그 조) 안에서 1위(공동 1위 모두)가 인기 선수
       var shown = ui.pred.more ? list : list.slice(0, 5);
       out += '<ol class="pp-list">' + shown.map(function (r) {
         var p = P[r.player] || {};
         return '<li class="pp-row"><span class="pp-rank num">' + r.rank + '</span><div class="pp-main"><div class="pp-name"><b>' + esc(p.name || '?') + '</b>' +
-          (r.player === sneaky ? '<span class="chip sneaky">인기 선수</span>' : '') + '</div>' +
+          (r.rank === 1 ? '<span class="chip sneaky">인기 선수</span>' : '') + '</div>' +
           (p.group ? '<span class="pp-sub gdot g' + p.group + '">' + esc(gname(p.group)) + '조</span>' : '') +
           '<span class="pp-bar" aria-hidden="true"><i style="width:' + (r.share * 100).toFixed(2) + '%"></i></span></div>' +
           '<div class="pp-nums"><b class="num">' + r.n + '명</b><b class="pp-pct num">' + pct(r.share) + '%</b></div></li>';

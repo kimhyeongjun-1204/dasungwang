@@ -397,6 +397,9 @@ textarea { width: 100%; min-height: 84px; resize: vertical; }
 .gsel button[aria-pressed="true"]::before { background: rgb(255 255 255 / .75); }
 /* 경기 카드: 번호 글자 + 왼쪽 얇은 선만 팀색 */
 .group .match { border-left: 3px solid var(--t-mid); }
+/* 슈퍼매치 경기: 조 색 테두리 2px + 아주 연한 조 색 배경(기존 조 토큰 --t-mid / --t-tint 재사용). 선수 칸은 흰색으로 두어 이름이 또렷하게 */
+.group .match.super { border: 2px solid var(--t-mid); background: var(--t-tint); box-shadow: none; }
+.group .match.super .team:not(.win) { background: var(--surface); border-color: var(--t-line); }
 .group .m-no { color: var(--t-deep); }
 /* 이긴 칸만 팀색(연한 바탕 + 옅은 테두리 + 진한 WIN), 카드 바탕은 흰색 유지 */
 .group .team.win { background: var(--t-tint); border-color: var(--t-line); color: var(--t-deep); }
