@@ -361,7 +361,7 @@
   var MODE_LABEL = { high: '하이리스크', safe: '안전형' };
   var pred = { week: null, ok: null, counts: [], events: [], close: [], at: 0, sig: '', loading: false, closedAt: {}, watch: null,
     all: [], allOk: null, newEvent: 0, admWeek: null, admList: null, admErr: '' };
-  ui.pred = { mode: '', picks: [], filter: '', view: 'team', more: false, edit: false, busy: false, full: false, adm: null, admDel: '' };
+  ui.pred = { mode: '', picks: [], filter: '', view: 'team', more: false, edit: false, busy: false, confirm: false, full: false, adm: null, admDel: '' };
 
   function predWeek() { var w = getWeek(ui.week); return w && w.published !== false && w.matches.length ? w : null; }
   function isClosed(d) { return L.isPredictionClosed(d, Date.now()); }
@@ -625,7 +625,25 @@
     var md2 = d.mode ? (d.mode === 'high' ? '🔥 ' : '🛡️ ') + MODE_LABEL[d.mode] + ' <span class="up num">+' + B[d.mode].hit + '</span> / <span class="' + (B[d.mode].miss ? 'down ' : '') + 'num">' + (B[d.mode].miss ? '−' + Math.abs(B[d.mode].miss) : '0') + '</span>' : '방식을 골라 주세요';
     out += '<div class="plan-cta pe-bar-fixed"><div class="in"><div class="pe-sum"><span>선택 <b class="num">' + n + '/' + max + '</b></span><span>' + md2 + '</span></div>' +
       '<button class="btn primary" data-act="pe-submit"' + (d.busy ? ' disabled' : '') + '><b>' + (d.busy ? '제출 중…' : '제출하기') + '</b><small>마감 전까지 수정 가능</small></button></div></div>';
+    if (d.confirm && P[ui.me]) out += viewPredConfirm(w, P);
     return out;
+  }
+  // 제출 전 이름 확인 창: 이름을 크게, 방식·고른 4경기를 조 순서로
+  function viewPredConfirm(w, P) {
+    var d = ui.pred, me = P[ui.me], b = L.PREDICT.bonus[d.mode];
+    var ord = function (p) { var m = matchById(w, p.match); return m ? poolOrder(m.pool) : 100; };
+    var lines = d.picks.slice().sort(function (x, y) { return ord(x) - ord(y); }).map(function (p) {
+      var m = matchById(w, p.match);
+      return '<li><span class="gdot g' + m.pool + '">' + esc(matchLabel(w, m)) + '</span><b>' + esc(teamText(m, p.side, P)) + '</b></li>';
+    }).join('');
+    return '<div class="pc-back" data-act="pc-no" aria-hidden="true"></div>' +
+      '<section class="pc-sheet" role="dialog" aria-modal="true" aria-labelledby="pc-title">' +
+      '<h3 id="pc-title">이 이름으로 제출할까요?</h3>' +
+      '<p class="pc-name"><span class="gdot g' + me.group + '">' + esc(gname(me.group)) + '조</span><b>' + esc(me.name) + '</b></p>' +
+      '<p class="pc-warn">다른 사람 이름으로 내면 그 사람의 예측이 바뀌어요. 내 이름이 맞는지 꼭 확인해 주세요.</p>' +
+      '<p class="pc-mode">' + (d.mode === 'high' ? '🔥 ' : '🛡️ ') + MODE_LABEL[d.mode] + ' · 4경기 모두 적중 <b class="up num">+' + b.hit + '승</b> · 하나라도 틀리면 <b class="' + (b.miss ? 'down ' : '') + 'num">' + (b.miss ? '−' + Math.abs(b.miss) + '승' : '0') + '</b></p>' +
+      '<ul class="pc-picks">' + lines + '</ul>' +
+      '<div class="pc-btns"><button class="btn" data-act="pc-no">이름이 달라요</button><button class="btn primary" id="pc-yes" data-act="pc-yes">네, ' + esc(me.name) + '(으)로 제출</button></div></section>';
   }
   function quotaText(w) {
     var q = L.pickQuota(w);
@@ -643,6 +661,14 @@
     if (!d.mode) return toast('하이리스크와 안전형 중 하나를 골라 주세요.');
     var errs = L.validatePicks(d.picks, w);
     if (errs.length) return toast(errs[0] === 'count' ? '서로 다른 4경기를 골라 주세요 (지금 ' + d.picks.length + '개).' : errs[0] === 'quota' ? quotaText(w) : SUBMIT_ERR.bad_match);
+    // 로그인이 없어서 이름을 잘못 고르면 다른 사람 예측을 덮어씀 → 보내기 전에 이름을 한 번 더 확인
+    d.confirm = true; render();
+    var yes = document.getElementById('pc-yes'); if (yes) try { yes.focus(); } catch (e) { }
+  }
+  function sendPred() {
+    var w = predWeek(), d = ui.pred;
+    d.confirm = false;
+    if (!w || d.busy || !ui.me) { render(); return; }
     var me = ui.me, picks = d.picks.slice(), mode = d.mode;
     d.busy = true; render();
     remote.submitPrediction(w.date, me, mode, picks).then(function (at) {
@@ -1178,7 +1204,7 @@
     if (!work) return;
     var w, m, P;
     switch (act) {
-      case 'tab': ui.tab = v; LS.set(KEY.tab, v); ui.notice = null; ui.pred.edit = false; ui.pred.full = false; render(); window.scrollTo(0, 0); break;
+      case 'tab': ui.tab = v; LS.set(KEY.tab, v); ui.notice = null; ui.pred.edit = false; ui.pred.full = false; ui.pred.confirm = false; render(); window.scrollTo(0, 0); break;
       case 'week': ui.week = v; SS.set(SKEY.week, v); ui.confirm = null; ui.notice = null; ui.ai.res = null; ui.ai.err = ''; ui.shiftSel = { p: '', dir: 'up' }; ui.pred.edit = false; ui.pred.more = false; ui.pred.adm = null; ui.pred.admDel = ''; render(); break;
       case 'rankg': ui.rankGroup = v; render(); break;
       case 'sec': ui.sec = v; SS.set(SKEY.sec, v); render(); break;
@@ -1274,7 +1300,7 @@
       case 'pp-more': ui.pred.more = !ui.pred.more; render(); break;
       case 'pred-retry': pred.sig = ''; refreshPred(); loadAllPreds().then(render); break;
       case 'pe-open': openPredEdit(); render(); window.scrollTo(0, 0); break;
-      case 'pe-close': ui.pred.edit = false; render(); window.scrollTo(0, 0); break;
+      case 'pe-close': ui.pred.edit = false; ui.pred.confirm = false; render(); window.scrollTo(0, 0); break;
       case 'pe-mode': ui.pred.mode = v; render(); break;
       case 'pe-pick':
         var pk = ui.pred.picks, pmid = el.getAttribute('data-m'), pside = el.getAttribute('data-side');
@@ -1288,6 +1314,11 @@
         }
         render(); break;
       case 'pe-submit': submitPred(); break;
+      case 'pc-yes': sendPred(); break;
+      case 'pc-no':
+        ui.pred.confirm = false; render();
+        var ms = document.getElementById('me-select'); if (ms) { window.scrollTo(0, ms.getBoundingClientRect().top + window.scrollY - 120); try { ms.focus(); } catch (e) { } }
+        break;
       case 'rp-full': ui.pred.full = true; render(); break;
       case 'rp-close': ui.pred.full = false; render(); break;
       case 'pa-reload': pred.admWeek = null; render(); break;
@@ -1316,7 +1347,7 @@
     if (!act || !work) return;
     var m, P = pm();
     switch (act) {
-      case 'me': ui.me = el.value; if (el.value) LS.set(KEY.me, el.value); else LS.del(KEY.me); ui.rankGroup = null; if (ui.pred.edit && localPred(ui.week, ui.me)) openPredEdit(); render(); break;
+      case 'me': ui.pred.confirm = false; ui.me = el.value; if (el.value) LS.set(KEY.me, el.value); else LS.del(KEY.me); ui.rankGroup = null; if (ui.pred.edit && localPred(ui.week, ui.me)) openPredEdit(); render(); break;
       case 'pa-player': if (ui.pred.adm) ui.pred.adm.player = el.value; break;
       case 'pa-mode': if (ui.pred.adm) ui.pred.adm.mode = el.value; break;
       case 'pa-pick': if (ui.pred.adm) ui.pred.adm.picks[+el.getAttribute('data-i')] = el.value; break;
