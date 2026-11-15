@@ -225,6 +225,12 @@ test('app.js: 아티팩트 자기 재게시·브라우저 PIN 해시·내장 sta
   assert.ok(!/pinHash/.test(appSrc), 'pinHash 남아 있음');
   assert.ok(!/getElementById\('state'\)/.test(appSrc), '<script id="state"> 읽기 남아 있음');
 });
+test('app.js 화면 문구에 주식 용어를 쓰지 않음 (사용자 요청 2026-11-16, 주석은 제외)', () => {
+  const code = appSrc.split('\n').filter(l => !/^\s*\/\//.test(l)).map(l => l.replace(/\s\/\/ .*$/, '')).join('\n');
+  const words = ['체결', '매수', '매도', '장 마감', '상한가', '폭락', '수익', '종가', '시세', '작전주', '포트폴리오', '투자'];
+  const found = words.filter(w => code.includes(w));
+  assert.deepStrictEqual(found, [], '남은 주식 용어: ' + found.join(', '));
+});
 test('app.js: 기존 충돌 UI·저장 실패 배너·임시저장 유지', () => {
   for (const s of ['draftConflict', 'ui.saveError', 'KEY.draft', 'draft-load', 'draft-drop']) assert.ok(appSrc.includes(s), s + ' 없음');
 });
