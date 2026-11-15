@@ -720,3 +720,19 @@ $ VERIFY_URL=http://localhost:8790 ADMIN_PIN=1234 node verify_db.js --predict   
 | 내 예측 카드 | 4칸을 조 순서로, 이름 앞에 조 색 점 |
 | 데모 예측 32건 | 조별 고정 위반 0건 |
 | 가로 넘침(헤드리스 Chrome 390px) | scrollWidth 390 |
+
+### 26-1. 배포·SQL·실제 DB 확인 (2026-11-16)
+1. PR #3 머지 → `Deploy to GitHub Pages` (fb978ff) `completed success`
+2. 사용자가 SQL Editor에서 `Get-Content supabase\schema.sql -Raw -Encoding UTF8 | Set-Clipboard` 후 Run → 완료
+3. 사용자가 `node verify_db.js --predict` 실행 → 사용자 보고: 모두 통과 (가짜 서버 미리 실행 결과는 28 passed, 0 failed. 실제 DB 전체 출력은 사용자 터미널에만 있음)
+4. 그 뒤 anon 키로 실제 DB를 읽기만 해서 확인:
+```
+predictions 테스트 날짜 행 */0
+prediction_counts 테스트 날짜 행 */0
+prediction_events 테스트 날짜 행 */0
+prediction_close 테스트 날짜 행 */0
+app_state {"rev":382,"saved_at":"2026-11-12T01:42:17.602166+00:00"}
+11/18 집계 행 */0
+```
+- 검증용 테스트 날짜(2000·2099년) 행은 남지 않았고, app_state는 11/12 저장본 그대로(검증이 쓰지 않음). 11/18 실제 제출은 아직 0건
+- 확인 못 한 것: 실제 DB에서 Realtime 반영(회원 제출이 들어온 뒤 휴대폰 2대로)
