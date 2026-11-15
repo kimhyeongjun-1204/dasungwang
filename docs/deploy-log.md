@@ -683,3 +683,40 @@ $ node deploy.test.js | tail -1
 | 돼지갈비·닭갈비 4경기 (슈퍼매치 6명) | 1.6px rgb(210, 100, 138) = --gC | rgb(253, 238, 243) |
 | 일반 경기 (예: 캐비어·랍스터 1경기) | 0.8px rgb(220, 226, 236) (기존) | 흰색 (기존) |
 경기 카드 17개 중 슈퍼매치 3개, scrollWidth 390.
+
+## 26. 조별 고정(캐비어·랍스터 1 · 소갈비·양갈비 2 · 돼지갈비·닭갈비 1) · 하이리스크 실패 -2 · 예측하기 조별 배너 (돼장 결정, 브랜치 feat/daebles-quota, 2026-11-16)
+시작 전 실제 DB(읽기만): 11/18 prediction_counts 0행(제출 0건), 조 A=캐비어·랍스터 B=소갈비·양갈비 C=돼지갈비·닭갈비, 11/18 경기 A 3 · B 6 · C 5.
+```
+$ node logic.test.js   (조별 고정·-2 테스트 먼저)
+  FAIL PREDICT.quota: 캐비어·랍스터(A) 1 · 소갈비·양갈비(B) 2 · 돼지갈비·닭갈비(C) 1, 합 4
+  FAIL validatePicks 조별 고정: A1·B2·C1이면 통과, 아니면 quota
+  FAIL validatePicks 조별 고정: 한 조 경기가 모자라 채울 수 없는 주는 예전처럼 아무 4경기
+  FAIL quotaStatus: 조별로 몇 개 골랐는지·더 고를 수 있는지
+  FAIL 하이리스크 하나 틀림 → miss -2
+  FAIL 대기 중이어도 하나 틀리면 즉시 miss
+  FAIL bonusByPlayer: 주차별 합계, 공개 안 된 주·없는 주는 0
+107 passed
+$ node logic.test.js   (구현 후)
+114 passed
+$ node deploy.test.js   (bad_quota 코드·schema.sql 고정값 = logic.js 테스트 먼저)
+  FAIL schema.sql pred_check: 조별 고정(bad_quota)이 logic.js PREDICT.quota와 같음
+  FAIL api.submitPrediction: RPC 이름·인자, 마감 후는 closed 코드
+20 passed
+$ node deploy.test.js   (구현 후)
+22 passed
+$ VERIFY_URL=http://localhost:8790 ADMIN_PIN=1234 node verify_db.js --predict   (가짜 서버, 실제 DB 아님)
+  ok  제출 거부: 조별 고정 어김(A1·B1·C2) → bad_quota
+28 passed, 0 failed
+```
+화면 확인(MOCK_DEMO, 11/18):
+| 확인 | 결과 |
+|---|---|
+| 예측하기 조별 배너 | 캐비어·랍스터조 "1경기 고르기 고름 0/1"(4경기) · 소갈비·양갈비조 "2경기 고르기 고름 0/2"(8경기) · 돼지갈비·닭갈비조 "1경기 고르기 고름 0/1"(5경기) |
+| 캐비어·랍스터 1경기 고른 뒤 | 같은 조 4경기 중 3경기 흐림, 다른 경기 버튼 disabled. 같은 경기 다른 팀으로는 바뀜 |
+| 소갈비·양갈비 2경기 고른 뒤 | 8경기 중 6경기 흐림 |
+| 다 고른 뒤 | 배너 "고름 1/1 ✓ · 2/2 ✓ · 1/1 ✓", 아래 바 "선택 4/4 🔥 하이리스크 +3 / −2" → 제출 성공 |
+| 하이리스크 카드 | "하나라도 틀리면 −2승" |
+| 서버 규칙(가짜 서버 RPC 직접) | 캐비어·랍스터 2경기 넣으면 bad_quota |
+| 내 예측 카드 | 4칸을 조 순서로, 이름 앞에 조 색 점 |
+| 데모 예측 32건 | 조별 고정 위반 0건 |
+| 가로 넘침(헤드리스 Chrome 390px) | scrollWidth 390 |

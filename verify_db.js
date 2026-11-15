@@ -180,6 +180,8 @@ function askPin() {
 // app_state는 읽기만. 쓰기는 테스트 전용 날짜(2000·2099년)에만 하고 마지막에 admin_test_purge로 전부 지움
 async function predictChecks(pin) {
   const PAST = '2000-01-05', FUTURE = '2099-12-30', IDS = ['vt1', 'vt2', 'vt3', 'vt4', 'vt5'];
+  // 테스트 주의 경기 → 조: A 1경기, B 2경기, C 2경기 (조별 고정 A1·B2·C1을 채울 수 있게)
+  const POOLS = { vt1: 'A', vt2: 'B', vt3: 'B', vt4: 'C', vt5: 'C' };
   const msg = r => r.json && r.json.message;
   const pk = s => s.split(' ').map(t => ({ match: 'vt' + t[0], side: t[1] }));   // '1a 2b 3a 4b'
   const rows = (t, d, q) => req('GET', '/rest/v1/' + t + '?week_date=eq.' + d + (q || ''));
@@ -207,7 +209,7 @@ async function predictChecks(pin) {
       const p = await rpc('admin_test_purge', { token });
       expect(p.status === 200, short(p));
       for (const d of [PAST, FUTURE]) {
-        const r = await rpc('admin_test_week', { token, week_date: d, match_ids: IDS });
+        const r = await rpc('admin_test_week', { token, week_date: d, match_ids: POOLS });
         expect(r.status < 300, d + ' ' + short(r));
       }
     });
@@ -232,6 +234,7 @@ async function predictChecks(pin) {
       ['중복 경기', { picks: pk('1a 1b 3a 4a') }, 'dup_match'], ['없는 경기', { picks: pk('1a 2a 3a 9a') }, 'bad_match'],
       ['잘못된 side', { picks: pk('1a 2a 3a 4c') }, 'bad_side'], ['명단에 없는 선수', { player_id: 'no-such-player' }, 'bad_player'],
       ['없는 방식', { mode: 'yolo' }, 'bad_mode'],
+      ['조별 고정 어김(A1·B1·C2)', { picks: pk('1a 2a 4a 5a') }, 'bad_quota'],
     ];
     for (const [name, over, code] of bad) {
       await check('제출 거부: ' + name + ' → ' + code, async () => {

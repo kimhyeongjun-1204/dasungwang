@@ -20,3 +20,4 @@
 | 16 | SQL 복사 명령을 `Get-Content supabase\schema.sql -Raw \| Set-Clipboard`로 안내 | Windows PowerShell 5.1의 `Get-Content`는 BOM 없는 파일을 시스템 코드페이지(CP949)로 읽어서, 한글 주석 끝 바이트가 줄바꿈과 묶여 줄바꿈 4개가 사라짐(406줄 → 402줄). 다음 줄 `create or replace function public.prediction_match_ids…`가 주석 안으로 들어가 SQL Editor에서 `42601: syntax error at or near "language"` (LINE 213) | `-Encoding UTF8`을 붙여 안내. 기본 읽기 213번째 줄이 오류 줄과 같고, UTF8 읽기는 406줄 그대로인 것을 PowerShell에서 확인 |
 | 17 | 인기 픽 카드 머리줄에 "총 N명 참여"를 경기 이름·슈퍼매치 배지와 같은 줄에 둠 | 390px에서 슈퍼매치 배지가 있는 카드만 "총 N명 참여"가 다음 줄로 밀려서 카드마다 배치가 달라짐(스크린숏에서 발견) | "총 N명 참여"를 막대 아래 가운데로 옮겨 모든 카드가 같은 배치 |
 | 18 | 화면 코드를 바꾸는 스크립트에서 찾을 문자열을 `'<span class="m-no num">'…`처럼 따옴표로 시작하게 씀 | 실제 코드에서는 그 앞이 같은 문자열 안이라 따옴표가 없어서 0건 일치. 바꾸기 전에 건수를 확인하게 해 둬서 파일은 그대로였음(두 군데) | 따옴표 없이 찾도록 고쳐 다시 적용 |
+| 19 | main에서 새 브랜치를 만든 뒤에도 예전처럼 여러 줄 문자열을 그대로 찾아 바꾸려 함 | 새로 받은 파일은 git 설정(autocrlf)으로 줄 끝이 CRLF라 여러 줄 찾기가 0건. 건수 확인 덕분에 파일은 그대로였음 | 줄 끝을 LF로 맞춰 바꾼 뒤 원래 줄 끝(CRLF)으로 되돌려 쓰는 도우미로 다시 적용 |

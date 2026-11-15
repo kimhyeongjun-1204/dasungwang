@@ -150,7 +150,7 @@ test('api.submitPrediction: RPC 이름·인자, 마감 후는 closed 코드', as
   assert.deepStrictEqual(c.calls[0], ['rpc', 'submit_prediction', { week_date: '2026-11-18', player_id: 'p001', mode: 'high', picks }]);
   const bad = tableClient({}, { submit_prediction: () => ({ data: null, error: { message: 'closed', code: 'P0001' } }) });
   await assert.rejects(need().api(bad).submitPrediction('2026-11-18', 'p001', 'high', picks), e => e.code === 'closed');
-  for (const m of ['bad_player', 'dup_match', 'bad_match', 'bad_count', 'bad_side', 'no_week']) assert.strictEqual(need().errorCode({ message: m }).code, m);
+  for (const m of ['bad_player', 'dup_match', 'bad_match', 'bad_count', 'bad_side', 'no_week', 'bad_quota']) assert.strictEqual(need().errorCode({ message: m }).code, m);
 });
 test('api 예측 관리: 토큰과 함께 목록·수정·삭제, 마감 스냅숏', async () => {
   const ok = () => ({ data: [], error: null });
@@ -200,6 +200,14 @@ test('api.rematch: 함수가 ok:false면 code로 reject (unauthorized, ai_limit 
   await assert.rejects(r.api(fnClient({ data: null, error: { message: 'Failed to send a request to the Edge Function' } })).rematch('t', {}), e => e.code === 'network');
 });
 
+test('schema.sql pred_check: 조별 고정(bad_quota)이 logic.js PREDICT.quota와 같음', () => {
+  const sql = fs.readFileSync(path.join(__dirname, 'supabase', 'schema.sql'), 'utf8');
+  const m = sql.match(/q jsonb := '(\{[^']*\})'/);
+  assert.ok(m, 'pred_check에 조별 고정 값이 없음');
+  assert.deepStrictEqual(JSON.parse(m[1]), require('./logic.js').PREDICT.quota);
+  assert.ok(/raise exception 'bad_quota'/.test(sql), 'bad_quota 오류 없음');
+  assert.ok(/function public\.prediction_match_pools\(d date\)/.test(sql), '경기→조 함수 없음');
+});
 test('Edge Function rematch: 조건 종류가 logic.js와 같고, 모델·폴백·키 처리가 맞음', () => {
   const src = fs.readFileSync(path.join(__dirname, 'supabase', 'functions', 'rematch', 'index.ts'), 'utf8');
   const types = JSON.parse(src.match(/const RULE_TYPES = (\[[^\]]*\])/)[1].replace(/'/g, '"'));

@@ -26,7 +26,15 @@ const P = { predictions: [], prediction_counts: [], prediction_events: [], predi
 const deadline = d => Date.parse(d + 'T17:30:00+09:00');
 const testWeeks = {}; // prediction_test_weeks (verify_db.js 전용, 2000·2099년만)
 const isTestDate = d => /^(2000|2099)-/.test(String(d));
-const weekIds = d => { const w = db.state.weeks.find(x => x.date === d && x.published !== false); return w ? w.matches.map(m => m.id) : testWeeks[d] || null; };
+// 그 주 경기 → 조 (schema.sql prediction_match_pools). 가짜 주는 id 배열이면 조 '' , {id: 조} 객체면 그대로
+const weekPools = d => {
+  const w = db.state.weeks.find(x => x.date === d && x.published !== false);
+  if (w) return Object.fromEntries(w.matches.map(m => [m.id, m.pool || '']));
+  const t = testWeeks[d];
+  return !t ? null : Array.isArray(t) ? Object.fromEntries(t.map(id => [id, ''])) : t;
+};
+const weekIds = d => { const p = weekPools(d); return p ? Object.keys(p) : null; };
+const QUOTA = require('../logic.js').PREDICT.quota;
 function predCheck(d, pid, mode, picks) {
   if (mode !== 'high' && mode !== 'safe') return 'bad_mode';
   if (!db.state.players.some(p => p.id === pid && p.active !== false)) return 'bad_player';
@@ -40,6 +48,11 @@ function predCheck(d, pid, mode, picks) {
     if (seen.has(e.match)) return 'dup_match';
     if (!ids.includes(e.match)) return 'bad_match';
     seen.add(e.match);
+  }
+  // 조별 고정 (schema.sql pred_check와 같게): 채울 수 있는 주만
+  const pools = weekPools(d), groupsOf = g => Object.values(pools).filter(x => x === g).length;
+  if (Object.keys(QUOTA).every(g => groupsOf(g) >= QUOTA[g])) {
+    for (const g of Object.keys(QUOTA)) if (picks.filter(e => pools[e.match] === g).length !== QUOTA[g]) return 'bad_quota';
   }
   return null;
 }

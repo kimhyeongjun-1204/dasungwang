@@ -583,7 +583,8 @@ var Logic = (function () {
   var PREDICT = {
     picks: 4,
     closeUtc: { h: 8, m: 30 },                 // 수요일 17:30 KST = 08:30 UTC
-    bonus: { high: { hit: 3, miss: -1 }, safe: { hit: 1, miss: 0 } },
+    bonus: { high: { hit: 3, miss: -2 }, safe: { hit: 1, miss: 0 } },   // 하이리스크 실패 -2 (돼장 결정 2026-11-16)
+    quota: { A: 1, B: 2, C: 1 },                // 조별로 고를 경기 수: 캐비어·랍스터 1 · 소갈비·양갈비 2 · 돼지갈비·닭갈비 1 (schema.sql pred_check와 같게)
     upperShare: 0.7,                            // 🔺상한가: 한 경기 안에서 이 비율 이상
     changeWindowMs: 3600e3,                     // 인기 픽 ▲▼: 최근 1시간 증감
     hotShare: 0.7, underShare: 0.3,             // 인기 픽 배지: 70% 초과 / 역배 후보: 30% 미만
@@ -607,6 +608,25 @@ var Logic = (function () {
       seen[id] = 1;
       if (!matchOf(week, id) && out.indexOf('no_match') < 0) out.push('no_match');
       if (!p || (p.side !== 'a' && p.side !== 'b')) { if (out.indexOf('bad_side') < 0) out.push('bad_side'); }
+    });
+    var st = !out.length && quotaStatus(picks, week);
+    if (st && Object.keys(st).some(function (g) { return st[g].have !== st[g].need; })) out.push('quota');
+    return out;
+  }
+  // 이 주에 적용할 조별 고정. 한 조라도 경기 수가 모자라 채울 수 없으면 null (그 주는 아무 4경기)
+  function pickQuota(week) {
+    var q = PREDICT.quota, ms = (week && week.matches) || [];
+    var ok = Object.keys(q).every(function (g) { return ms.filter(function (m) { return m.pool === g; }).length >= q[g]; });
+    return ok ? q : null;
+  }
+  // 조별 고른 수 → {조: {need, have, full}} (고정이 없는 주면 null)
+  function quotaStatus(picks, week) {
+    var q = pickQuota(week);
+    if (!q) return null;
+    var out = {};
+    Object.keys(q).forEach(function (g) {
+      var have = (picks || []).filter(function (p) { var m = matchOf(week, p && p.match); return m && m.pool === g; }).length;
+      out[g] = { need: q[g], have: have, full: have >= q[g] };
     });
     return out;
   }
@@ -773,7 +793,7 @@ var Logic = (function () {
   }
 
   return {
-    PREDICT: PREDICT, predictionDeadline: predictionDeadline, isPredictionClosed: isPredictionClosed, validatePicks: validatePicks,
+    PREDICT: PREDICT, pickQuota: pickQuota, quotaStatus: quotaStatus, predictionDeadline: predictionDeadline, isPredictionClosed: isPredictionClosed, validatePicks: validatePicks,
     scorePrediction: scorePrediction, bonusByPlayer: bonusByPlayer, popularPicks: popularPicks, pickChanges: pickChanges,
     pickBadges: pickBadges, playerPicks: playerPicks, matchBoard: matchBoard, superMatches: superMatches, closeFromPredictions: closeFromPredictions, closingReport: closingReport,
     encodeSeeds: encodeSeeds, decodeSeeds: decodeSeeds, parseOrder: parseOrder, strengthOf: strengthOf, balanceOf: balanceOf,
