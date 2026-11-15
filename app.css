@@ -522,7 +522,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; }
 .feed-row { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; gap: 8px; align-items: center; font-size: 14px; min-height: 32px; }
 .feed-t { color: var(--text-2); font-size: var(--fs-sm); }
 .feed-team { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.buy { color: var(--hell-text); font-size: var(--fs-sm); }
+.buy { color: var(--navy); font-size: var(--fs-sm); }
 .mchip { display: inline-flex; padding: 1px 7px; border-radius: var(--r-badge); font-size: 11px; font-weight: 700; white-space: nowrap; border: 1px solid; }
 .mchip.high { background: #FCE8F0; color: var(--plan-text); border-color: #F5C3D7; }
 .mchip.safe { background: var(--surface-2); color: var(--text-2); border-color: var(--line); }

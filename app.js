@@ -355,7 +355,7 @@
   }
 
   // ---------- 돼블스플랜(승부 예측) ----------
-  // 마감 전: 집계(인원·비율)와 이름 없는 체결 피드만 서버에서 읽고, 내 제출은 이 기기에도 보관
+  // 마감 전: 집계(인원·비율)와 이름 없는 최근 예측 목록만 서버에서 읽고, 내 제출은 이 기기에도 보관
   // 마감 후: 전원 예측(predictions)을 읽어 경기 결과로 채점. 보너스는 저장하지 않고 매번 계산
   var PRED_KEY = 'ddw-pred';
   var MODE_LABEL = { high: '하이리스크', safe: '안전형' };
@@ -473,7 +473,7 @@
       '<div class="pb-text"><span class="pb-kicker num">' + md(w.date) + '(수) · 승리를 예측하라!</span>' +
       '<h2 class="pb-title">돼블스<em>플랜</em></h2>' +
       '<p class="pb-sub">4경기 모두 맞히면 승수 보너스</p>' +
-      '<div class="pb-chips">' + (closed ? '<span class="pb-cd">장 마감</span>' : '<span class="pb-cd num" data-cd="' + w.date + '">마감까지 ' + fmtLeft(dl - Date.now()) + '</span>') +
+      '<div class="pb-chips">' + (closed ? '<span class="pb-cd">예측 마감</span>' : '<span class="pb-cd num" data-cd="' + w.date + '">마감까지 ' + fmtLeft(dl - Date.now()) + '</span>') +
       (people != null ? '<span class="pb-n num">참여 ' + people + '명</span>' : '') + '</div></div>' +
       '<i class="pb-pig" role="img" aria-label="후드 쓴 돼지 캐릭터"></i></section>';
   }
@@ -544,10 +544,10 @@
   function viewFeed(w, P) {
     var ev = pred.events.filter(function (e) { return e.delta > 0; }).slice(0, 3);
     if (!ev.length) return '';
-    return '<div class="card feed" aria-live="polite"><h3><span class="live-dot" aria-hidden="true"></span>체결</h3>' + ev.map(function (e) {
+    return '<div class="card feed" aria-live="polite"><h3><span class="live-dot" aria-hidden="true"></span>방금 들어온 예측</h3>' + ev.map(function (e) {
       var m = matchById(w, e.match_id);
       return '<div class="feed-row' + (e.id === pred.newEvent ? ' new' : '') + '"><span class="num feed-t">' + hhmm(e.at) + '</span><span class="mchip ' + e.mode + '">' + MODE_LABEL[e.mode] + '</span>' +
-        '<span class="feed-team">' + esc(teamText(m, e.side, P)) + '</span><b class="buy">매수</b></div>';
+        '<span class="feed-team">' + esc(teamText(m, e.side, P)) + '</span><b class="buy">선택</b></div>';
     }).join('') + '</div>';
   }
   function viewPredict() {
@@ -689,7 +689,7 @@
     if (rep.ready) out += viewReport(w, rep, P) + '<button class="btn sm" data-act="rp-full">캡처용으로 크게 보기</button>';
     else {
       var done = w.matches.filter(function (m) { return m.win; }).length;
-      out += '<div class="card"><h3>장 마감</h3><p class="small muted num">경기 결과가 모두 들어오면 장 마감 리포트가 떠요 (' + done + '/' + w.matches.length + '경기 입력)</p></div>';
+      out += '<div class="card"><h3>예측 마감</h3><p class="small muted num">경기 결과가 모두 들어오면 예측 결과 카드가 떠요 (' + done + '/' + w.matches.length + '경기 입력)</p></div>';
     }
     var order = { hit: 0, pending: 1, check: 2, miss: 3 };
     var scored = rows.map(function (p) { return { p: p, s: L.scorePrediction(p, w), name: (P[p.player_id] || {}).name || '(명단에 없음)' }; })
@@ -711,14 +711,14 @@
     };
     var B = L.PREDICT.bonus;
     var date = w.date.replace(/-/g, '.');
-    return '<section class="report" aria-label="돼블스플랜 장 마감 리포트">' +
-      '<div class="rp-head"><i class="rp-pig" aria-hidden="true"></i><div><span class="rp-date num">' + md(w.date) + '(수) · 결과 확정</span><h2 class="rp-title">돼블스플랜<br><em>장 마감</em></h2></div></div>' +
+    return '<section class="report" aria-label="돼블스플랜 예측 결과">' +
+      '<div class="rp-head"><i class="rp-pig" aria-hidden="true"></i><div><span class="rp-date num">' + md(w.date) + '(수) · 결과 확정</span><h2 class="rp-title">돼블스플랜<br><em>예측 결과</em></h2></div></div>' +
       '<div class="rp-stats"><div><b class="num">' + r.participants + '</b><span>참여</span></div><div class="hit"><b class="num">' + r.hits + '</b><span>적중</span></div><div class="miss"><b class="num">' + r.misses + '</b><span>실패</span></div></div>' +
       '<div class="rp-grid">' +
-      cell('rp-up', '📈 오늘의 상한가', tn(r.upper), r.upper ? pct(r.upper.share) + '%' : '–', r.upper ? '가장 많이 걸렸고 기대대로 승리' : '이긴 팀을 고른 사람이 없어요') +
-      cell('rp-down', '📉 폭락주', tn(r.crash), r.crash ? pct(r.crash.share) + '%' : '–', r.crash ? r.crash.n + '명이 함께 날렸습니다' : '진 팀을 고른 사람이 없어요') +
+      cell('rp-up', '👍 인기 팀 승리', tn(r.upper), r.upper ? pct(r.upper.share) + '%' : '–', r.upper ? '가장 많이 골랐고 예상대로 이겼어요' : '이긴 팀을 고른 사람이 없어요') +
+      cell('rp-down', '😱 인기 팀 패배', tn(r.crash), r.crash ? pct(r.crash.share) + '%' : '–', r.crash ? r.crash.n + '명이 함께 틀렸어요' : '진 팀을 고른 사람이 없어요') +
       cell('rp-up', '🎯 역배 적중', tn(r.contrarian), r.contrarian ? pct(r.contrarian.share) + '%' : '–', r.contrarian ? r.contrarian.n + '명만 맞힌 오늘의 반전' : '소수 픽 승리가 없었어요') +
-      cell('rp-up', '💰 이번 주 수익', '적중 보너스 합계', '+' + r.profit.total + '승', '하이리스크 ' + r.profit.high + '명 × ' + B.high.hit + '승<br>안전형 ' + r.profit.safe + '명 × ' + B.safe.hit + '승') +
+      cell('rp-up', '🏅 이번 주 보너스', '적중 보너스 합계', '+' + r.profit.total + '승', '하이리스크 ' + r.profit.high + '명 × ' + B.high.hit + '승<br>안전형 ' + r.profit.safe + '명 × ' + B.safe.hit + '승') +
       '</div><div class="rp-hitters"><b>🏆 적중자</b><div class="rp-chips">' + (r.hitters.length ? r.hitters.map(function (h) {
         return '<span>' + esc((P[h.player] || {}).name || '?') + ' +' + h.bonus + '</span>';
       }).join('') : '<em>이번 주 적중자는 없어요</em>') + '</div></div>' +
@@ -739,7 +739,7 @@
     if (!ui.pred.full || !w || ui.tab !== 'plan') return '';
     var rows = pred.all.filter(function (p) { return p.week_date === w.date; }), r = L.closingReport(w, pred.close, rows);
     if (!r.ready) return '';
-    return '<div class="rp-overlay" role="dialog" aria-label="장 마감 리포트 크게 보기">' + viewReport(w, r, pm()) + '<button class="btn sm" data-act="rp-close">닫기</button></div>';
+    return '<div class="rp-overlay" role="dialog" aria-label="예측 결과 크게 보기">' + viewReport(w, r, pm()) + '<button class="btn sm" data-act="rp-close">닫기</button></div>';
   }
 
   // ---- 관리 › 예측 ----
