@@ -397,9 +397,10 @@
   }
   var PK_ICON = { hit: '✓', miss: '✕', pending: '⏳', check: '!' }, PK_SR = { hit: '적중', miss: '실패', pending: '대기', check: '확인 필요' };
   function pickCells(w, s, P, small) {
-    return '<div class="pick4' + (small ? ' sm' : '') + '">' + s.picks.map(function (p) {
+    var ord = function (p) { var m = matchById(w, p.match); return m ? poolOrder(m.pool) : 100; };
+    return '<div class="pick4' + (small ? ' sm' : '') + '">' + s.picks.slice().sort(function (x, y) { return ord(x) - ord(y); }).map(function (p) {
       var m = matchById(w, p.match);
-      return '<span class="pk ' + p.result + '"><i aria-hidden="true">' + PK_ICON[p.result] + '</i><span>' + esc(teamText(m, p.side, P)) + '</span><span class="sr">' + PK_SR[p.result] + '</span></span>';
+      return '<span class="pk ' + p.result + '"><i aria-hidden="true">' + PK_ICON[p.result] + '</i><span' + (m ? ' class="gdot g' + m.pool + '"' : '') + '>' + esc(teamText(m, p.side, P)) + '</span><span class="sr">' + PK_SR[p.result] + '</span></span>';
     }).join('') + '</div>';
   }
 
@@ -584,7 +585,7 @@
     ui.pred.edit = true;
   }
   function viewPredEdit(w, P) {
-    var d = ui.pred, n = d.picks.length, max = L.PREDICT.picks, B = L.PREDICT.bonus;
+    var d = ui.pred, n = d.picks.length, max = L.PREDICT.picks, B = L.PREDICT.bonus, qs = L.quotaStatus(d.picks, w);
     var out = '<div class="pe-head"><button class="btn sm" data-act="pe-close" aria-label="예측 화면으로 돌아가기">←</button><h2>예측하기 <span class="muted small num">' + md(w.date) + '(수)</span></h2>' +
       '<span class="pe-cd num" data-cd="' + w.date + '" data-pre="마감 ">마감 ' + fmtLeft(L.predictionDeadline(w.date).getTime() - Date.now()) + '</span></div>';
     out += mePicker();
@@ -596,23 +597,39 @@
     }).join('') + '</div>';
     out += '<div class="pe-step"><h3>경기 선택 <span class="num">' + n + '/' + max + '</span></h3><span class="pe-dots" aria-hidden="true">' +
       [0, 1, 2, 3].map(function (i) { return '<i' + (i < n ? ' class="on"' : '') + '></i>'; }).join('') + '</span></div>' +
-      '<p class="small muted">서로 다른 4경기에서 이길 팀을 눌러 주세요. 내 경기도 고를 수 있어요.</p>';
+      '<p class="small muted">' + (qs ? '조마다 정해진 수만큼 이길 팀을 눌러 주세요: ' + groups().filter(function (g) { return qs[g.id]; }).map(function (g) { return esc(g.name) + ' ' + qs[g.id].need; }).join(' · ') + ' (모두 ' + max + '경기). 내 경기도 고를 수 있어요.' :
+        '서로 다른 4경기에서 이길 팀을 눌러 주세요. 내 경기도 고를 수 있어요.') + '</p>';
     var tot = {}, sm = superMap(w);
     pred.counts.forEach(function (c) { var k = c.match_id + c.side; tot[k] = (tot[k] || 0) + c.n; });
-    out += '<div class="pe-list">' + w.matches.map(function (m) {
-      var sel = d.picks.filter(function (p) { return p.match === m.id; })[0], full = n >= max && !sel;
+    // 이번 주 탭처럼 조마다 팀 배너 + 조 색 경기 카드. 조별 고정이 있으면 그 조를 다 고른 뒤 나머지 경기는 흐리게
+    var card = function (m, no) {
+      var sel = d.picks.filter(function (p) { return p.match === m.id; })[0];
+      var full = !sel && (n >= max || (qs && (!qs[m.pool] || qs[m.pool].full)));
       var na = tot[m.id + 'a'] || 0, nb = tot[m.id + 'b'] || 0, t = na + nb;
-      return '<article class="pe-match' + (full ? ' dim' : '') + '"><div class="pe-mhead"><span class="gdot g' + m.pool + '">' + esc(matchLabel(w, m)) + '</span>' + (sm[m.id] ? '<span class="chip super">🔥 슈퍼매치</span>' : '') +
+      return '<article class="pe-match' + (full ? ' dim' : '') + (sm[m.id] ? ' super' : '') + '"><div class="pe-mhead"><span class="pe-no num">' + no + '경기</span>' + (sm[m.id] ? '<span class="chip super">🔥 슈퍼매치</span>' : '') +
         '<span class="num muted small">' + (t ? pct(na / t) + ' : ' + (100 - pct(na / t)) : '아직 0명') + '</span></div><div class="pe-teams">' + ['a', 'b'].map(function (side) {
           var on = !!sel && sel.side === side;
           return '<button class="pe-team" data-act="pe-pick" data-m="' + m.id + '" data-side="' + side + '" aria-pressed="' + on + '"' + (full ? ' disabled' : '') + '>' +
             '<span class="pe-tn">' + esc(teamText(m, side, P)) + '</span><span class="pe-tc num">' + (side === 'a' ? na : nb) + '명</span><i class="pe-ck" aria-hidden="true">✓</i></button>';
         }).join('') + '</div><span class="pe-bar" aria-hidden="true"><i style="width:' + (t ? pct(na / t) : 0) + '%"></i></span></article>';
-    }).join('') + '</div>';
+    };
+    groups().forEach(function (g) {
+      var ms = w.matches.filter(function (m) { return m.pool === g.id; });
+      if (!ms.length) return;
+      var q = qs && qs[g.id];
+      var metas = q ? [q.need + '경기 고르기', '고름 ' + q.have + '/' + q.need + (q.full ? ' ✓' : '')] : [ms.length + '경기'];
+      out += '<section class="group g' + g.id + ' pe-group">' + teamBanner(g, metas) + '<div class="pe-list">' + ms.map(function (m, i) { return card(m, i + 1); }).join('') + '</div></section>';
+    });
+    var orphan = w.matches.filter(function (m) { return poolOrder(m.pool) === 99; });
+    if (orphan.length) out += '<div class="pe-list">' + orphan.map(function (m, i) { return card(m, i + 1); }).join('') + '</div>';
     var md2 = d.mode ? (d.mode === 'high' ? '🔥 ' : '🛡️ ') + MODE_LABEL[d.mode] + ' <span class="up num">+' + B[d.mode].hit + '</span> / <span class="' + (B[d.mode].miss ? 'down ' : '') + 'num">' + (B[d.mode].miss ? '−' + Math.abs(B[d.mode].miss) : '0') + '</span>' : '방식을 골라 주세요';
     out += '<div class="plan-cta pe-bar-fixed"><div class="in"><div class="pe-sum"><span>선택 <b class="num">' + n + '/' + max + '</b></span><span>' + md2 + '</span></div>' +
       '<button class="btn primary" data-act="pe-submit"' + (d.busy ? ' disabled' : '') + '><b>' + (d.busy ? '제출 중…' : '제출하기') + '</b><small>마감 전까지 수정 가능</small></button></div></div>';
     return out;
+  }
+  function quotaText(w) {
+    var q = L.pickQuota(w);
+    return q ? '조마다 정해진 수만큼 골라 주세요: ' + groups().filter(function (g) { return q[g.id]; }).map(function (g) { return g.name + ' ' + q[g.id]; }).join(' · ') + '.' : '';
   }
   var SUBMIT_ERR = {
     closed: '마감됐어요(수요일 17:30). 이제는 돼장만 고칠 수 있어요.', bad_player: '명단에서 이름을 찾지 못했어요. 이름을 다시 골라 주세요.',
@@ -625,7 +642,7 @@
     if (!ui.me) return toast('먼저 내 이름을 골라 주세요.');
     if (!d.mode) return toast('하이리스크와 안전형 중 하나를 골라 주세요.');
     var errs = L.validatePicks(d.picks, w);
-    if (errs.length) return toast(errs[0] === 'count' ? '서로 다른 4경기를 골라 주세요 (지금 ' + d.picks.length + '개).' : SUBMIT_ERR.bad_match);
+    if (errs.length) return toast(errs[0] === 'count' ? '서로 다른 4경기를 골라 주세요 (지금 ' + d.picks.length + '개).' : errs[0] === 'quota' ? quotaText(w) : SUBMIT_ERR.bad_match);
     var me = ui.me, picks = d.picks.slice(), mode = d.mode;
     d.busy = true; render();
     remote.submitPrediction(w.date, me, mode, picks).then(function (at) {
@@ -635,7 +652,7 @@
       refreshPred();
     }, function (e) {
       d.busy = false;
-      toast(SUBMIT_ERR[e.code] || '제출하지 못했어요 (' + (e.code || '알 수 없는 오류') + ').');
+      toast(e.code === 'bad_quota' ? quotaText(w) : SUBMIT_ERR[e.code] || '제출하지 못했어요 (' + (e.code || '알 수 없는 오류') + ').');
     });
   }
   function viewPredClosed(w, P, rows) {
@@ -745,7 +762,7 @@
     if (!a.player) return toast('선수를 골라 주세요.');
     var picks = a.picks.filter(Boolean).map(function (v) { var x = v.split('|'); return { match: x[0], side: x[1] }; });
     var errs = L.validatePicks(picks, w);
-    if (errs.length) return toast(errs[0] === 'count' ? '서로 다른 4경기를 골라 주세요.' : errs[0] === 'dup_match' ? '같은 경기를 두 번 골랐어요.' : '편성에 없는 경기가 있어요.');
+    if (errs.length) return toast(errs[0] === 'count' ? '서로 다른 4경기를 골라 주세요.' : errs[0] === 'dup_match' ? '같은 경기를 두 번 골랐어요.' : errs[0] === 'quota' ? quotaText(w) : '편성에 없는 경기가 있어요.');
     a.busy = true; render();
     remote.adminUpsertPrediction(token, w.date, a.player, a.mode, picks).then(function () {
       ui.pred.adm = null; toast('예측을 저장했어요.'); afterAdminPred(w.date);
@@ -753,7 +770,7 @@
   }
   function adminPredFail(e) {
     if (e.code === 'unauthorized') { dropAdmin(); ui.admin = false; ui.pinMsg = '관리자 로그인이 만료됐어요. PIN을 다시 입력하세요.'; render(); return; }
-    toast(SUBMIT_ERR[e.code] || '저장하지 못했어요 (' + (e.code || '알 수 없는 오류') + ').');
+    toast(e.code === 'bad_quota' ? quotaText(predWeek()) : SUBMIT_ERR[e.code] || '저장하지 못했어요 (' + (e.code || '알 수 없는 오류') + ').');
   }
   function afterAdminPred(d) {
     loadAdminList(d);
@@ -1264,7 +1281,11 @@
         var cur = pk.filter(function (x) { return x.match === pmid; })[0];
         if (cur && cur.side === pside) ui.pred.picks = pk.filter(function (x) { return x !== cur; });
         else if (cur) cur.side = pside;
-        else if (pk.length < L.PREDICT.picks) pk.push({ match: pmid, side: pside });
+        else {
+          var pw = predWeek(), qst = pw && L.quotaStatus(pk, pw), pm2 = pw && matchById(pw, pmid);
+          if (qst && pm2 && (!qst[pm2.pool] || qst[pm2.pool].full)) { toast(gname(pm2.pool) + '조는 ' + (qst[pm2.pool] ? qst[pm2.pool].need + '경기만' : '고를 수 없어요') + '. 고른 경기를 한 번 더 눌러 빼고 골라 주세요.'); return; }
+          if (pk.length < L.PREDICT.picks) pk.push({ match: pmid, side: pside });
+        }
         render(); break;
       case 'pe-submit': submitPred(); break;
       case 'rp-full': ui.pred.full = true; render(); break;

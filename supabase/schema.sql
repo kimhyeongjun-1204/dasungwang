@@ -222,6 +222,20 @@ language sql stable security definer set search_path = public as $$
     (select t.match_ids from public.prediction_test_weeks t where t.week_date = d));
 $$;
 
+-- 그 주 경기 → 조 {"m0101":"A", …} (app_state의 공개된 주, 없으면 가짜 주). 가짜 주가 id 배열이면 조는 ''(조별 고정 없음)
+create or replace function public.prediction_match_pools(d date) returns jsonb
+language sql stable security definer set search_path = public as $$
+  select coalesce(
+    (select jsonb_object_agg(m->>'id', coalesce(m->>'pool', ''))
+       from public.app_state s,
+            jsonb_array_elements(s.state->'weeks') w,
+            jsonb_array_elements(coalesce(w->'matches', '[]'::jsonb)) m
+      where s.id = 1 and w->>'date' = to_char(d, 'YYYY-MM-DD') and coalesce(w->>'published', 'true') <> 'false'),
+    (select case when jsonb_typeof(t.match_ids) = 'object' then t.match_ids
+                 else (select jsonb_object_agg(x.v, '') from jsonb_array_elements_text(t.match_ids) as x(v)) end
+       from public.prediction_test_weeks t where t.week_date = d));
+$$;
+
 -- 앱 선수 명단(활동 중)에 있는지
 create or replace function public.prediction_player_ok(pid text) returns boolean
 language sql stable security definer set search_path = public as $$
@@ -229,13 +243,21 @@ language sql stable security definer set search_path = public as $$
                   where s.id = 1 and p->>'id' = pid and coalesce(p->>'active', 'true') <> 'false');
 $$;
 
--- 검사: bad_mode / bad_player / no_week / bad_count / bad_side / dup_match / bad_match
+-- 검사: bad_mode / bad_player / no_week / bad_count / bad_side / dup_match / bad_match / bad_quota
+-- 조별 고정(logic.js PREDICT.quota와 같게): 캐비어·랍스터(A) 1 · 소갈비·양갈비(B) 2 · 돼지갈비·닭갈비(C) 1.
+-- 그 주에 한 조라도 경기 수가 모자라 채울 수 없으면 고정 없이 아무 4경기
 create or replace function public.pred_check(p_week date, p_player text, p_mode text, p_picks jsonb) returns void
 language plpgsql stable security definer set search_path = public as $$
 declare
   ids jsonb;
   e jsonb;
   seen text[] := '{}';
+  q jsonb := '{"A": 1, "B": 2, "C": 1}';
+  pools jsonb;
+  g text;
+  need int;
+  n int;
+  fixed boolean := true;
 begin
   if p_mode is null or p_mode not in ('high', 'safe') then raise exception 'bad_mode'; end if;
   if p_player is null or not public.prediction_player_ok(p_player) then raise exception 'bad_player'; end if;
@@ -249,6 +271,17 @@ begin
     if not ids ? (e->>'match') then raise exception 'bad_match'; end if;
     seen := seen || (e->>'match');
   end loop;
+  pools := coalesce(public.prediction_match_pools(p_week), '{}'::jsonb);
+  for g, need in select x.key, x.value::int from jsonb_each_text(q) x loop
+    select count(*) into n from jsonb_each_text(pools) y where y.value = g;
+    if n < need then fixed := false; end if;
+  end loop;
+  if fixed then
+    for g, need in select x.key, x.value::int from jsonb_each_text(q) x loop
+      select count(*) into n from jsonb_array_elements(p_picks) z where pools->>(z.value->>'match') = g;
+      if n <> need then raise exception 'bad_quota'; end if;
+    end loop;
+  end if;
 end $$;
 
 -- 저장 + counts 증감 (+ p_log면 바뀐 픽만 이벤트). 한 트랜잭션
@@ -354,7 +387,7 @@ begin
   return k;
 end $$;
 
--- verify_db.js 전용: 2000년·2099년 가짜 주 만들기 / 그 날짜들의 예측 관련 행 전부 지우기
+-- verify_db.js 전용: 2000년·2099년 가짜 주 만들기(match_ids: id 배열 또는 {id: 조}) / 그 날짜들의 예측 관련 행 전부 지우기
 create or replace function public.admin_test_week(token uuid, week_date date, match_ids jsonb) returns void
 language plpgsql security definer set search_path = public as $$
 begin
@@ -378,7 +411,7 @@ begin
   return jsonb_build_object('predictions', a, 'prediction_counts', b, 'prediction_events', c, 'prediction_close', d, 'prediction_test_weeks', e);
 end $$;
 
-revoke all on function public.prediction_deadline(date), public.prediction_match_ids(date), public.prediction_player_ok(text),
+revoke all on function public.prediction_deadline(date), public.prediction_match_ids(date), public.prediction_match_pools(date), public.prediction_player_ok(text),
   public.pred_check(date, text, text, jsonb), public.pred_apply(date, text, text, jsonb, boolean), public.pred_remove(date, text),
   public.submit_prediction(date, text, text, jsonb), public.admin_upsert_prediction(uuid, date, text, text, jsonb),
   public.admin_delete_prediction(uuid, date, text), public.admin_list_predictions(uuid, date), public.close_snapshot(date),

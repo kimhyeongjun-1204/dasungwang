@@ -28,10 +28,11 @@ function build(base, nowMs) {
   function predictFor(week, n) {
     const bias = {};
     week.matches.forEach(m => { bias[m.id] = 0.15 + rng() * 0.7; });
-    const hot = week.matches.slice().sort(() => rng() - 0.5).slice(0, 8);
+    // 조별 고정(logic.js PREDICT.quota)대로: 조마다 인기 경기 몇 개 중에서 정해진 수만큼
+    const hot = {}; Object.keys(L.PREDICT.quota).forEach(g => { hot[g] = week.matches.filter(m => m.pool === g).sort(() => rng() - 0.5).slice(0, L.PREDICT.quota[g] + 2); });
     const people = st.players.slice().sort(() => rng() - 0.5).slice(0, n);
     return people.map(p => {
-      const ms = hot.slice().sort(() => rng() - 0.5).slice(0, 4);
+      const ms = [].concat(...Object.keys(L.PREDICT.quota).map(g => hot[g].slice().sort(() => rng() - 0.5).slice(0, L.PREDICT.quota[g])));
       return { week_date: week.date, player_id: p.id, mode: rng() < 0.6 ? 'high' : 'safe', picks: ms.map(m => ({ match: m.id, side: rng() < bias[m.id] ? 'a' : 'b' })) };
     });
   }

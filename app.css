@@ -556,9 +556,17 @@ textarea { width: 100%; min-height: 84px; resize: vertical; }
 .pe-dots i { width: 22px; height: 5px; border-radius: 3px; background: var(--line); }
 .pe-dots i.on { background: var(--navy); }
 .pe-list { display: grid; gap: 8px; }
+/* 예측하기: 이번 주 탭처럼 조별 배너 아래 조 색 카드 (조 토큰 --t-mid / --t-deep / --t-tint / --t-line 재사용) */
+.pe-group { display: grid; gap: var(--sp-2); margin-top: var(--sp-2); }
+.group .pe-match { border-left: 3px solid var(--t-mid); }
+.group .pe-no { font-size: var(--fs-sm); font-weight: 700; color: var(--t-deep); }
+.group .pe-match.super { border: 2px solid var(--t-mid); background: var(--t-tint); }
+.group .pe-match.super .pe-team:not([aria-pressed="true"]) { background: var(--surface); border-color: var(--t-line); }
+.pk .gdot { font-weight: inherit; gap: 5px; }
 .pe-match { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-card); padding: 10px 12px 12px; display: grid; gap: 8px; box-shadow: var(--shadow); }
 .pe-match.dim { opacity: .45; }
 .pe-mhead { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+.pe-mhead .chip.super { margin-right: auto; }
 .pe-mhead .gdot { font-size: var(--fs-sm); color: var(--navy); }
 .pe-teams { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .pe-team { position: relative; display: grid; gap: 2px; text-align: left; min-height: 56px; padding: 8px 32px 8px 10px; border: 1px solid var(--line); background: var(--surface-2); border-radius: var(--r-ctl); }

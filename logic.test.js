@@ -567,6 +567,33 @@ test('validatePicks: 중복 경기·없는 경기·잘못된 side', () => {
   assert(L.validatePicks(pk('p1a p2b p3a p4c'), PW).includes('bad_side'));
 });
 
+// 세 조가 다 있는 주: A 2경기, B 3경기, C 2경기
+const QW = { date: '2026-11-18', published: true, matches: ['qa1:A', 'qa2:A', 'qb1:B', 'qb2:B', 'qb3:B', 'qc1:C', 'qc2:C'].map(t => { const [id, pool] = t.split(':'); return { id, pool, a: ['x1', 'x2'], b: ['x3', 'x4'], off: [], win: null }; }) };
+const qk = (s) => s.split(' ').map(t => ({ match: t.slice(0, 3), side: t.slice(3) })); // 'qa1a qb1b …'
+test('PREDICT.quota: 캐비어·랍스터(A) 1 · 소갈비·양갈비(B) 2 · 돼지갈비·닭갈비(C) 1, 합 4', () => {
+  assert.deepStrictEqual(L.PREDICT.quota, { A: 1, B: 2, C: 1 });
+  assert.strictEqual(Object.values(L.PREDICT.quota).reduce((a, b) => a + b, 0), L.PREDICT.picks);
+});
+test('validatePicks 조별 고정: A1·B2·C1이면 통과, 아니면 quota', () => {
+  assert.deepStrictEqual(L.validatePicks(qk('qa1a qb1b qb3a qc2b'), QW), []);
+  assert(L.validatePicks(qk('qa1a qa2b qb1a qc1b'), QW).includes('quota'), 'A 2개');
+  assert(L.validatePicks(qk('qa1a qb1b qb2a qb3b'), QW).includes('quota'), 'B 3개, C 없음');
+  assert(L.validatePicks(qk('qb1a qb2b qc1a qc2b'), QW).includes('quota'), 'A 없음');
+});
+test('validatePicks 조별 고정: 한 조 경기가 모자라 채울 수 없는 주는 예전처럼 아무 4경기', () => {
+  // PW: A 3경기, B 2경기, C 0경기 → C 1경기를 채울 수 없음
+  assert.deepStrictEqual(L.validatePicks(pk('p1a p2b p3a p4b'), PW), []);
+  assert.deepStrictEqual(L.pickQuota(PW), null);
+  assert.deepStrictEqual(L.pickQuota(QW), { A: 1, B: 2, C: 1 });
+});
+test('quotaStatus: 조별로 몇 개 골랐는지·더 고를 수 있는지', () => {
+  const s = L.quotaStatus(qk('qa1a qb1b'), QW);
+  assert.deepStrictEqual(s.A, { need: 1, have: 1, full: true });
+  assert.deepStrictEqual(s.B, { need: 2, have: 1, full: false });
+  assert.deepStrictEqual(s.C, { need: 1, have: 0, full: false });
+  assert.strictEqual(L.quotaStatus(qk('qa1a'), PW), null, '고정이 없는 주');
+});
+
 console.log('돼블스플랜: 채점');
 const HIGH = { mode: 'high', picks: pk('p1a p2b p3a p4b') }, SAFE = { mode: 'safe', picks: pk('p1a p2b p3a p4b') };
 test('하이리스크 4경기 모두 적중 → hit +3', () => {
@@ -574,9 +601,9 @@ test('하이리스크 4경기 모두 적중 → hit +3', () => {
   assert.strictEqual(r.status, 'hit'); assert.strictEqual(r.bonus, 3);
   assert.deepStrictEqual(r.picks.map(p => p.result), ['hit', 'hit', 'hit', 'hit']);
 });
-test('하이리스크 하나 틀림 → miss -1', () => {
+test('하이리스크 하나 틀림 → miss -2', () => {
   const r = L.scorePrediction(HIGH, decided({ p1: 'a', p2: 'b', p3: 'b', p4: 'b' }));
-  assert.strictEqual(r.status, 'miss'); assert.strictEqual(r.bonus, -1);
+  assert.strictEqual(r.status, 'miss'); assert.strictEqual(r.bonus, -2);
   assert.strictEqual(r.picks[2].result, 'miss');
 });
 test('안전형 적중 +1, 실패 0', () => {
@@ -590,7 +617,7 @@ test('결과가 덜 나왔고 틀린 게 없으면 pending, 보너스 0', () => 
   assert.deepStrictEqual(r.picks.map(p => p.result), ['hit', 'hit', 'pending', 'pending']);
 });
 test('대기 중이어도 하나 틀리면 즉시 miss', () => {
-  assert.deepStrictEqual(pick2(L.scorePrediction(HIGH, decided({ p1: 'b' }))), ['miss', -1]);
+  assert.deepStrictEqual(pick2(L.scorePrediction(HIGH, decided({ p1: 'b' }))), ['miss', -2]);
   assert.deepStrictEqual(pick2(L.scorePrediction(SAFE, decided({ p1: 'b' }))), ['miss', 0]);
 });
 test('고른 경기가 편성에서 사라지면 check, 보너스 0', () => {
@@ -627,12 +654,12 @@ test('bonusByPlayer: 주차별 합계, 공개 안 된 주·없는 주는 0', () 
   st.weeks.push(Object.assign(JSON.parse(JSON.stringify(st.weeks[1])), { date: '2026-11-25', published: false }));
   const preds = [
     { week_date: '2026-11-18', player_id: 'f', mode: 'high', picks: HIGH.picks },            // +3
-    { week_date: '2026-11-18', player_id: 'c', mode: 'high', picks: pk('p1b p2b p3a p4b') }, // -1
+    { week_date: '2026-11-18', player_id: 'c', mode: 'high', picks: pk('p1b p2b p3a p4b') }, // -2
     { week_date: '2026-11-18', player_id: 'e', mode: 'safe', picks: HIGH.picks },            // +1
     { week_date: '2026-11-25', player_id: 'f', mode: 'high', picks: HIGH.picks },            // 공개 전 → 0
     { week_date: '2026-12-02', player_id: 'f', mode: 'high', picks: HIGH.picks },            // 없는 주 → 0
   ];
-  assert.deepStrictEqual(L.bonusByPlayer(st, preds), { f: 3, c: -1, e: 1 });
+  assert.deepStrictEqual(L.bonusByPlayer(st, preds), { f: 3, c: -2, e: 1 });
 });
 test('standings: 보너스 없으면 기존과 같은 순서·순위', () => {
   const a = L.standings(state).A, b = L.standings(state, { bonus: {} }).A;

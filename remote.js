@@ -4,7 +4,7 @@ var Remote = (function () {
   var TOKEN_KEY = 'ddw-admin-token', TOKEN_DAYS = 30;
   var CODES = ['unauthorized', 'stale_rev', 'no_pin', 'bad_pin', 'bad_new_pin', 'too_large', 'bad_state', 'ai_limit', 'ai_failed', 'ai_refused', 'bad_request',
     // 돼블스플랜 제출 검사 (schema.sql pred_check / submit_prediction)
-    'closed', 'bad_mode', 'bad_player', 'no_week', 'bad_count', 'bad_side', 'dup_match', 'bad_match'];
+    'closed', 'bad_mode', 'bad_player', 'no_week', 'bad_count', 'bad_side', 'dup_match', 'bad_match', 'bad_quota'];
 
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
   // 서버로 보내는 state: PIN 해시와 서버가 관리하는 rev/savedAt은 뺀다
