@@ -792,7 +792,17 @@ var Logic = (function () {
     };
   }
 
+  // 내 기록 승수 표시. standings 행(bonus 포함) → { has, main, sub }
+  // 보너스가 있으면 합계(공식 승 + 보너스)를 크게, 내역을 작게. 보너스가 없으면 기존 '누적 공식전' 그대로
+  function meRecord(row) {
+    var w = row ? row.wins || 0 : 0, l = row ? row.losses || 0 : 0, b = row ? row.bonus || 0 : 0;
+    var has = w + l > 0 || b !== 0;
+    if (!b) return { has: has, main: w + '승 ' + l + '패', sub: '누적 공식전' };
+    return { has: has, main: (w + b) + '승 ' + l + '패', sub: '공식 ' + w + '승 · 보너스 ' + (b > 0 ? '+' + b : '\u2212' + (-b)) };
+  }
+
   return {
+    meRecord: meRecord,
     PREDICT: PREDICT, pickQuota: pickQuota, quotaStatus: quotaStatus, predictionDeadline: predictionDeadline, isPredictionClosed: isPredictionClosed, validatePicks: validatePicks,
     scorePrediction: scorePrediction, bonusByPlayer: bonusByPlayer, popularPicks: popularPicks, pickChanges: pickChanges,
     pickBadges: pickBadges, playerPicks: playerPicks, matchBoard: matchBoard, superMatches: superMatches, closeFromPredictions: closeFromPredictions, closingReport: closingReport,

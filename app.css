@@ -281,6 +281,8 @@ label.f { display: grid; gap: 4px; font-size: var(--fs-sm); font-weight: 500; co
 .stat { background: var(--surface-2); border: 1px solid var(--line-2); border-radius: var(--r-ctl); padding: 10px 12px; display: grid; gap: 2px; }
 .stat b { font-size: 22px; font-weight: 700; color: var(--navy); line-height: 1.2; }
 .stat span { font-size: var(--fs-cap); color: var(--text-2); }
+/* 내 기록 승수 내역: "공식 4승 · 보너스 −2" 조각이 중간에서 끊기지 않게 */
+.stat span .nw { white-space: nowrap; }
 .stat.hl { background: var(--yellow-50); border-color: #F0DC9C; }
 /* 다음 경기 배정 카드: 지옥도·중립·천국도 — 같은 구조, 배경·색만 다름 */
 .fate { position: relative; overflow: hidden; isolation: isolate; border-radius: var(--r-card); padding: 14px 16px 16px; min-height: 168px; display: grid; align-content: start; gap: 4px; color: var(--f-ink); background: var(--f-bg); border: 1px solid var(--f-line); }

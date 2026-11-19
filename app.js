@@ -311,16 +311,17 @@
     Object.keys(S).forEach(function (k) {
       if (gid && k !== gid) return;
       var r = S[k].filter(function (x) { return x.id === me.id; })[0];
-      if (r && (!row || r.wins > row.wins)) { row = r; gsize = S[k].filter(function (x) { return x.wins + x.losses + x.pending > 0; }).length; var g = groups().filter(function (x) { return x.id === k; })[0]; gw = g ? g.winners : 1; }
+      if (r && (!row || r.wins > row.wins)) { row = r; gsize = S[k].filter(function (x) { return x.wins + x.losses + x.pending > 0 || x.bonus; }).length; var g = groups().filter(function (x) { return x.id === k; })[0]; gw = g ? g.winners : 1; }
     });
     var nd = nextPlayDate(), tier = L.tierOf(work, me.id, nd);
     var ndLabel = md(nd === '9999-12-31' ? work.settings.seasonEnd : nd);
     var myG = groups().filter(function (x) { return x.id === me.group; })[0];
     var wrap = function (body) { return pick + '<div class="team-zone me-zone g' + me.group + '">' + body + '</div>'; };
-    var out = myG ? teamBanner(myG, ['내 조', row && row.wins + row.losses ? '조 내 ' + row.rank + '위' : '기록 대기']) : '';
+    var rec = L.meRecord(row);   // 공식전 + 돼블스플랜 보너스
+    var out = myG ? teamBanner(myG, ['내 조', rec.has ? '조 내 ' + row.rank + '위' : '기록 대기']) : '';
     out += '<div class="card"><div class="me-head"><h2>' + esc(me.name) + '</h2><span class="gdot g' + me.group + '">' + esc(gname(me.group)) + '조</span></div>' +
-      '<div class="stat-row"><div class="stat' + (row && row.contender ? ' hl' : '') + '"><b class="num">' + (row && row.wins + row.losses ? row.rank + '위' : '–') + '</b><span>조 내 순위' + (gsize ? ' / ' + gsize + '명' : '') + '</span></div>' +
-      '<div class="stat"><b class="num">' + (row ? row.wins : 0) + '승 ' + (row ? row.losses : 0) + '패</b><span>누적 공식전' + (row && row.pending ? ' · 결과 미입력 ' + row.pending : '') + '</span></div></div>' +
+      '<div class="stat-row"><div class="stat' + (row && row.contender ? ' hl' : '') + '"><b class="num">' + (rec.has ? row.rank + '위' : '–') + '</b><span>조 내 순위' + (gsize ? ' / ' + gsize + '명' : '') + '</span></div>' +
+      '<div class="stat"><b class="num">' + rec.main + '</b><span>' + rec.sub.split(' · ').concat(row && row.pending ? ['결과 미입력 ' + row.pending] : []).map(function (t) { return '<span class="nw">' + t + '</span>'; }).join(' · ') + '</span></div></div>' +
       (row && row.lottery ? '<p class="small"><span class="chip lot">동률 추첨</span> 지금 끝나면 다승왕 ' + gw + '자리를 두고 추첨 대상이에요.</p>' : row && row.contender ? '<p class="small"><span class="chip king">다승왕권</span> 지금 순위면 다승왕이에요!</p>' : '') +
       '</div>';
     var fk = tier.tier === 'hell' || tier.tier === 'heaven' ? tier.tier : 'mid';

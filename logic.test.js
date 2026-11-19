@@ -825,4 +825,27 @@ test('closingReport: 스냅숏이 없으면 예측으로 계산, 소수 픽 승�
   assert.deepStrictEqual([r.upper.match, r.upper.n, r.upper.share], ['p1', 2, 1]);
 });
 
+// 내 기록 승수 표시: 공식전 + 돼블스플랜 보너스 (2026-11-19, 적중했는데 내 기록 승수가 그대로라 반영 안 된 것처럼 보이던 문제)
+test('meRecord: 보너스가 없으면 공식전만 (기존 표시 그대로)', () => {
+  const r = L.meRecord({ wins: 2, losses: 0, bonus: 0 });
+  assert.deepStrictEqual([r.has, r.main, r.sub], [true, '2승 0패', '누적 공식전']);
+});
+test('meRecord: 보너스 +3이면 합계 승수와 내역을 같이', () => {
+  const r = L.meRecord({ wins: 2, losses: 0, bonus: 3 });
+  assert.deepStrictEqual([r.has, r.main, r.sub], [true, '5승 0패', '공식 2승 · 보너스 +3']);
+});
+test('meRecord: 하이리스크 실패 -2로 합계가 음수여도 그대로 보여 줌 (순위표와 같은 − 기호)', () => {
+  const r = L.meRecord({ wins: 1, losses: 1, bonus: -2 });
+  assert.deepStrictEqual([r.has, r.main, r.sub], [true, '-1승 1패', '공식 1승 · 보너스 \u22122']);
+});
+test('meRecord: 공식 경기 없이 예측 보너스만 있어도 기록 있음', () => {
+  const r = L.meRecord({ wins: 0, losses: 0, bonus: 1 });
+  assert.deepStrictEqual([r.has, r.main, r.sub], [true, '1승 0패', '공식 0승 · 보너스 +1']);
+});
+test('meRecord: 행이 없거나 아무 기록도 없으면 has=false', () => {
+  assert.strictEqual(L.meRecord(null).has, false);
+  assert.strictEqual(L.meRecord({ wins: 0, losses: 0 }).has, false);
+  assert.strictEqual(L.meRecord(undefined).main, '0승 0패');
+});
+
 console.log(`\n${passed} passed`);
