@@ -237,6 +237,13 @@ test('순위표 열: 순위·이름·총합·승·보너스·패 (사용자 요�
   const cols = [...m[1].matchAll(/<span>([^<]*)<\/span>/g)].map(x => x[1]);
   assert.deepStrictEqual(cols, ['순위', '이름', '총합', '승', '보너스', '패']);
 });
+test('다승왕권 배지: 왕관 없음 + 안쪽 여백 넓힘 (사용자 요청 2026-11-19)', () => {
+  const css = fs.readFileSync(path.join(__dirname, 'app.css'), 'utf8');
+  assert.ok(!/\.chip\.king::before/.test(css), '왕관(::before) 규칙이 남아 있음');
+  const m = css.match(/\.chip\.king \{[^}]*padding:\s*(\d+)px (\d+)px/);
+  assert.ok(m, '.chip.king에 padding 없음');
+  assert.ok(+m[1] >= 3 && +m[2] >= 10, '여백이 기본(1px 7px)보다 넓지 않음: ' + m[0]);
+});
 test('app.js: 기존 충돌 UI·저장 실패 배너·임시저장 유지', () => {
   for (const s of ['draftConflict', 'ui.saveError', 'KEY.draft', 'draft-load', 'draft-drop']) assert.ok(appSrc.includes(s), s + ' 없음');
 });

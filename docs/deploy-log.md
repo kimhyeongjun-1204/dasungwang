@@ -846,3 +846,21 @@ $ node deploy.test.js | tail -1
 | 최신웅 (하이리스크 실패) | 7위 · 2승 | 공식 승 4 + 예측 승 −2(적중 0 · 실패 1) │ 패 2 |
 | 박강호 (예측 안 함) | 1위 · 5승 | 공식 승 5 + 예측 승 0 │ 패 1 (적중 줄 없음) |
 사진: docs/screenshots/me-split/after_360.jpg
+
+## 32. 다승왕권 배지: 왕관 빼고 안쪽 여백 넓힘 (사용자 요청, 브랜치 fix/king-chip, 2026-11-19)
+순위표 이름 칸이 좁아서(360px에서 약 104px) 배지 안의 왕관(♛)이 글자 위로 꺾여 올라가 이상하게 보였음.
+| 전 | 후 |
+|---|---|
+| `::before`로 왕관 ♛ + 여백 1px 7px | 왕관 없음, 여백 3px 10px |
+| 이름 옆에 붙은 채 왕관만 윗줄로 꺾임 (42×36px) | 배지가 통째로 이름 아래 줄로 내려감 (62×25px) |
+```
+$ node deploy.test.js   (테스트 먼저)
+  FAIL 다승왕권 배지: 왕관 없음 + 안쪽 여백 넓힘 (사용자 요청 2026-11-19)
+24 passed
+$ node deploy.test.js | tail -1   (바꾼 뒤)
+25 passed
+$ node logic.test.js | tail -1
+120 passed
+```
+화면 확인(MOCK_DEMO, 360px, 돼지갈비·닭갈비조 김진호): 전 `::before` "♛", 후 `none`·padding 3px 10px. 가로 넘침 없음, 넘친 칸 0.
+사진: docs/screenshots/king-chip/before_after_360.jpg
