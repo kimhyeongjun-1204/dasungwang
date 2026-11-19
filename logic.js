@@ -792,17 +792,27 @@ var Logic = (function () {
     };
   }
 
-  // 내 기록 승수 표시. standings 행(bonus 포함) → { has, main, sub }
-  // 보너스가 있으면 합계(공식 승 + 보너스)를 크게, 내역을 작게. 보너스가 없으면 기존 '누적 공식전' 그대로
+  // 내 기록 승수 표시. standings 행(bonus 포함) → { has, total, wins, losses, bonus }. total = 공식 승 + 예측 보너스(순위 기준)
   function meRecord(row) {
     var w = row ? row.wins || 0 : 0, l = row ? row.losses || 0 : 0, b = row ? row.bonus || 0 : 0;
-    var has = w + l > 0 || b !== 0;
-    if (!b) return { has: has, main: w + '승 ' + l + '패', sub: '누적 공식전' };
-    return { has: has, main: (w + b) + '승 ' + l + '패', sub: '공식 ' + w + '승 · 보너스 ' + (b > 0 ? '+' + b : '\u2212' + (-b)) };
+    return { has: w + l > 0 || b !== 0, total: w + b, wins: w, losses: l, bonus: b };
+  }
+  // 한 사람의 돼블스플랜 기록 (공개된 주만, bonusByPlayer와 같은 기준) → { hit, miss, pending, bonus }
+  function predictionRecord(state, predictions, pid) {
+    var r = { hit: 0, miss: 0, pending: 0, bonus: 0 };
+    (predictions || []).forEach(function (p) {
+      if (p.player_id !== pid) return;
+      var w = state.weeks.filter(function (x) { return x.date === p.week_date; })[0];
+      if (!w || w.published === false) return;
+      var s = scorePrediction(p, w);
+      if (s.status in r) r[s.status]++;
+      r.bonus += s.bonus;
+    });
+    return r;
   }
 
   return {
-    meRecord: meRecord,
+    meRecord: meRecord, predictionRecord: predictionRecord,
     PREDICT: PREDICT, pickQuota: pickQuota, quotaStatus: quotaStatus, predictionDeadline: predictionDeadline, isPredictionClosed: isPredictionClosed, validatePicks: validatePicks,
     scorePrediction: scorePrediction, bonusByPlayer: bonusByPlayer, popularPicks: popularPicks, pickChanges: pickChanges,
     pickBadges: pickBadges, playerPicks: playerPicks, matchBoard: matchBoard, superMatches: superMatches, closeFromPredictions: closeFromPredictions, closingReport: closingReport,

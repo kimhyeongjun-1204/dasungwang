@@ -317,11 +317,20 @@
     var ndLabel = md(nd === '9999-12-31' ? work.settings.seasonEnd : nd);
     var myG = groups().filter(function (x) { return x.id === me.group; })[0];
     var wrap = function (body) { return pick + '<div class="team-zone me-zone g' + me.group + '">' + body + '</div>'; };
-    var rec = L.meRecord(row);   // 공식전 + 돼블스플랜 보너스
+    var rec = L.meRecord(row);   // 총합 = 공식 승 + 돼블스플랜 보너스
+    var prec = pred.allOk ? L.predictionRecord(work, pred.all, me.id) : null;
     var out = myG ? teamBanner(myG, ['내 조', rec.has ? '조 내 ' + row.rank + '위' : '기록 대기']) : '';
     out += '<div class="card"><div class="me-head"><h2>' + esc(me.name) + '</h2><span class="gdot g' + me.group + '">' + esc(gname(me.group)) + '조</span></div>' +
       '<div class="stat-row"><div class="stat' + (row && row.contender ? ' hl' : '') + '"><b class="num">' + (rec.has ? row.rank + '위' : '–') + '</b><span>조 내 순위' + (gsize ? ' / ' + gsize + '명' : '') + '</span></div>' +
-      '<div class="stat"><b class="num">' + rec.main + '</b><span>' + rec.sub.split(' · ').concat(row && row.pending ? ['결과 미입력 ' + row.pending] : []).map(function (t) { return '<span class="nw">' + t + '</span>'; }).join(' · ') + '</span></div></div>' +
+      '<div class="stat total"><b class="num">' + rec.total + '승</b><span>총합 · 순위 기준</span></div></div>' +
+      // 총합 내역: 공식 승 + 예측 승 | 패 (예측 승 = 돼블스플랜 보너스, 적중·실패 횟수 함께)
+      '<div class="rec-split" role="group" aria-label="총합 내역">' +
+        '<div><span>공식 승</span><b class="num">' + rec.wins + '</b></div><i aria-hidden="true">+</i>' +
+        '<div class="pwin' + (rec.bonus > 0 ? ' plus' : rec.bonus < 0 ? ' minus' : '') + '"><span>예측 승</span><b class="num">' + signed(rec.bonus) + '</b>' +
+          (prec && prec.hit + prec.miss + prec.pending ? '<small class="num">적중 ' + prec.hit + ' · 실패 ' + prec.miss + (prec.pending ? ' · 진행 ' + prec.pending : '') + '</small>' : '') + '</div>' +
+        '<div class="loss"><span>패</span><b class="num">' + rec.losses + '</b></div>' +
+      '</div>' +
+      (row && row.pending ? '<p class="small muted num">결과 미입력 ' + row.pending + '경기</p>' : '') +
       (row && row.lottery ? '<p class="small"><span class="chip lot">동률 추첨</span> 지금 끝나면 다승왕 ' + gw + '자리를 두고 추첨 대상이에요.</p>' : row && row.contender ? '<p class="small"><span class="chip king">다승왕권</span> 지금 순위면 다승왕이에요!</p>' : '') +
       '</div>';
     var fk = tier.tier === 'hell' || tier.tier === 'heaven' ? tier.tier : 'mid';
