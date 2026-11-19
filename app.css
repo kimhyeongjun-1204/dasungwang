@@ -258,9 +258,10 @@ button.team:hover { border-color: var(--line); background: #F1F4F9; }
 /* ---------- 순위 ---------- */
 .rank-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; }
 .board { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-card); overflow: hidden; box-shadow: var(--shadow); }
-.rrow { display: grid; grid-template-columns: 40px minmax(0, 1fr) 40px 44px 40px 52px; align-items: center; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--line-2); }
+.rrow { display: grid; grid-template-columns: 40px minmax(0, 1fr) 40px 32px 48px 32px; align-items: center; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--line-2); }
 .rrow.rhead { border-top: 0; padding-block: 8px; background: var(--surface-2); font-size: var(--fs-cap); color: var(--text-2); font-weight: 500; }
 .rrow.rhead span:nth-child(n+3) { text-align: right; }
+.rrow.rhead span { white-space: nowrap; }
 .rrow.contender { background: var(--yellow-50); }
 .rrow.me .rname b { color: var(--heaven-text); }
 .medal { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-size: 14px; font-weight: 700; color: var(--navy); background: var(--line-2); }
@@ -281,6 +282,17 @@ label.f { display: grid; gap: 4px; font-size: var(--fs-sm); font-weight: 500; co
 .stat { background: var(--surface-2); border: 1px solid var(--line-2); border-radius: var(--r-ctl); padding: 10px 12px; display: grid; gap: 2px; }
 .stat b { font-size: 22px; font-weight: 700; color: var(--navy); line-height: 1.2; }
 .stat span { font-size: var(--fs-cap); color: var(--text-2); }
+/* 내 기록 총합 내역: 공식 승 + 예측 승 | 패 */
+.rec-split { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) minmax(0, 1fr); align-items: center; margin-top: 8px; padding: 10px 4px; text-align: center; background: var(--surface-2); border: 1px solid var(--line-2); border-radius: var(--r-ctl); }
+.rec-split > div { display: grid; gap: 2px; justify-items: center; }
+.rec-split span { font-size: var(--fs-cap); color: var(--text-2); }
+.rec-split b { font-size: 20px; font-weight: 700; line-height: 1.2; color: var(--text); }
+.rec-split i { font-style: normal; font-weight: 700; color: var(--text-2); }
+.rec-split small { font-size: 11px; color: var(--text-2); white-space: nowrap; }
+.rec-split .pwin.plus b { color: var(--win-text); }
+.rec-split .pwin.minus b { color: var(--hell-text); }
+.rec-split .loss { border-left: 1px solid var(--line); }
+.me-zone .stat.total b { font-size: 26px; }
 .stat.hl { background: var(--yellow-50); border-color: #F0DC9C; }
 /* 다음 경기 배정 카드: 지옥도·중립·천국도 — 같은 구조, 배경·색만 다름 */
 .fate { position: relative; overflow: hidden; isolation: isolate; border-radius: var(--r-card); padding: 14px 16px 16px; min-height: 168px; display: grid; align-content: start; gap: 4px; color: var(--f-ink); background: var(--f-bg); border: 1px solid var(--f-line); }

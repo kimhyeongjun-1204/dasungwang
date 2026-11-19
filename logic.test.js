@@ -661,6 +661,22 @@ test('bonusByPlayer: 주차별 합계, 공개 안 된 주·없는 주는 0', () 
   ];
   assert.deepStrictEqual(L.bonusByPlayer(st, preds), { f: 3, c: -2, e: 1 });
 });
+test('predictionRecord: 한 사람의 적중·실패·진행 중 횟수와 보너스 합 (내 기록 표시용, 2026-11-19)', () => {
+  const st = predState();
+  st.weeks.push(Object.assign(JSON.parse(JSON.stringify(st.weeks[1])), { date: '2026-11-25' }));
+  st.weeks[2].matches.forEach(m => { m.win = null; });   // 11/25는 결과 전
+  st.weeks.push(Object.assign(JSON.parse(JSON.stringify(st.weeks[1])), { date: '2026-12-02', published: false }));
+  const preds = [
+    { week_date: '2026-11-18', player_id: 'f', mode: 'high', picks: HIGH.picks },            // 적중 +3
+    { week_date: '2026-11-25', player_id: 'f', mode: 'high', picks: HIGH.picks },            // 진행 중
+    { week_date: '2026-12-02', player_id: 'f', mode: 'high', picks: HIGH.picks },            // 공개 전 → 안 셈
+    { week_date: '2026-11-18', player_id: 'c', mode: 'high', picks: pk('p1b p2b p3a p4b') }, // 실패 -2
+  ];
+  assert.deepStrictEqual(L.predictionRecord(st, preds, 'f'), { hit: 1, miss: 0, pending: 1, bonus: 3 });
+  assert.deepStrictEqual(L.predictionRecord(st, preds, 'c'), { hit: 0, miss: 1, pending: 0, bonus: -2 });
+  assert.deepStrictEqual(L.predictionRecord(st, preds, 'zz'), { hit: 0, miss: 0, pending: 0, bonus: 0 });
+  assert.strictEqual(L.predictionRecord(st, preds, 'f').bonus, L.bonusByPlayer(st, preds).f, '순위표 보너스와 같은 값');
+});
 test('standings: 보너스 없으면 기존과 같은 순서·순위', () => {
   const a = L.standings(state).A, b = L.standings(state, { bonus: {} }).A;
   assert.deepStrictEqual(b.map(r => [r.id, r.wins, r.losses, r.rank, r.contender, r.lottery]), a.map(r => [r.id, r.wins, r.losses, r.rank, r.contender, r.lottery]));
@@ -823,6 +839,25 @@ test('closingReport: 스냅숏이 없으면 예측으로 계산, 소수 픽 승�
   assert.strictEqual(r.contrarian, null);
   assert.strictEqual(r.crash, null);
   assert.deepStrictEqual([r.upper.match, r.upper.n, r.upper.share], ['p1', 2, 1]);
+});
+
+// 내 기록 승수 표시: 총합 = 공식 승 + 돼블스플랜 보너스 (2026-11-19, 적중했는데 내 기록 승수가 그대로라 반영 안 된 것처럼 보이던 문제)
+const recOf = r => { const x = L.meRecord(r); return [x.has, x.total, x.wins, x.losses, x.bonus]; };
+test('meRecord: 보너스가 없으면 총합 = 공식 승', () => {
+  assert.deepStrictEqual(recOf({ wins: 2, losses: 0, bonus: 0 }), [true, 2, 2, 0, 0]);
+});
+test('meRecord: 보너스 +3이면 총합 5', () => {
+  assert.deepStrictEqual(recOf({ wins: 2, losses: 0, bonus: 3 }), [true, 5, 2, 0, 3]);
+});
+test('meRecord: 하이리스크 실패 -2로 총합이 음수여도 그대로', () => {
+  assert.deepStrictEqual(recOf({ wins: 1, losses: 1, bonus: -2 }), [true, -1, 1, 1, -2]);
+});
+test('meRecord: 공식 경기 없이 예측 보너스만 있어도 기록 있음', () => {
+  assert.deepStrictEqual(recOf({ wins: 0, losses: 0, bonus: 1 }), [true, 1, 0, 0, 1]);
+});
+test('meRecord: 행이 없거나 아무 기록도 없으면 has=false', () => {
+  assert.deepStrictEqual(recOf(null), [false, 0, 0, 0, 0]);
+  assert.strictEqual(L.meRecord({ wins: 0, losses: 0 }).has, false);
 });
 
 console.log(`\n${passed} passed`);
