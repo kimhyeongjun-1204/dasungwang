@@ -231,6 +231,12 @@ test('app.js 화면 문구에 주식 용어를 쓰지 않음 (사용자 요청 2
   const found = words.filter(w => code.includes(w));
   assert.deepStrictEqual(found, [], '남은 주식 용어: ' + found.join(', '));
 });
+test('순위표 열: 순위·이름·총합·승·보너스·패 (사용자 요청 2026-11-19, 순위 기준인 총합을 맨 앞에)', () => {
+  const m = appSrc.match(/<div class="rrow rhead"[^>]*>((?:<span>[^<]*<\/span>)+)<\/div>/);
+  assert.ok(m, '순위표 머리줄 없음');
+  const cols = [...m[1].matchAll(/<span>([^<]*)<\/span>/g)].map(x => x[1]);
+  assert.deepStrictEqual(cols, ['순위', '이름', '총합', '승', '보너스', '패']);
+});
 test('app.js: 기존 충돌 UI·저장 실패 배너·임시저장 유지', () => {
   for (const s of ['draftConflict', 'ui.saveError', 'KEY.draft', 'draft-load', 'draft-drop']) assert.ok(appSrc.includes(s), s + ' 없음');
 });

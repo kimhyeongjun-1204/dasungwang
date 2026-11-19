@@ -258,9 +258,10 @@ button.team:hover { border-color: var(--line); background: #F1F4F9; }
 /* ---------- 순위 ---------- */
 .rank-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; }
 .board { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-card); overflow: hidden; box-shadow: var(--shadow); }
-.rrow { display: grid; grid-template-columns: 40px minmax(0, 1fr) 40px 44px 40px 52px; align-items: center; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--line-2); }
+.rrow { display: grid; grid-template-columns: 40px minmax(0, 1fr) 40px 32px 48px 32px; align-items: center; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--line-2); }
 .rrow.rhead { border-top: 0; padding-block: 8px; background: var(--surface-2); font-size: var(--fs-cap); color: var(--text-2); font-weight: 500; }
 .rrow.rhead span:nth-child(n+3) { text-align: right; }
+.rrow.rhead span { white-space: nowrap; }
 .rrow.contender { background: var(--yellow-50); }
 .rrow.me .rname b { color: var(--heaven-text); }
 .medal { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-size: 14px; font-weight: 700; color: var(--navy); background: var(--line-2); }

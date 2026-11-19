@@ -269,17 +269,17 @@
     if (!played.length) {
       out += '<div class="card empty"><div class="pig" aria-hidden="true"></div><b>아직 입력된 결과가 없어요</b><p class="muted">돼장이 경기 결과를 입력하면 승수와 순위가 바로 계산돼요.</p></div>';
     } else {
-      out += '<div class="board"><div class="rrow rhead" aria-hidden="true"><span>순위</span><span>이름</span><span>승</span><span>보너스</span><span>패</span><span>승률</span></div>' + played.map(function (r) {
+      out += '<div class="board"><div class="rrow rhead" aria-hidden="true"><span>순위</span><span>이름</span><span>총합</span><span>승</span><span>보너스</span><span>패</span></div>' + played.map(function (r) {
         var tag = r.lottery ? ' <span class="chip lot">동률 추첨</span>' : r.contender ? ' <span class="chip king">다승왕권</span>' : '';
-        var dec = r.wins + r.losses;
-        return '<div class="rrow' + (r.contender ? ' contender' : '') + (r.id === ui.me ? ' me' : '') + '"><span class="medal num' + (r.rank <= 3 && r.wins > 0 ? ' m' + r.rank : '') + '">' + (dec || r.bonus ? r.rank : '–') + '</span>' +
+        var dec = r.wins + r.losses, tot = r.total != null ? r.total : r.wins;
+        return '<div class="rrow' + (r.contender ? ' contender' : '') + (r.id === ui.me ? ' me' : '') + '"><span class="medal num' + (r.rank <= 3 && tot > 0 ? ' m' + r.rank : '') + '">' + (dec || r.bonus ? r.rank : '–') + '</span>' +
           '<span class="rname"><b>' + esc(r.name) + '</b>' + tag + '<span class="sub num">' + r.weeks + '주 참가' + (r.pending ? ' · 결과 미입력 ' + r.pending + '경기' : '') + '</span></span>' +
-          '<span class="rnum strong num">' + r.wins + '</span><span class="rnum num bonus' + (r.bonus > 0 ? ' plus' : r.bonus < 0 ? ' minus' : '') + '" aria-label="보너스 ' + r.bonus + '">' + (r.bonus ? signed(r.bonus) : '–') + '</span><span class="rnum num">' + r.losses + '</span><span class="rnum num">' + (dec ? Math.round(r.wins / dec * 100) + '%' : '–') + '</span></div>';
-      }).join('') + '</div><p class="small muted">승수 = 공식 경기 + 돼블스플랜 보너스</p>';
+          '<span class="rnum strong num total" aria-label="총합 ' + tot + '승">' + tot + '</span><span class="rnum num">' + r.wins + '</span><span class="rnum num bonus' + (r.bonus > 0 ? ' plus' : r.bonus < 0 ? ' minus' : '') + '" aria-label="보너스 ' + r.bonus + '">' + (r.bonus ? signed(r.bonus) : '–') + '</span><span class="rnum num">' + r.losses + '</span></div>';
+      }).join('') + '</div><p class="small muted">총합 = 승(공식 경기) + 돼블스플랜 보너스 · 순위는 총합 기준</p>';
     }
     out += '</div>';
     if (idle.length) out += '<details><summary>아직 기록 없는 ' + idle.length + '명</summary><p class="small muted">' + idle.map(function (r) { return esc(r.name); }).join(', ') + '</p></details>';
-    out += '<p class="small muted">승수만으로 순위를 매기고, 최종 동률이면 추첨해요. 공식 2경기만 집계하고 추가출전·자유게임은 빠져요. 다른 조 경기에 나가도 승수는 원소속 조로 들어가요.</p>';
+    out += '<p class="small muted">총합(공식 승 + 예측 보너스)으로 순위를 매기고, 최종 동률이면 추첨해요. 공식 2경기만 집계하고 추가출전·자유게임은 빠져요. 다른 조 경기에 나가도 승수는 원소속 조로 들어가요.</p>';
     return out;
   }
 
