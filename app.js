@@ -433,13 +433,12 @@
     return '진행 중 ' + s.picks.filter(function (p) { return p.result === 'hit'; }).length + '/' + L.PREDICT.picks;
   }
   var PK_ICON = { hit: '✓', miss: '✕', pending: '⏳', check: '!' }, PK_SR = { hit: '적중', miss: '실패', pending: '대기', check: '확인 필요' };
-  // labeled: 내 예측 카드에서 픽마다 '캐비어·랍스터 1경기'처럼 어느 경기인지 위 줄에 (사용자 요청 2026-11-20)
-  function pickCells(w, s, P, small, labeled) {
+  // grp: 내 예측 카드에서 픽마다 조 색 테두리로 어느 조 경기인지 구분 (사용자 요청 2026-11-20, 글자 라벨 대신)
+  function pickCells(w, s, P, small, grp) {
     var ord = function (p) { var m = matchById(w, p.match); return m ? poolOrder(m.pool) * 100 + w.matches.indexOf(m) : 1e4; };
-    return '<div class="pick4' + (small ? ' sm' : '') + (labeled ? ' lab' : '') + '">' + s.picks.slice().sort(function (x, y) { return ord(x) - ord(y); }).map(function (p) {
+    return '<div class="pick4' + (small ? ' sm' : '') + (grp ? ' grp' : '') + '">' + s.picks.slice().sort(function (x, y) { return ord(x) - ord(y); }).map(function (p) {
       var m = matchById(w, p.match);
-      if (labeled) return '<span class="pk ' + p.result + '"><i aria-hidden="true">' + PK_ICON[p.result] + '</i><span class="pk-body"><small' + (m ? ' class="gdot g' + m.pool + '"' : '') + '>' + (m ? esc(matchLabel(w, m)) : '빠진 경기') + '</small><span>' + esc(teamText(m, p.side, P)) + '</span></span><span class="sr">' + PK_SR[p.result] + '</span></span>';
-      return '<span class="pk ' + p.result + '"><i aria-hidden="true">' + PK_ICON[p.result] + '</i><span' + (m ? ' class="gdot g' + m.pool + '"' : '') + '>' + esc(teamText(m, p.side, P)) + '</span><span class="sr">' + PK_SR[p.result] + '</span></span>';
+      return '<span class="pk ' + p.result + (grp && m ? ' g' + m.pool : '') + '"><i aria-hidden="true">' + PK_ICON[p.result] + '</i><span' + (m ? ' class="gdot g' + m.pool + '"' : '') + '>' + esc(teamText(m, p.side, P)) + '</span><span class="sr">' + PK_SR[p.result] + '</span></span>';
     }).join('') + '</div>';
   }
 
