@@ -22,7 +22,7 @@ delete state.rev; delete state.savedAt; if (state.settings) delete state.setting
 const db = { state, rev: src.rev || 1, saved_at: src.savedAt || new Date().toISOString(), pin: '1234', sessions: new Set() };
 
 // ---- 돼블스플랜: schema.sql의 테이블·함수를 메모리에서 흉내 ----
-const P = { predictions: [], prediction_counts: [], prediction_events: [], prediction_close: [], eventId: 0 };
+const P = { predictions: [], prediction_counts: [], prediction_events: [], prediction_close: [], availability: [], eventId: 0 };
 const deadline = d => Date.parse(d + 'T17:30:00+09:00');
 const testWeeks = {}; // prediction_test_weeks (verify_db.js 전용, 2000·2099년만)
 const isTestDate = d => /^(2000|2099)-/.test(String(d));
@@ -104,10 +104,39 @@ const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; ch
 function send(res, status, body, type) { res.writeHead(status, { 'Content-Type': type || 'application/json', 'Cache-Control': 'no-store' }); res.end(typeof body === 'string' || Buffer.isBuffer(body) ? body : JSON.stringify(body)); }
 function fail(res, msg) { send(res, 400, { code: 'P0001', message: msg, details: null, hint: null }); }
 
+// ---- 경기 진행 자리 비움: schema.sql set_availability / admin_set_availability 흉내 ----
+// MOCK_AVAIL='[{"player_id":"p001","status":"away","min":30}]' 로 처음부터 넣어 둘 수 있음 (화면 확인용, 오늘 경기 주)
+const kstDay = t => new Date(t + 9 * 3600e3).toISOString().slice(0, 10);
+function availApply(d, pid, status, minutes, byAdmin) {
+  const i = P.availability.findIndex(r => r.week_date === d && r.player_id === pid);
+  if (status === 'here') { if (i >= 0) P.availability.splice(i, 1); return null; }
+  const until = minutes > 0 ? new Date(now() + minutes * 60000).toISOString() : null;
+  const row = { week_date: d, player_id: pid, status, until, by_admin: byAdmin, updated_at: new Date(now()).toISOString() };
+  if (i >= 0) P.availability[i] = row; else P.availability.push(row);
+  return until;
+}
+const attending = (d, pid) => { const w = db.state.weeks.find(x => x.date === d); return !!(w && w.attendees && pid in w.attendees); };
+if (process.env.MOCK_AVAIL) JSON.parse(process.env.MOCK_AVAIL).forEach(r => availApply(kstDay(now()), r.player_id, r.status, r.min || 0, !!r.admin));
 const RPC = {
   admin_login: (a, res) => { if (a.pin !== db.pin) return send(res, 200, 'null'); const t = crypto.randomUUID(); db.sessions.add(t); send(res, 200, JSON.stringify(t)); },
   admin_check: (a, res) => send(res, 200, String(db.sessions.has(a.token))),
   admin_logout: (a, res) => { db.sessions.delete(a.token); send(res, 200, 'null'); },
+  set_availability: (a, res) => {
+    const d = a.p_week, st = a.p_status, mn = a.p_minutes;
+    if (d !== kstDay(now())) return fail(res, 'not_today');
+    if (!['late', 'away', 'here'].includes(st)) return fail(res, 'bad_status');
+    if (!attending(d, a.p_player)) return fail(res, 'not_attending');
+    const cur = P.availability.find(r => r.week_date === d && r.player_id === a.p_player);
+    if (cur && cur.by_admin && cur.status === 'out') return fail(res, 'admin_locked');
+    if (st === 'away' && !(mn >= 10 && mn <= 90)) return fail(res, 'bad_minutes');
+    if (st === 'late' && mn != null && !(mn >= 0 && mn <= 120)) return fail(res, 'bad_minutes');
+    send(res, 200, JSON.stringify(availApply(d, a.p_player, st, mn || 0, false)));
+  },
+  admin_set_availability: (a, res) => {
+    if (!db.sessions.has(a.token)) return fail(res, 'unauthorized');
+    if (!['late', 'away', 'out', 'here'].includes(a.p_status)) return fail(res, 'bad_status');
+    send(res, 200, JSON.stringify(availApply(a.p_week, a.p_player, a.p_status, a.p_minutes || 0, true)));
+  },
   save_state: (a, res) => {
     if (!db.sessions.has(a.token)) return fail(res, 'unauthorized');
     if (a.expected_rev !== db.rev) return fail(res, 'stale_rev');

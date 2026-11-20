@@ -436,3 +436,90 @@ begin
     end if;
   end if;
 end $$;
+
+-- ---------- 경기 진행: 자리 비움 (2026-11-20) ----------
+-- 늦음(late)·잠시 빠짐/레슨(away, until 지나면 앱이 자동으로 풀린 것으로 봄)·오늘 못 함(out, 돼장만).
+-- 회원은 경기날 당일·그 주 참석자만, 본인 이름으로 late/away/here(해제). 이름 확인이 없어서 남이 눌러도 막을 수는 없음 →
+-- 돼장이 넣은 out은 회원이 못 바꾸고, 누가 넣었는지(by_admin)·언제(updated_at)를 남김. 코트·결과는 app_state(save_state)에 저장
+create table if not exists public.availability (
+  week_date date not null,
+  player_id text not null,
+  status text not null check (status in ('late', 'away', 'out')),
+  until timestamptz,
+  by_admin boolean not null default false,
+  updated_at timestamptz not null default now(),
+  primary key (week_date, player_id)
+);
+alter table public.availability enable row level security;
+revoke all on public.availability from anon, authenticated;
+grant select on public.availability to anon, authenticated;
+drop policy if exists availability_read on public.availability;
+create policy availability_read on public.availability for select to anon, authenticated using (true);
+
+create or replace function public.avail_attending(d date, pid text) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.app_state s, jsonb_array_elements(s.state->'weeks') w
+                  where s.id = 1 and w->>'date' = d::text and (w->'attendees') ? pid);
+$$;
+
+-- 회원(본인): late(분 0~120, 0이면 시각 없이) / away(분 10~90) / here(해제)
+create or replace function public.set_availability(p_week date, p_player text, p_status text, p_minutes int) returns timestamptz
+language plpgsql security definer set search_path = public as $$
+declare
+  cur public.availability%rowtype;
+  u timestamptz;
+begin
+  if p_week <> (now() at time zone 'Asia/Seoul')::date then raise exception 'not_today'; end if;
+  if p_status is null or p_status not in ('late', 'away', 'here') then raise exception 'bad_status'; end if;
+  if not public.avail_attending(p_week, p_player) then raise exception 'not_attending'; end if;
+  select * into cur from public.availability a where a.week_date = p_week and a.player_id = p_player for update;
+  if found and cur.by_admin and cur.status = 'out' then raise exception 'admin_locked'; end if;
+  if p_status = 'here' then
+    delete from public.availability a where a.week_date = p_week and a.player_id = p_player;
+    return null;
+  end if;
+  if p_status = 'away' and (p_minutes is null or p_minutes < 10 or p_minutes > 90) then raise exception 'bad_minutes'; end if;
+  if p_status = 'late' and p_minutes is not null and (p_minutes < 0 or p_minutes > 120) then raise exception 'bad_minutes'; end if;
+  u := case when coalesce(p_minutes, 0) > 0 then now() + make_interval(mins => p_minutes) end;
+  insert into public.availability as a (week_date, player_id, status, until, by_admin, updated_at)
+    values (p_week, p_player, p_status, u, false, now())
+    on conflict (week_date, player_id) do update set status = excluded.status, until = excluded.until, by_admin = false, updated_at = now();
+  return u;
+end $$;
+
+-- 돼장: 날짜·상태 제한 없이 (out 포함, here는 해제)
+create or replace function public.admin_set_availability(token uuid, p_week date, p_player text, p_status text, p_minutes int) returns timestamptz
+language plpgsql security definer set search_path = public as $$
+declare
+  u timestamptz;
+begin
+  if not public.admin_check(admin_set_availability.token) then raise exception 'unauthorized'; end if;
+  if p_status is null or p_status not in ('late', 'away', 'out', 'here') then raise exception 'bad_status'; end if;
+  if p_status = 'here' then
+    delete from public.availability a where a.week_date = p_week and a.player_id = p_player;
+    return null;
+  end if;
+  if p_minutes is not null and (p_minutes < 0 or p_minutes > 240) then raise exception 'bad_minutes'; end if;
+  u := case when coalesce(p_minutes, 0) > 0 then now() + make_interval(mins => p_minutes) end;
+  insert into public.availability as a (week_date, player_id, status, until, by_admin, updated_at)
+    values (p_week, p_player, p_status, u, true, now())
+    on conflict (week_date, player_id) do update set status = excluded.status, until = excluded.until, by_admin = true, updated_at = now();
+  return u;
+end $$;
+
+revoke all on function public.avail_attending(date, text) from public, anon, authenticated;
+grant execute on function public.set_availability(date, text, text, int), public.admin_set_availability(uuid, date, text, text, int)
+  to anon, authenticated;
+
+-- Realtime: 자리 비움, 그리고 돼장이 저장한 상태(app_state: 코트·결과)를 회원 화면이 새로고침 없이 받게
+do $$
+begin
+  if exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
+    if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'availability') then
+      alter publication supabase_realtime add table public.availability;
+    end if;
+    if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'app_state') then
+      alter publication supabase_realtime add table public.app_state;
+    end if;
+  end if;
+end $$;

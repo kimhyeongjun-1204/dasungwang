@@ -4,7 +4,9 @@ var Remote = (function () {
   var TOKEN_KEY = 'ddw-admin-token', TOKEN_DAYS = 30;
   var CODES = ['unauthorized', 'stale_rev', 'no_pin', 'bad_pin', 'bad_new_pin', 'too_large', 'bad_state', 'ai_limit', 'ai_failed', 'ai_refused', 'bad_request',
     // 돼블스플랜 제출 검사 (schema.sql pred_check / submit_prediction)
-    'closed', 'bad_mode', 'bad_player', 'no_week', 'bad_count', 'bad_side', 'dup_match', 'bad_match', 'bad_quota'];
+    'closed', 'bad_mode', 'bad_player', 'no_week', 'bad_count', 'bad_side', 'dup_match', 'bad_match', 'bad_quota',
+    // 경기 진행 자리 비움 (schema.sql set_availability)
+    'not_today', 'not_attending', 'admin_locked', 'bad_status', 'bad_minutes'];
 
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
   // 서버로 보내는 state: PIN 해시와 서버가 관리하는 rev/savedAt은 뺀다
@@ -76,6 +78,24 @@ var Remote = (function () {
       adminListPredictions: function (token, d) { return rpc('admin_list_predictions', { token: token, week_date: d }); },
       adminUpsertPrediction: function (token, d, pid, mode, picks) { return rpc('admin_upsert_prediction', { token: token, week_date: d, player_id: pid, mode: mode, picks: picks }); },
       adminDeletePrediction: function (token, d, pid) { return rpc('admin_delete_prediction', { token: token, week_date: d, player_id: pid }); },
+      // ---- 경기 진행 ----
+      availability: function (d) { return call(client.from('availability').select('player_id,status,until,by_admin,updated_at').eq('week_date', d)); },
+      setAvailability: function (d, pid, status, minutes) { return rpc('set_availability', { p_week: d, p_player: pid, p_status: status, p_minutes: minutes }); },
+      adminSetAvailability: function (token, d, pid, status, minutes) { return rpc('admin_set_availability', { token: token, p_week: d, p_player: pid, p_status: status, p_minutes: minutes }); },
+      // 돼장 저장(app_state)과 그 주 자리 비움이 바뀌면 onChange(table). live(): 구독 중인지(아니면 앱이 주기적으로 다시 읽음)
+      watchLive: function (d, onChange) {
+        var live = false, ch = null;
+        if (opts.realtime !== false && client.channel) {
+          ch = client.channel('live-' + d)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'app_state' }, function () { onChange('app_state'); })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'availability', filter: 'week_date=eq.' + d }, function () { onChange('availability'); });
+          ch.subscribe(function (status) { live = status === 'SUBSCRIBED'; });
+        }
+        return {
+          live: function () { return live; },
+          stop: function () { live = false; if (ch && client.removeChannel) { try { client.removeChannel(ch); } catch (e) { } } ch = null; },
+        };
+      },
       // counts·events가 바뀌면 onChange(). live(): 구독 중인지(아니면 앱이 주기적으로 다시 읽음)
       watchPredictions: function (d, onChange) {
         var live = false, ch = null;

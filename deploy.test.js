@@ -208,6 +208,40 @@ test('schema.sql pred_check: 조별 고정(bad_quota)이 logic.js PREDICT.quota�
   assert.ok(/raise exception 'bad_quota'/.test(sql), 'bad_quota 오류 없음');
   assert.ok(/function public\.prediction_match_pools\(d date\)/.test(sql), '경기→조 함수 없음');
 });
+test('schema.sql 경기 진행: availability 테이블(읽기만 공개)·본인/돼장 RPC·Realtime (2026-11-20)', () => {
+  const sql = fs.readFileSync(path.join(__dirname, 'supabase', 'schema.sql'), 'utf8');
+  assert.ok(/create table if not exists public\.availability \(/.test(sql), 'availability 테이블 없음');
+  assert.ok(/check \(status in \('late', 'away', 'out'\)\)/.test(sql), '상태 값 제한 없음');
+  assert.ok(/alter table public\.availability enable row level security/.test(sql), 'RLS 안 켬');
+  assert.ok(/revoke all on public\.availability from anon, authenticated/.test(sql) && /grant select on public\.availability to anon, authenticated/.test(sql), '읽기만 공개가 아님');
+  const self = sql.match(/function public\.set_availability\([\s\S]*?end \$\$;/);
+  assert.ok(self, '본인용 set_availability 없음');
+  for (const code of ['not_today', 'not_attending', 'admin_locked', 'bad_status', 'bad_minutes']) assert.ok(self[0].includes("'" + code + "'"), 'set_availability에 ' + code + ' 검사 없음');
+  assert.ok(/p_status not in \('late', 'away', 'here'\)/.test(self[0]), '회원이 오늘 못 함(out)을 직접 넣을 수 있음');
+  const adm = sql.match(/function public\.admin_set_availability\([\s\S]*?end \$\$;/);
+  assert.ok(adm && /admin_check\(/.test(adm[0]), '돼장용 admin_set_availability가 토큰을 확인하지 않음');
+  assert.ok(/public\.set_availability\(date, text, text, int\)/.test(sql) && /public\.admin_set_availability\(uuid, date, text, text, int\)/.test(sql), 'RPC 실행 권한(grant execute) 없음');
+  for (const t of ['availability', 'app_state']) assert.ok(new RegExp("tablename = '" + t + "'[\\s\\S]*?add table public\\." + t).test(sql), t + ' Realtime 등록 없음');
+});
+test('api 경기 진행: 자리 비움 읽기·본인/돼장 저장, 상태(app_state)·자리 비움 Realtime 구독', async () => {
+  const ok = () => ({ data: 't', error: null });
+  const c = tableClient({ availability: [{ player_id: 'p1', status: 'away' }] }, { set_availability: ok, admin_set_availability: ok });
+  const a = need().api(c);
+  assert.deepStrictEqual(await a.availability('2026-11-25'), [{ player_id: 'p1', status: 'away' }]);
+  assert.ok(c.calls[0].includes('week_date=2026-11-25'));
+  await a.setAvailability('2026-11-25', 'p1', 'away', 30);
+  await a.adminSetAvailability('tok', '2026-11-25', 'p2', 'out', null);
+  assert.deepStrictEqual(c.calls[1], ['rpc', 'set_availability', { p_week: '2026-11-25', p_player: 'p1', p_status: 'away', p_minutes: 30 }]);
+  assert.deepStrictEqual(c.calls[2], ['rpc', 'admin_set_availability', { token: 'tok', p_week: '2026-11-25', p_player: 'p2', p_status: 'out', p_minutes: null }]);
+  for (const m of ['not_today', 'not_attending', 'admin_locked', 'bad_status', 'bad_minutes']) assert.strictEqual(need().errorCode({ message: m }).code, m);
+  const subs = [];
+  const rt = { channel(n) { const ch = { on(ev, f, cb) { subs.push(f); return ch; }, subscribe(cb) { cb('SUBSCRIBED'); return ch; } }; return ch; }, removeChannel() { } };
+  const w = need().api(rt).watchLive('2026-11-25', () => { });
+  assert.strictEqual(w.live(), true);
+  assert.deepStrictEqual(subs.map(f => f.table + ':' + (f.filter || '')).sort(), ['app_state:', 'availability:week_date=eq.2026-11-25']);
+  const off = need().api(rt, { realtime: false }).watchLive('2026-11-25', () => { });
+  assert.strictEqual(off.live(), false);
+});
 test('Edge Function rematch: 조건 종류가 logic.js와 같고, 모델·폴백·키 처리가 맞음', () => {
   const src = fs.readFileSync(path.join(__dirname, 'supabase', 'functions', 'rematch', 'index.ts'), 'utf8');
   const types = JSON.parse(src.match(/const RULE_TYPES = (\[[^\]]*\])/)[1].replace(/'/g, '"'));
@@ -272,6 +306,14 @@ test('내 예측 카드: 점 대신 조 캐릭터 얼굴 아이콘 (사용자 �
   assert.ok(/<i class="face face-' \+ [^>]*role="img" aria-label=/.test(appSrc), '얼굴 아이콘에 role=img·aria-label(조 이름) 없음');
   const css = fs.readFileSync(path.join(__dirname, 'app.css'), 'utf8');
   assert.ok(/\.face \{[^}]*width: 24px; height: 24px/.test(css), '.face 24px 스타일 없음');
+});
+test('경기 진행 화면: 돼장 경기 진행|결과 표, 코트 넣기·결과·빼기는 바로 저장, 자리 비움은 RPC (2026-11-20)', () => {
+  assert.ok(/data-act="awv" data-v="live"/.test(appSrc) && /data-act="awv" data-v="table"/.test(appSrc), '경기 진행 | 결과 표 전환 없음');
+  for (const a of ['lv-start', 'lv-win', 'lv-cancel', 'lv-set', 'my-avail']) assert.ok(new RegExp("case '" + a + "'").test(appSrc), a + ' 동작 없음');
+  assert.ok(/function liveEdit\(fn, msg\)[\s\S]{0,400}save\(\)/.test(appSrc), '코트 동작이 바로 저장되지 않음');
+  assert.ok(/L\.startMatch\(/.test(appSrc) && /L\.finishMatch\(/.test(appSrc) && /L\.cancelMatch\(/.test(appSrc), '코트 동작이 logic 함수를 안 씀');
+  assert.ok(/remote\.watchLive\(/.test(appSrc), '돼장 저장·자리 비움 Realtime 구독 없음');
+  assert.ok(/function reloadState\(\)[\s\S]{0,200}if \(dirty\(\) \|\| ui\.busy\) return/.test(appSrc), '저장 안 한 변경이 있을 때 덮어쓰지 않는 확인 없음');
 });
 test('app.js: 기존 충돌 UI·저장 실패 배너·임시저장 유지', () => {
   for (const s of ['draftConflict', 'ui.saveError', 'KEY.draft', 'draft-load', 'draft-drop']) assert.ok(appSrc.includes(s), s + ' 없음');

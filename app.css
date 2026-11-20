@@ -702,3 +702,61 @@ button.link { border: 0; background: none; padding: 0; font: inherit; font-weigh
 .pick4.grp .pk i:not(.face) { width: 14px; }  /* 360px에서 이름이 안 잘리게 */
 .face-cv { --fi: var(--face-cv); } .face-lb { --fi: var(--face-lb); } .face-bf { --fi: var(--face-bf); }
 .face-lm { --fi: var(--face-lm); } .face-pk { --fi: var(--face-pk); } .face-ck { --fi: var(--face-ck); }
+
+/* ---------- 경기 진행: 코트 3칸 (2026-11-20) ---------- */
+.courts { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; margin: 4px 0 12px; }
+@media (min-width: 600px) { .courts { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.court { border-radius: var(--r-card); padding: 10px 12px; display: grid; gap: 6px; background: var(--surface); border: 2px solid var(--gc, var(--line)); box-shadow: var(--shadow); }
+.court.empty { border: 2px dashed var(--line); background: var(--surface-2); box-shadow: none; grid-template-columns: auto 1fr; align-items: center; color: var(--text-2); }
+.court.empty b { color: var(--text); }
+.court.empty span { justify-self: end; font-size: var(--fs-cap); }
+.c-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.c-head b { font-size: 16px; }
+.c-head .gdot { font-size: var(--fs-cap); color: var(--text-2); }
+.c-head .num { margin-left: auto; font-size: var(--fs-cap); }
+.c-team { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; min-height: 44px; padding: 8px 12px; border-radius: var(--r-ctl); border: 1px solid var(--line); background: var(--surface-2); font-size: 15px; font-weight: 700; color: var(--text); text-align: left; cursor: pointer; }
+.c-team small { flex: none; font-size: 12px; font-weight: 700; color: var(--win-text); border: 1px solid #BFE3CF; background: var(--win-50); border-radius: 999px; padding: 2px 8px; }
+.c-team:active { background: var(--win-50); }
+.court .vs { justify-self: center; font-size: 12px; color: var(--text-2); }
+.court .link { justify-self: end; }
+.away-box { display: grid; gap: 8px; margin-bottom: 12px; }
+.ab-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.ab-head h3 { margin: 0; font-size: 15px; }
+.ab-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.ab-chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 4px 4px 10px; border-radius: 999px; font-size: 13px; background: var(--yellow-50); border: 1px solid #F0DC9C; }
+.ab-chip.out { background: var(--hell-50); border-color: #F1CACA; }
+.ab-chip small { font-size: 11px; color: var(--text-2); }
+.ab-chip button { border: 0; background: rgb(0 0 0 / .06); border-radius: 50%; width: 24px; height: 24px; font-size: 14px; line-height: 1; cursor: pointer; }
+.ab-pick { display: grid; gap: 8px; padding: 10px; border-radius: var(--r-ctl); background: var(--surface-2); }
+.ab-pick p { margin: 0; }
+.ab-att button .gdot { font-weight: 500; }
+.lv-sec { margin: 0 0 12px; display: grid; gap: 6px; }
+.lv-sec h3 { margin: 0 0 2px; font-size: 15px; display: flex; align-items: baseline; gap: 6px; }
+.lv-sec h3 small { margin-left: auto; font-size: var(--fs-cap); font-weight: 500; }
+.lv-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--r-card); background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--gc, var(--line)); }
+.lv-row .btn { flex: none; }
+.lv-main { display: grid; gap: 2px; min-width: 0; flex: 1; }
+.lv-main .gdot.small { font-size: var(--fs-cap); color: var(--text-2); }
+.lv-teams { font-size: 14px; font-weight: 700; word-break: keep-all; }
+.lv-teams i { font-style: normal; font-weight: 500; color: var(--text-2); margin: 0 2px; }
+.lv-row.blocked { opacity: .62; background: var(--surface-2); }
+.lv-row.blocked small { color: var(--hell-text); font-size: 12px; }
+.lv-row.done { padding: 8px 12px; }
+.lv-row.done .lv-teams { font-weight: 500; }
+.lv-done summary { list-style: none; cursor: pointer; }
+.lv-done summary::-webkit-details-marker { display: none; }
+.lv-done summary h3::after { content: "▾"; margin-left: auto; color: var(--text-2); }
+.lv-done[open] summary h3::after { content: "▴"; }
+.m-state.on { color: var(--plan-text); font-weight: 700; }
+/* 회원: 지금 코트 + 내 차례 */
+.courts.mini { gap: 6px; }
+.courts.mini .court { padding: 8px 10px; gap: 2px; grid-template-columns: auto 1fr; align-items: center; column-gap: 8px; }
+.courts.mini .court.on .gdot { justify-self: end; font-size: 11px; color: var(--text-2); }
+.courts.mini .c-names { grid-column: 1 / -1; font-size: 13px; font-weight: 700; }
+.courts.mini .c-names i { font-style: normal; font-weight: 500; color: var(--text-2); margin: 0 4px; }
+.my-live { display: grid; gap: 6px; margin-bottom: 12px; border-left: 4px solid var(--navy); }
+.my-live.next { border-left-color: var(--win-text); background: var(--win-50); }
+.my-live.playing { border-left-color: var(--plan-text); }
+.my-live.blocked { border-left-color: var(--hell-text); }
+.ml-big { font-size: 17px; }
+.my-live p { margin: 0; }
