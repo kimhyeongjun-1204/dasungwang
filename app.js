@@ -433,10 +433,12 @@
     return '진행 중 ' + s.picks.filter(function (p) { return p.result === 'hit'; }).length + '/' + L.PREDICT.picks;
   }
   var PK_ICON = { hit: '✓', miss: '✕', pending: '⏳', check: '!' }, PK_SR = { hit: '적중', miss: '실패', pending: '대기', check: '확인 필요' };
-  function pickCells(w, s, P, small) {
-    var ord = function (p) { var m = matchById(w, p.match); return m ? poolOrder(m.pool) : 100; };
-    return '<div class="pick4' + (small ? ' sm' : '') + '">' + s.picks.slice().sort(function (x, y) { return ord(x) - ord(y); }).map(function (p) {
+  // labeled: 내 예측 카드에서 픽마다 '캐비어·랍스터 1경기'처럼 어느 경기인지 위 줄에 (사용자 요청 2026-11-20)
+  function pickCells(w, s, P, small, labeled) {
+    var ord = function (p) { var m = matchById(w, p.match); return m ? poolOrder(m.pool) * 100 + w.matches.indexOf(m) : 1e4; };
+    return '<div class="pick4' + (small ? ' sm' : '') + (labeled ? ' lab' : '') + '">' + s.picks.slice().sort(function (x, y) { return ord(x) - ord(y); }).map(function (p) {
       var m = matchById(w, p.match);
+      if (labeled) return '<span class="pk ' + p.result + '"><i aria-hidden="true">' + PK_ICON[p.result] + '</i><span class="pk-body"><small' + (m ? ' class="gdot g' + m.pool + '"' : '') + '>' + (m ? esc(matchLabel(w, m)) : '빠진 경기') + '</small><span>' + esc(teamText(m, p.side, P)) + '</span></span><span class="sr">' + PK_SR[p.result] + '</span></span>';
       return '<span class="pk ' + p.result + '"><i aria-hidden="true">' + PK_ICON[p.result] + '</i><span' + (m ? ' class="gdot g' + m.pool + '"' : '') + '>' + esc(teamText(m, p.side, P)) + '</span><span class="sr">' + PK_SR[p.result] + '</span></span>';
     }).join('') + '</div>';
   }
@@ -457,7 +459,7 @@
   function myPredCard(w, p, lv, P) {
     if (!p) return isClosed(w.date) ? '' : '<div class="card my-pred mini"><p class="small">이번 주 예측을 아직 안 했어요. <button class="link" data-act="tab" data-v="plan">돼블스플랜 하러 가기</button></p></div>';
     return '<div class="card my-pred live ' + lv.status + '"><div class="mp-head"><h3>내 예측</h3><span class="mchip ' + p.mode + '">' + MODE_LABEL[p.mode] + '</span><span class="mp-score num">' + lv.hits + '/' + L.PREDICT.picks + ' 적중</span></div>' +
-      pickCells(w, L.scorePrediction(p, w), P, true) + '<b class="pred-res ' + lv.status + '">' + liveText(lv) + '</b></div>';
+      pickCells(w, L.scorePrediction(p, w), P, false, true) + '<b class="pred-res ' + lv.status + '">' + liveText(lv) + '</b></div>';
   }
   // ---- 서버에서 읽기 ----
   function loadAllPreds() {
@@ -623,7 +625,7 @@
     if (mine) {
       var s = L.scorePrediction(mine, w);
       out += '<div class="card my-pred"><div class="mp-head"><h3>내 예측 · ' + esc((P[ui.me] || {}).name || '') + '</h3><span class="mchip ' + mine.mode + '">' + MODE_LABEL[mine.mode] + '</span></div>' +
-        pickCells(w, s, P) + (s.status === 'check' ? '<p class="small" style="color:var(--hell-text)">편성이 바뀌어서 빠진 경기가 있어요. 다시 골라 제출해 주세요.</p>' : '') +
+        pickCells(w, s, P, false, true) + (s.status === 'check' ? '<p class="small" style="color:var(--hell-text)">편성이 바뀌어서 빠진 경기가 있어요. 다시 골라 제출해 주세요.</p>' : '') +
         '<p class="small muted">' + hhmm(mine.at) + ' 제출 · 마감 전까지 수정할 수 있어요 (이 기기에 보관)</p></div>';
     }
     out += viewPopular(w, P, false) + viewFeed(w, P);
@@ -751,7 +753,7 @@
       .sort(function (a, b) { return order[a.s.status] - order[b.s.status] || a.name.localeCompare(b.name, 'ko'); });
     var mine = scored.filter(function (x) { return x.p.player_id === ui.me; })[0];
     if (mine) out += '<div class="card my-pred"><div class="mp-head"><h3>내 예측 · ' + esc(mine.name) + '</h3><span class="mchip ' + mine.p.mode + '">' + MODE_LABEL[mine.p.mode] + '</span></div>' +
-      pickCells(w, mine.s, P) + '<b class="pred-res ' + mine.s.status + '">' + resultLabel(mine.s, mine.p.mode) + '</b></div>';
+      pickCells(w, mine.s, P, false, true) + '<b class="pred-res ' + mine.s.status + '">' + resultLabel(mine.s, mine.p.mode) + '</b></div>';
     out += '<div class="card"><h3>전원 공개 <span class="small muted num">' + rows.length + '명</span></h3><div class="pub">' + scored.map(function (x) {
       return '<div class="pub-row' + (x.p.player_id === ui.me ? ' me' : '') + '"><div class="pub-who"><b>' + esc(x.name) + '</b><span class="mchip ' + x.p.mode + '">' + MODE_LABEL[x.p.mode] + '</span>' +
         '<span class="pred-res ' + x.s.status + '">' + resultLabel(x.s, x.p.mode) + '</span></div>' + pickCells(w, x.s, P, true) + '</div>';

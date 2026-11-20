@@ -257,6 +257,12 @@ test('이번 주 탭: 내 경기 | 전체 전환, 기본은 내 경기 (사용�
   assert.ok(/L\.livePrediction\(/.test(appSrc), '내 예측 실시간 상태를 logic.livePrediction으로 계산하지 않음');
   assert.ok(/내 픽/.test(appSrc), '전체 보기에서 내가 고른 경기 표시 없음');
 });
+test('내 예측 카드: 픽마다 어느 조 몇 경기인지 표시 (사용자 요청 2026-11-20)', () => {
+  assert.ok(/function pickCells\(w, s, P, small, labeled\)/.test(appSrc), 'pickCells에 labeled 옵션 없음');
+  assert.ok(/labeled[^\n]*matchLabel\(w, m\)/.test(appSrc), '조·경기 번호(matchLabel)를 안 붙임');
+  // 내 예측 카드 3곳(이번 주 탭, 돼블스플랜 마감 전·후)은 표시, 전원 공개 목록은 그대로
+  assert.strictEqual((appSrc.match(/P, (true|false), true\)/g) || []).length, 3, '라벨 붙은 pickCells 호출(…, P, small, true)이 3곳이 아님');
+});
 test('app.js: 기존 충돌 UI·저장 실패 배너·임시저장 유지', () => {
   for (const s of ['draftConflict', 'ui.saveError', 'KEY.draft', 'draft-load', 'draft-drop']) assert.ok(appSrc.includes(s), s + ' 없음');
 });

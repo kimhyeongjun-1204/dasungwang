@@ -692,3 +692,11 @@ button.link { border: 0; background: none; padding: 0; font: inherit; font-weigh
 .team.picked { box-shadow: inset 0 0 0 2px #F5C3D7; }
 .team.picked.win { box-shadow: inset 0 0 0 2px #8FCFAA; }
 .team.picked.lose { box-shadow: inset 0 0 0 2px #E8A3A3; }
+
+/* 내 예측 카드: 픽마다 어느 조 몇 경기인지 (2026-11-20). 2칸이면 360px에서 조 이름이 잘려서 한 줄에 하나씩 */
+.pick4.lab { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+@media (min-width: 600px) { .pick4.lab { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.pick4.lab .pk { padding: 7px 10px; }
+.pk-body { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
+.pk-body small { flex: none; font-size: 12px; font-weight: 700; color: var(--text-2); gap: 5px; white-space: nowrap; }
+.pk-body > span { margin-left: auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 700; }
