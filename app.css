@@ -270,7 +270,8 @@ button.team:hover { border-color: var(--line); background: #F1F4F9; }
 .medal.m3 { background: #F1D6BE; }
 .rname { min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; }
 .rname b { font-size: 15px; font-weight: 700; }
-.rname .sub { flex-basis: 100%; font-size: var(--fs-cap); color: var(--text-2); }
+.rname .sub { flex-basis: 100%; font-size: var(--fs-cap); color: var(--text-2); word-break: keep-all; }  /* 낱말 중간에서 안 끊기게 */
+.rname .sub .nw { white-space: nowrap; }  /* '결과 대기 N경기'는 한 덩어리로 줄바꿈 */
 .rnum { text-align: right; font-size: 14px; color: var(--text-2); }
 .rnum.strong { font-size: 17px; font-weight: 700; color: var(--navy); }
 
@@ -419,7 +420,9 @@ textarea { width: 100%; min-height: 84px; resize: vertical; }
 .group .m-state.done { color: var(--t-deep); }
 .me-zone .r.w { background: var(--t-deep); }
 .pl.me { color: var(--t-deep, var(--heaven-text)); text-decoration-color: var(--t-mid, currentColor); text-decoration-thickness: 2px; }
-/* 순위: 다승왕권 줄은 팀 연한 색, 배지는 팀 진한 색 + 왕관 / 1위 메달 금색 유지 */
+/* 순위: 다승왕권·동률 추첨은 이름 옆 왕관 아이콘만(글자 배지 없음, 2026-11-20) / 1위 메달 금색 유지 */
+.crown { width: 18px; height: 18px; vertical-align: -3px; fill: #E9A800; stroke: #8A5A00; stroke-width: .8; stroke-linejoin: round; flex: none; }
+p .crown { margin-right: 2px; }
 .team-zone .rrow.contender { background: var(--t-tint); }
 .team-zone .rnum.strong { color: var(--t-deep); }
 .team-zone .rrow.me .rname b { color: var(--t-deep); text-decoration: underline; text-decoration-color: var(--t-mid); text-underline-offset: 3px; }

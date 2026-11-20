@@ -237,6 +237,19 @@ test('순위표 열: 순위·이름·총합·승·보너스·패 (사용자 요�
   const cols = [...m[1].matchAll(/<span>([^<]*)<\/span>/g)].map(x => x[1]);
   assert.deepStrictEqual(cols, ['순위', '이름', '총합', '승', '보너스', '패']);
 });
+test('다승왕권·동률 추첨: 글자 배지 없이 왕관 아이콘만 (사용자 요청 2026-11-20)', () => {
+  assert.ok(!/chip (king|lot)">(다승왕권|동률 추첨)</.test(appSrc), '다승왕권·동률 추첨 글자 배지가 남아 있음');
+  assert.ok(/function crown\(/.test(appSrc), 'crown() 아이콘 함수 없음');
+  assert.ok(/<svg class="crown"[^>]*role="img"[^>]*aria-label=/.test(appSrc), '왕관 svg에 role=img·aria-label 없음(화면 읽기용 이름)');
+  const css = fs.readFileSync(path.join(__dirname, 'app.css'), 'utf8');
+  assert.ok(/\.chip\.king \{/.test(css) && /\.chip\.lot \{/.test(css), '다른 곳(마감·바뀜·승 표시)에서 쓰는 배지 스타일이 지워짐');
+  assert.ok(/\.crown \{/.test(css), '.crown 스타일 없음');
+});
+test('화면 문구: "결과 미입력" 대신 "결과 대기", 순위 계산에 now 전달 (사용자 요청 2026-11-20)', () => {
+  assert.ok(!/결과 미입력/.test(appSrc), '"결과 미입력" 문구가 남아 있음');
+  const calls = appSrc.match(/L\.standings\([^;]*\)/g) || [];
+  assert.ok(calls.length >= 2 && calls.every(c => /now:/.test(c)), 'standings 호출에 now가 빠짐: ' + calls.join(' / '));
+});
 test('app.js: 기존 충돌 UI·저장 실패 배너·임시저장 유지', () => {
   for (const s of ['draftConflict', 'ui.saveError', 'KEY.draft', 'draft-load', 'draft-drop']) assert.ok(appSrc.includes(s), s + ' 없음');
 });
