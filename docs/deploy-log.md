@@ -971,3 +971,23 @@ $ node deploy.test.js | tail -1; node logic.test.js | tail -1   (바꾼 뒤)
 (처음 CSS 검사 정규식이 `var(--gc)`만 찾아서 `var(--gc, var(--line-2))`를 못 잡음 → 정규식을 `var(--gc[,)]`로 고침)
 화면 확인(MOCK_DEMO, 11/18 19:00, 서민희, 이번 주·돼블스플랜 탭 × 360·390px): 테두리 rgb(184,64,58)·rgb(46,139,87)·rgb(46,139,87)·rgb(210,100,138) 각 2px, 잘린 글자 0, 전원 공개 목록 2px 테두리 0, 가로 넘침 없음.
 사진: docs/screenshots/my-matches/pred_border_360.jpg
+
+## 38. 내 예측 카드: 조 점 → 조 캐릭터 얼굴 아이콘 (사용자 요청, 같은 브랜치 feat/my-matches, 2026-11-20)
+이름 옆 점(조 색)이 경기 카드의 점(지옥도·천국도)과 뜻이 달라 헷갈림 → 점 대신 조 캐릭터 얼굴(24px). 테두리 조 색은 그대로.
+- 원본 캐릭터는 몸·라켓까지 있어 24px에선 안 보임 → 사용자가 다른 AI로 얼굴만 다시 그린 256px 투명 PNG 6개를 받음(`docs/ref/faces/`, AI 생성물). 내가 한 일은 원본 6개 추출·요청 프롬프트 작성, 넣기.
+- `tools/make_faces.py`: 72px WebP base64로 줄여 `images.css`에 `--face-cv/lb/bf/lm/pk/ck` (각 2.9~4.0KB, dist 397KB). 다시 돌려도 중복 없음.
+- 조 → 얼굴: `GROUP_FACE = { A: 'lb', B: 'bf', C: 'pk' }` (랍스터·소·돼지, 소/양 중 24px에서 더 잘 구분되는 소). 6개 다 넣어 둬서 표만 바꾸면 됨.
+- 얼굴에 `role="img"` + `aria-label`(조 이름).
+```
+$ node deploy.test.js   (테스트 먼저)
+  FAIL 내 예측 카드: 점 대신 조 캐릭터 얼굴 아이콘
+28 passed
+$ node deploy.test.js | tail -1; node logic.test.js | tail -1   (바꾼 뒤)
+29 passed
+123 passed
+```
+화면 확인에서 잡은 것 2개:
+1. 얼굴이 18px로 나옴 → 결과 아이콘용 `.pk i { width: 18px }`이 이김 → `.pk i.face { width: 24px }`.
+2. 24px로 고치니 360px에서 이름 4개 다 말줄임 → 칸 안쪽 여백 8→6px, 결과 아이콘 18→14px, 간격 6→4px로 줄인 뒤 잘린 글자 0.
+최종(MOCK_DEMO, 11/18 19:00, 서민희, 이번 주·돼블스플랜 탭 × 360·390px): 얼굴 4개 24px·그림 있음, 점 0, 잘린 글자 0, 가로 넘침 없음.
+사진: docs/screenshots/my-matches/pred_face_360.jpg

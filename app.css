@@ -695,3 +695,10 @@ button.link { border: 0; background: none; padding: 0; font: inherit; font-weigh
 
 /* 내 예측 카드: 조 색 테두리로 어느 조 경기인지 (2026-11-20, 글자 라벨 대신). 결과는 배경색·아이콘 */
 .pick4.grp .pk { border: 2px solid var(--gc, var(--line-2)); }
+/* 조 얼굴 아이콘 (점 대신, 2026-11-20). 그림은 images.css --face-* (tools/make_faces.py) */
+.face { width: 24px; height: 24px; flex: none; background: var(--fi) center / contain no-repeat; }
+.pk i.face { width: 24px; }  /* .pk i(결과 아이콘 18px) 규칙보다 우선 */
+.pick4.grp .pk { gap: 4px; padding: 6px; }
+.pick4.grp .pk i:not(.face) { width: 14px; }  /* 360px에서 이름이 안 잘리게 */
+.face-cv { --fi: var(--face-cv); } .face-lb { --fi: var(--face-lb); } .face-bf { --fi: var(--face-bf); }
+.face-lm { --fi: var(--face-lm); } .face-pk { --fi: var(--face-pk); } .face-ck { --fi: var(--face-ck); }

@@ -175,6 +175,8 @@
 
   // 팀 배너: 팀 배경 + 원본 캐릭터 2명 + 팀명/정보 (이벤트 비주얼 영역)
   var TEAM_CHARS = { A: ['cv', 'lb'], B: ['bf', 'lm'], C: ['pk', 'ck'] };
+  // 내 예측 카드에서 조를 나타내는 얼굴 아이콘(24px). 6개 모두 images.css에 있어서 여기만 바꾸면 됨 (2026-11-20)
+  var GROUP_FACE = { A: 'lb', B: 'bf', C: 'pk' };
   var CHAR_NAME = { cv: '캐비어', lb: '랍스터', bf: '소갈비', lm: '양갈비', pk: '돼지갈비', ck: '닭갈비' };
   function teamBanner(g, metas, tag) {
     var parts = g.name.split('·');
@@ -438,7 +440,8 @@
     var ord = function (p) { var m = matchById(w, p.match); return m ? poolOrder(m.pool) * 100 + w.matches.indexOf(m) : 1e4; };
     return '<div class="pick4' + (small ? ' sm' : '') + (grp ? ' grp' : '') + '">' + s.picks.slice().sort(function (x, y) { return ord(x) - ord(y); }).map(function (p) {
       var m = matchById(w, p.match);
-      return '<span class="pk ' + p.result + (grp && m ? ' g' + m.pool : '') + '"><i aria-hidden="true">' + PK_ICON[p.result] + '</i><span' + (m ? ' class="gdot g' + m.pool + '"' : '') + '>' + esc(teamText(m, p.side, P)) + '</span><span class="sr">' + PK_SR[p.result] + '</span></span>';
+      var face = grp && m && GROUP_FACE[m.pool] ? '<i class="face face-' + GROUP_FACE[m.pool] + '" role="img" aria-label="' + esc(gname(m.pool)) + '"></i>' : '';
+      return '<span class="pk ' + p.result + (grp && m ? ' g' + m.pool : '') + '"><i aria-hidden="true">' + PK_ICON[p.result] + '</i>' + face + '<span' + (m && !face ? ' class="gdot g' + m.pool + '"' : '') + '>' + esc(teamText(m, p.side, P)) + '</span><span class="sr">' + PK_SR[p.result] + '</span></span>';
     }).join('') + '</div>';
   }
 

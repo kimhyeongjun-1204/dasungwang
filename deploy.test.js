@@ -265,6 +265,14 @@ test('내 예측 카드: 글자 대신 조 색 테두리로 구분 (사용자 �
   const css = fs.readFileSync(path.join(__dirname, 'app.css'), 'utf8');
   assert.ok(/\.pick4\.grp \.pk \{[^}]*border:[^}]*var\(--gc[,)]/.test(css), '조 색(--gc) 테두리 스타일 없음');
 });
+test('내 예측 카드: 점 대신 조 캐릭터 얼굴 아이콘 (사용자 요청 2026-11-20)', () => {
+  const img = fs.readFileSync(path.join(__dirname, 'images.css'), 'utf8');
+  ['cv', 'lb', 'bf', 'lm', 'pk', 'ck'].forEach(k => assert.ok(new RegExp('--face-' + k + ': url\\(data:image/webp;base64,').test(img), '--face-' + k + ' 없음'));
+  assert.ok(/GROUP_FACE = \{ A: '\w\w', B: '\w\w', C: '\w\w' \}/.test(appSrc), '조 → 얼굴 아이콘 표(GROUP_FACE) 없음');
+  assert.ok(/<i class="face face-' \+ [^>]*role="img" aria-label=/.test(appSrc), '얼굴 아이콘에 role=img·aria-label(조 이름) 없음');
+  const css = fs.readFileSync(path.join(__dirname, 'app.css'), 'utf8');
+  assert.ok(/\.face \{[^}]*width: 24px; height: 24px/.test(css), '.face 24px 스타일 없음');
+});
 test('app.js: 기존 충돌 UI·저장 실패 배너·임시저장 유지', () => {
   for (const s of ['draftConflict', 'ui.saveError', 'KEY.draft', 'draft-load', 'draft-drop']) assert.ok(appSrc.includes(s), s + ' 없음');
 });
