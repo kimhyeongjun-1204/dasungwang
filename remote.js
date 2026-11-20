@@ -6,7 +6,9 @@ var Remote = (function () {
     // 돼블스플랜 제출 검사 (schema.sql pred_check / submit_prediction)
     'closed', 'bad_mode', 'bad_player', 'no_week', 'bad_count', 'bad_side', 'dup_match', 'bad_match', 'bad_quota',
     // 경기 진행 자리 비움 (schema.sql set_availability)
-    'not_today', 'not_attending', 'admin_locked', 'bad_status', 'bad_minutes'];
+    'not_today', 'not_attending', 'admin_locked', 'bad_status', 'bad_minutes',
+    // 진행 PIN·코트 동작 (schema.sql operator_login / set_operator_pin / change_pin / live_action)
+    'no_op_pin', 'same_as_admin', 'same_as_operator', 'no_week', 'no_match', 'bad_court', 'court_busy', 'player_busy', 'already_done', 'not_on_court', 'bad_action'];
 
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
   // 서버로 보내는 state: PIN 해시와 서버가 관리하는 rev/savedAt은 뺀다
@@ -28,9 +30,22 @@ var Remote = (function () {
     return { code: 'error', message: msg };
   }
 
-  // 관리자 토큰: 이 기기 localStorage에 30일 (store는 get/set/del, 각 호출 예외는 여기서 막음)
-  function saveToken(ls, token, now) {
-    try { ls.set(TOKEN_KEY, JSON.stringify({ token: token, until: now + TOKEN_DAYS * 864e5 })); } catch (e) { }
+  // 관리 토큰: 이 기기 localStorage에. 돼장(admin)은 30일, 진행 도우미(operator)는 until(다음 새벽 4시)까지
+  // (store는 get/set/del, 각 호출 예외는 여기서 막음)
+  function saveToken(ls, token, now, role, until) {
+    try { ls.set(TOKEN_KEY, JSON.stringify({ token: token, until: until || now + TOKEN_DAYS * 864e5, role: role || 'admin' })); } catch (e) { }
+  }
+  function loadSession(ls, now) {
+    try {
+      var r = JSON.parse(ls.get(TOKEN_KEY) || 'null');
+      return r && r.token && r.until > now ? { token: r.token, role: r.role === 'operator' ? 'operator' : 'admin' } : null;
+    } catch (e) { return null; }
+  }
+  // 진행 도우미 로그인 만료(schema.sql operator_login과 같게): KST 기준 다음 새벽 4시 (지금이 4시 전이면 그날 4시)
+  function nextFourAm(now) {
+    var k = new Date(now + 9 * 3600e3), day = Date.UTC(k.getUTCFullYear(), k.getUTCMonth(), k.getUTCDate());
+    var four = day + 4 * 3600e3 - 9 * 3600e3;
+    return now < four ? four : four + 864e5;
   }
   function loadToken(ls, now) {
     try {
@@ -54,6 +69,11 @@ var Remote = (function () {
     return {
       load: function () { return call(client.from('app_state').select('state,rev,saved_at').eq('id', 1).single()).then(fromRow); },
       login: function (pin) { return rpc('admin_login', { pin: pin }).then(function (t) { return t || null; }); },
+      operatorLogin: function (pin) { return rpc('operator_login', { pin: pin }).then(function (t) { return t || null; }); },
+      liveCheck: function (token) { return rpc('live_check', { token: token }).then(function (r) { return r === 'admin' || r === 'operator' ? r : null; }); },
+      setOperatorPin: function (token, pin) { return rpc('set_operator_pin', { token: token, new_pin: pin }); },
+      // 경기 진행: start(court) / finish(side) / cancel — 서버가 그 경기 하나만 바꾸고 새 rev
+      liveAction: function (token, d, matchId, action, court, side) { return rpc('live_action', { token: token, p_week: d, p_match: matchId, p_action: action, p_court: court, p_side: side }); },
       check: function (token) { return rpc('admin_check', { token: token }).then(function (ok) { return ok === true; }); },
       logout: function (token) { return rpc('admin_logout', { token: token }); },
       save: function (token, state, expectedRev) { return rpc('save_state', { token: token, new_state: publicState(state), expected_rev: expectedRev }); },
@@ -121,7 +141,7 @@ var Remote = (function () {
 
   return {
     TOKEN_KEY: TOKEN_KEY, publicState: publicState, fromRow: fromRow, errorCode: errorCode,
-    saveToken: saveToken, loadToken: loadToken, clearToken: clearToken, api: api, connect: connect,
+    saveToken: saveToken, loadToken: loadToken, loadSession: loadSession, nextFourAm: nextFourAm, clearToken: clearToken, api: api, connect: connect,
   };
 })();
 if (typeof module !== 'undefined') module.exports = Remote;

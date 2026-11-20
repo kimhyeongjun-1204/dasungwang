@@ -1027,3 +1027,32 @@ $ node logic.test.js | tail -1; node deploy.test.js | tail -1   (바꾼 뒤)
 | 회원(서민희, 레슨 중) | "지금은 내 경기를 못 해요 / 내 상태: 잠시 빠짐 ~19:10 / 왔어요" → 왔어요 → "곧 내 차례예요 · 3번째" → 레슨 30분 → 다시 못 함 |
 가로 넘침 없음(360·390). 실제 DB의 Realtime·RPC는 SQL 실행 전이라 못 봄.
 사진: docs/screenshots/live-courts/admin_member_360.jpg
+
+## 40. 진행 PIN: 경기 진행만 하는 도우미 (사용자 요청, 같은 브랜치 feat/live-courts, 2026-11-20)
+돼장 말고 몇 명에게 매칭 관리 권한 → 두 방법(진행 PIN 하나 / 도우미마다 개인 코드) 중 사용자가 **진행 PIN 하나**로 결정.
+- 돼장이 설정 > 진행 PIN에서 4자리를 정함(관리 PIN과 같으면 거절, 관리 PIN을 진행 PIN과 같게 바꿔도 거절). `진행 PIN 끄기`·바꾸기 → 도우미 로그인 모두 끊김.
+- 도우미는 관리 탭의 같은 PIN 칸에 입력(관리 PIN이 아니면 진행 PIN으로 확인) → 이번 주 탭 **경기 진행만**(결과 표·편성·예측·설정 없음). 로그인은 다음 새벽 4시까지(경기날 하루만으로 정함, 사용자 확인 전 기본값).
+- **보안은 서버에서**: `admin_session.role`(admin/operator), `admin_check`는 role='admin'만 → 도우미 토큰으로 `save_state`·예측 관리·PIN 변경 불가. 진행 동작은 새 RPC `live_action(token, week, match, start|finish|cancel, court, side)` 하나로, 서버가 app_state 행을 잠그고 **그 경기 하나만** 바꾼 뒤 rev+1.
+- 덤: 돼장 기기도 코트 동작은 live_action을 씀(전체 저장 X) → 돼장·도우미가 동시에 눌러도 서로 덮어쓰지 않고, 같은 코트를 동시에 누르면 늦은 쪽이 "그 코트는 방금 다른 기기에서 찼어요" 후 다시 읽음. 돼장 기기에 저장 안 한 변경이 있으면 받아 온 상태 위에 같은 동작만 다시 적용.
+```
+$ node deploy.test.js   (테스트 먼저)
+  FAIL schema.sql 진행 PIN … / FAIL api 진행 PIN … / FAIL 진행 도우미 … / FAIL 경기 진행 화면(바로 저장을 live_action으로 바꿈)
+31 passed
+$ node deploy.test.js | tail -1; node logic.test.js | tail -1   (바꾼 뒤)
+35 passed
+129 passed
+```
+(자리 비움 테스트의 "admin_set_availability는 admin_check" 조건을 live_check로 바꿈 — 요구가 바뀌어서)
+가짜 서버 흐름(11/18 18:40, 360px):
+| 단계 | 결과 |
+|---|---|
+| 돼장: 진행 PIN을 1234(관리 PIN)로 | "관리 PIN과 다른 번호로 정해 주세요." |
+| 돼장: 5678 | "진행 PIN을 정했어요." |
+| 도우미: 0000 | "PIN이 맞지 않아요." |
+| 도우미: 5678 | 이번 주 탭으로, 결과 표 전환 없음, 코트 3·넣기 버튼 17·결과 표 버튼 0. 토큰 role=operator, 만료 11/19 04:00 KST |
+| 서버에 도우미 토큰 | admin_check false, save_state unauthorized, live_check "operator" |
+| 돼장이 코트1에 넣은 직후 도우미도 코트1에 다른 경기 | "그 코트는 방금 다른 기기에서 찼어요." → 다시 읽어 코트1에 돼장 경기 |
+| 도우미 넣기·이김 | 성공, 서버 rev 4 |
+| 돼장이 진행 PIN 끄기 | 도우미 토큰 live_check null, 도우미가 누르면 "로그인이 만료됐어요" |
+실제 DB(plpgsql live_action)는 SQL 실행 전이라 못 봄. 가짜 서버는 logic.js 함수로 같은 규칙을 흉내 냄.
+사진: docs/screenshots/live-courts/operator_pin_360.jpg

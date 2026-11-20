@@ -19,7 +19,7 @@ const src = demo ? demo.state : process.env.MOCK_STATE ? JSON.parse(fs.readFileS
   : fs.existsSync(path.join(__dirname, '..', 'live_state.json')) ? require('../live_state.json') : require('../seed.js');
 const state = JSON.parse(JSON.stringify(src));
 delete state.rev; delete state.savedAt; if (state.settings) delete state.settings.pin;
-const db = { state, rev: src.rev || 1, saved_at: src.savedAt || new Date().toISOString(), pin: '1234', sessions: new Set() };
+const db = { state, rev: src.rev || 1, saved_at: src.savedAt || new Date().toISOString(), pin: '1234', sessions: new Set(), opPin: process.env.MOCK_OP_PIN || null, ops: new Set() };  // ops: 진행 도우미 토큰
 
 // ---- 돼블스플랜: schema.sql의 테이블·함수를 메모리에서 흉내 ----
 const P = { predictions: [], prediction_counts: [], prediction_events: [], prediction_close: [], availability: [], eventId: 0 };
@@ -120,7 +120,36 @@ if (process.env.MOCK_AVAIL) JSON.parse(process.env.MOCK_AVAIL).forEach(r => avai
 const RPC = {
   admin_login: (a, res) => { if (a.pin !== db.pin) return send(res, 200, 'null'); const t = crypto.randomUUID(); db.sessions.add(t); send(res, 200, JSON.stringify(t)); },
   admin_check: (a, res) => send(res, 200, String(db.sessions.has(a.token))),
-  admin_logout: (a, res) => { db.sessions.delete(a.token); send(res, 200, 'null'); },
+  admin_logout: (a, res) => { db.sessions.delete(a.token); db.ops.delete(a.token); send(res, 200, 'null'); },
+  // ---- 진행 PIN (schema.sql operator_login / live_check / set_operator_pin / live_action 흉내, 만료 시각은 생략) ----
+  operator_login: (a, res) => { if (!db.opPin) return fail(res, 'no_op_pin'); if (a.pin !== db.opPin) return send(res, 200, 'null'); const t = crypto.randomUUID(); db.ops.add(t); send(res, 200, JSON.stringify(t)); },
+  live_check: (a, res) => send(res, 200, JSON.stringify(db.sessions.has(a.token) ? 'admin' : db.ops.has(a.token) ? 'operator' : null)),
+  set_operator_pin: (a, res) => {
+    if (!db.sessions.has(a.token)) return fail(res, 'unauthorized');
+    if (a.new_pin != null && !/^\d{4}$/.test(a.new_pin)) return fail(res, 'bad_new_pin');
+    if (a.new_pin === db.pin) return fail(res, 'same_as_admin');
+    db.opPin = a.new_pin; db.ops = new Set(); send(res, 200, 'null');
+  },
+  live_action: (a, res) => {
+    if (!db.sessions.has(a.token) && !db.ops.has(a.token)) return fail(res, 'unauthorized');
+    if (!['start', 'finish', 'cancel'].includes(a.p_action)) return fail(res, 'bad_action');
+    const w = db.state.weeks.find(x => x.date === a.p_week); if (!w) return fail(res, 'no_week');
+    const m = w.matches.find(x => x.id === a.p_match); if (!m) return fail(res, 'no_match');
+    const LG = require('../logic.js'), iso = new Date(now()).toISOString();
+    if (a.p_action === 'start') {
+      if (m.win) return fail(res, 'already_done');
+      if (m.court) return fail(res, 'court_busy');
+      if (!(a.p_court >= 1 && a.p_court <= 3)) return fail(res, 'bad_court');
+      if (w.matches.some(x => !x.win && x.court === a.p_court)) return fail(res, 'court_busy');
+      if (!LG.startMatch(w, m.id, a.p_court, iso)) return fail(res, 'player_busy');
+    } else if (a.p_action === 'finish') {
+      if (m.win) return fail(res, 'already_done');
+      if (!m.court) return fail(res, 'not_on_court');
+      if (a.p_side !== 'a' && a.p_side !== 'b') return fail(res, 'bad_side');
+      LG.finishMatch(w, m.id, a.p_side, iso);
+    } else if (!LG.cancelMatch(w, m.id)) return fail(res, 'not_on_court');
+    db.rev++; db.saved_at = new Date().toISOString(); send(res, 200, String(db.rev));
+  },
   set_availability: (a, res) => {
     const d = a.p_week, st = a.p_status, mn = a.p_minutes;
     if (d !== kstDay(now())) return fail(res, 'not_today');
@@ -133,7 +162,7 @@ const RPC = {
     send(res, 200, JSON.stringify(availApply(d, a.p_player, st, mn || 0, false)));
   },
   admin_set_availability: (a, res) => {
-    if (!db.sessions.has(a.token)) return fail(res, 'unauthorized');
+    if (!db.sessions.has(a.token) && !db.ops.has(a.token)) return fail(res, 'unauthorized');
     if (!['late', 'away', 'out', 'here'].includes(a.p_status)) return fail(res, 'bad_status');
     send(res, 200, JSON.stringify(availApply(a.p_week, a.p_player, a.p_status, a.p_minutes || 0, true)));
   },
@@ -148,6 +177,7 @@ const RPC = {
   change_pin: (a, res) => {
     if (!db.sessions.has(a.token)) return fail(res, 'unauthorized');
     if (a.old_pin !== db.pin) return fail(res, 'bad_pin');
+    if (a.new_pin === db.opPin) return fail(res, 'same_as_operator');
     db.pin = a.new_pin; db.sessions = new Set([a.token]); send(res, 200, 'null');
   },
   submit_prediction: (a, res) => {

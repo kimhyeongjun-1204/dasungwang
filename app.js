@@ -26,6 +26,7 @@
     me: LS.get(KEY.me) || '',
     wview: LS.get(KEY.wview) || 'mine',   // 이번 주 탭: 'mine'(내 경기) | 'all'. 기본 내 경기 (사용자 요청 2026-11-20)
     admin: false,
+    op: false,      // 진행 도우미(진행 PIN): 이번 주 탭의 경기 진행만
     saveError: null,
     sec: SS.get(SKEY.sec) || 'plan',
     rankGroup: null,
@@ -56,7 +57,7 @@
 
   // 관리자 잠금 해제: 서버가 발급한 30일 토큰을 이 기기에 기억. PIN이 바뀌면 서버에서 무효
   function rememberAdmin(t) { token = t; R.saveToken(LS, t, Date.now()); }
-  function dropAdmin() { token = null; R.clearToken(LS); }
+  function dropAdmin() { token = null; ui.op = false; R.clearToken(LS); }
   function forgetAdmin() { if (token && remote) remote.logout(token).catch(function () { }); dropAdmin(); }
   function pm() { var m = {}; work.players.forEach(function (p) { m[p.id] = p; }); return m; }
   function groups() { return work.settings.groups; }
@@ -118,9 +119,7 @@
     remote.save(token, next, base).then(function (rev) {
       next.rev = rev; next.savedAt = new Date().toISOString();
       saved = next; work = clone(next); LS.del(KEY.draft);
-      ui.busy = null; live.stateAt = Date.now();
-      if (ui.saveAgain) { ui.saveAgain = false; if (dirty()) { save(); return; } }
-      toast(ui.liveMsg || '저장했어요.'); ui.liveMsg = null;
+      ui.busy = null; live.stateAt = Date.now(); toast('저장했어요.');
     }).catch(function (e) {
       ui.busy = null;
       var code = e && e.code;
@@ -242,6 +241,8 @@
     var today = isMatchDay(w.date);
     if (today) ensureLive(w.date);
     var board = today ? L.liveBoard(w, liveRows(), Date.now()) : null;
+    // 진행 도우미: 경기 진행만
+    if (ui.op) return out + (today ? '' : '<p class="banner info small">오늘이 경기날이 아니라 자리 비움은 안 보여요.</p>') + viewLive(w, P);
     // 돼장: 경기 진행 | 결과 표 (경기날은 경기 진행이 먼저)
     if (ui.admin) {
       var av = ui.awv || (today ? 'live' : 'table');
@@ -563,7 +564,7 @@
     }).join('') + '</section>';
     if (b.done.length) out += '<details class="lv-sec lv-done"' + (ui.lvDone ? ' open' : '') + '><summary data-act="lv-done"><h3>완료 <span class="num muted">' + b.done.length + '</span></h3></summary>' + b.done.map(function (m) {
       return '<div class="lv-row done"><div class="lv-main"><span class="gdot g' + m.pool + ' small">' + esc(matchLabel(w, m)) + '</span><span class="lv-teams"><b>' + teamNames(m, m.win, P) + '</b> 승 · ' + teamNames(m, m.win === 'a' ? 'b' : 'a', P) + '</span></div></div>';
-    }).join('') + '<p class="small muted">결과를 고치려면 위에서 <b>결과 표</b>로 바꿔 주세요.</p></details>';
+    }).join('') + '<p class="small muted">' + (ui.op ? '결과를 고치려면 돼장에게 말해 주세요.' : '결과를 고치려면 위에서 <b>결과 표</b>로 바꿔 주세요.') + '</p></details>';
     return out;
   }
   // 회원: 오늘 코트 상황(진행 중 3칸)
@@ -1007,6 +1008,10 @@
   }
 
   function viewAdmin() {
+    if (ui.op) return '<div class="card lockcard"><div class="pig" aria-hidden="true"></div><h2>진행 도우미로 들어와 있어요</h2>' +
+      '<p class="muted small">이번 주 탭의 <b>경기 진행</b>(코트 넣기·이김·빼기, 지금 못 하는 사람)만 할 수 있어요. 새벽 4시가 지나면 자동으로 잠겨요.</p>' +
+      '<div class="row" style="justify-content:center"><button class="btn primary" data-act="tab" data-v="week">경기 진행으로</button><button class="btn" data-act="lock">잠그기</button></div>' +
+      '<p class="muted small">돼장 PIN으로 들어가려면 잠근 뒤 다시 입력하세요.</p></div>';
     if (!ui.admin) return viewLock();
     var out = '<div class="row" style="justify-content:space-between"><div class="seg" role="group" aria-label="관리 메뉴">' +
       [['plan', '참석·편성'], ['seeds', '실력 순위'], ['pred', '예측'], ['settings', '설정']].map(function (s) {
@@ -1301,6 +1306,9 @@
 
   function viewSettings() {
     return '' +
+      '<div class="card"><h2>진행 PIN</h2><p class="small muted">경기 진행(코트 넣기·이김·빼기, 지금 못 하는 사람)만 할 수 있는 PIN이에요. 도우미에게 알려 주면 관리 탭에서 이 PIN으로 들어와요. 로그인은 다음 새벽 4시까지, 관리 PIN과는 달라야 해요. 바꾸거나 끄면 도우미 로그인은 모두 끊겨요.</p>' +
+      '<form id="op-pin-form" class="row" style="align-items:flex-end"><label class="f pinf" for="op-pin">새 진행 PIN<input id="op-pin" class="pin num" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off"></label>' +
+      '<button class="btn primary" type="submit">정하기</button><button class="btn" type="button" data-act="op-pin-off">진행 PIN 끄기</button></form></div>' +
       '<div class="card"><h2>관리 PIN 바꾸기</h2><form id="pin-change" class="row" style="align-items:flex-end"><label class="f pinf" for="pc0">지금 PIN<input id="pc0" class="pin num" type="password" inputmode="numeric" maxlength="4"></label><label class="f pinf" for="pc1">새 PIN<input id="pc1" class="pin num" type="password" inputmode="numeric" maxlength="4"></label><label class="f pinf" for="pc2">한 번 더 입력<input id="pc2" class="pin num" type="password" inputmode="numeric" maxlength="4"></label><button class="btn" type="submit">바꾸기</button></form></div>' +
       '<p class="small muted num">마지막 저장: ' + (saved.savedAt ? new Date(saved.savedAt).toLocaleString('ko-KR') : '-') + ' · 버전 ' + saved.rev + '</p>';
   }
@@ -1314,12 +1322,29 @@
     return b;
   }
 
-  // 경기 진행 동작은 누르면 바로 저장 (save()가 저장 중이면 끝난 뒤 한 번 더)
-  function liveEdit(fn, msg) {
-    var w = getWeek(ui.week);
-    if (!w || !fn(w)) { toast('지금은 할 수 없어요. 화면을 다시 확인해 주세요.'); return; }
-    if (ui.busy) { ui.saveAgain = true; render(); return; }
-    ui.liveMsg = msg; save();
+  // 경기 진행 동작: 서버(live_action)가 그 경기 하나만 바꿈 → 돼장·도우미 여러 기기가 동시에 눌러도 서로 덮어쓰지 않음.
+  // fn은 같은 규칙(logic.js)으로 먼저 확인하고, 돼장 기기에 저장 안 한 변경이 있으면 그 변경 위에도 똑같이 적용
+  var LIVE_ERR = { court_busy: '그 코트는 방금 다른 기기에서 찼어요.', player_busy: '그 경기 선수가 방금 다른 코트에 들어갔어요.', already_done: '방금 다른 기기에서 결과가 들어갔어요.', not_on_court: '이미 코트에서 빠진 경기예요.', no_match: '편성이 바뀌어 없는 경기예요.' };
+  function liveEdit(fn, action, mid, court, side, msg) {
+    var w = getWeek(ui.week), d = ui.week;
+    if (!w || !token || ui.liveBusy) return;
+    if (!fn(clone(w), new Date().toISOString())) { toast('지금은 할 수 없어요. 화면을 다시 확인해 주세요.'); return; }
+    ui.liveBusy = true; render();
+    remote.liveAction(token, d, mid, action, court, side).then(function () {
+      return remote.load().then(function (s) {
+        var wasDirty = dirty();
+        saved = s;
+        if (!wasDirty) work = clone(s);
+        else { var mw = getWeek(d); if (mw) fn(mw, new Date().toISOString()); }
+        live.stateAt = Date.now(); ui.liveBusy = false; toast(msg);
+      });
+    }).catch(function (e) {
+      ui.liveBusy = false;
+      var code = e && e.code;
+      if (code === 'unauthorized') { dropAdmin(); ui.admin = false; ui.pinMsg = '로그인이 만료됐어요. PIN을 다시 입력하세요.'; toast('로그인이 만료됐어요. 관리 탭에서 PIN을 다시 입력해 주세요.'); return; }
+      toast(LIVE_ERR[code] || (code === 'network' ? '인터넷 연결을 확인해 주세요.' : '저장하지 못했어요 (' + (code || '오류') + ').'));
+      reloadState().then(function () { render(); });
+    });
   }
   var AVAIL_ERR = { not_today: '경기날 당일에만 표시할 수 있어요.', not_attending: '이번 주 참석 명단에 없어요.', admin_locked: '돼장이 오늘 못 함으로 표시했어요. 돼장에게 말해 주세요.', bad_minutes: '시간이 잘못됐어요.', unauthorized: '관리자 로그인이 만료됐어요. PIN을 다시 입력해 주세요.', network: '인터넷 연결을 확인해 주세요.' };
   function setAvail(admin, pid, st, minutes) {
@@ -1409,9 +1434,10 @@
     var w, m, P;
     switch (act) {
       case 'awv': ui.awv = v; render(); break;
-      case 'lv-start': liveEdit(function (w) { return L.startMatch(w, el.getAttribute('data-m'), +el.getAttribute('data-c'), new Date().toISOString()); }, '코트에 넣었어요.'); break;
-      case 'lv-win': liveEdit(function (w) { return L.finishMatch(w, el.getAttribute('data-m'), el.getAttribute('data-side'), new Date().toISOString()); }, '결과를 저장했어요.'); break;
-      case 'lv-cancel': liveEdit(function (w) { return L.cancelMatch(w, el.getAttribute('data-m')); }, '코트에서 뺐어요.'); break;
+      case 'lv-start': liveEdit(function (w, t) { return L.startMatch(w, el.getAttribute('data-m'), +el.getAttribute('data-c'), t); }, 'start', el.getAttribute('data-m'), +el.getAttribute('data-c'), null, '코트에 넣었어요.'); break;
+      case 'lv-win': liveEdit(function (w, t) { return L.finishMatch(w, el.getAttribute('data-m'), el.getAttribute('data-side'), t); }, 'finish', el.getAttribute('data-m'), null, el.getAttribute('data-side'), '결과를 저장했어요.'); break;
+      case 'lv-cancel': liveEdit(function (w) { return L.cancelMatch(w, el.getAttribute('data-m')); }, 'cancel', el.getAttribute('data-m'), null, null, '코트에서 뺐어요.'); break;
+      case 'op-pin-off': remote.setOperatorPin(token, null).then(function () { toast('진행 PIN을 껐어요. 도우미 로그인도 모두 끊겼어요.'); }, function (e) { toast('진행 PIN을 끄지 못했어요 (' + e.code + ').'); }); break;
       case 'lv-add': ui.lvAdd = !ui.lvAdd; ui.lvPick = ''; render(); break;
       case 'lv-pick': ui.lvPick = el.getAttribute('data-p') || ''; render(); break;
       case 'lv-done': ev.preventDefault(); ui.lvDone = !ui.lvDone; render(); break;
@@ -1422,7 +1448,7 @@
       case 'week': ui.week = v; SS.set(SKEY.week, v); ui.confirm = null; ui.notice = null; ui.ai.res = null; ui.ai.err = ''; ui.shiftSel = { p: '', dir: 'up' }; ui.pred.edit = false; ui.pred.more = false; ui.pred.adm = null; ui.pred.admDel = ''; render(); break;
       case 'rankg': ui.rankGroup = v; render(); break;
       case 'sec': ui.sec = v; SS.set(SKEY.sec, v); render(); break;
-      case 'lock': ui.admin = false; forgetAdmin(); render(); break;
+      case 'lock': ui.admin = false; ui.op = false; forgetAdmin(); render(); break;
       case 'win':
         m = findMatch(el.getAttribute('data-m')); if (!m) return;
         m.win = m.win === el.getAttribute('data-side') ? null : el.getAttribute('data-side');
@@ -1601,14 +1627,25 @@
       if (pinBusy) return;
       pinBusy = true; ui.pinMsg = ''; render();
       remote.login(p1).then(function (t) {
-        pinBusy = false;
-        if (!t) { ui.pinMsg = 'PIN이 맞지 않아요.'; render(); return; }
-        rememberAdmin(t); ui.admin = true; render();
-      }, function (e) {
+        if (t) { pinBusy = false; rememberAdmin(t); ui.admin = true; ui.op = false; render(); return; }
+        // 관리 PIN이 아니면 진행 PIN인지 (진행 도우미: 다음 새벽 4시까지, 경기 진행만)
+        return remote.operatorLogin(p1).catch(function (e) { if (e && e.code === 'no_op_pin') return null; throw e; }).then(function (ot) {
+          pinBusy = false;
+          if (!ot) { ui.pinMsg = 'PIN이 맞지 않아요.'; render(); return; }
+          token = ot; R.saveToken(LS, ot, Date.now(), 'operator', R.nextFourAm(Date.now()));
+          ui.op = true; ui.admin = false; ui.tab = 'week'; LS.set(KEY.tab, 'week'); toast('진행 도우미로 들어왔어요. 새벽 4시까지 유지돼요.');
+        });
+      }).catch(function (e) {
         pinBusy = false;
         ui.pinMsg = e.code === 'no_pin' ? '관리 PIN이 아직 설정되지 않았어요. 설치 안내(README)대로 PIN을 먼저 정해 주세요.' :
           e.code === 'network' ? '인터넷 연결을 확인하고 다시 해 주세요.' : '잠금을 해제하지 못했어요 (' + e.code + ').';
         render();
+      });
+    } else if (f.id === 'op-pin-form') {
+      var np = document.getElementById('op-pin').value;
+      if (!/^\d{4}$/.test(np)) { toast('숫자 4자리를 입력하세요.'); return; }
+      remote.setOperatorPin(token, np).then(function () { document.getElementById('op-pin').value = ''; toast('진행 PIN을 정했어요. 도우미에게 알려 주세요.'); }, function (e) {
+        toast(e.code === 'same_as_admin' ? '관리 PIN과 다른 번호로 정해 주세요.' : e.code === 'unauthorized' ? '관리자 로그인이 만료됐어요. PIN을 다시 입력해 주세요.' : '진행 PIN을 정하지 못했어요 (' + e.code + ').');
       });
     } else if (f.id === 'pin-change') {
       var o = document.getElementById('pc0').value, a = document.getElementById('pc1').value, b = document.getElementById('pc2').value;
@@ -1618,6 +1655,7 @@
         toast('PIN을 바꿨어요. 다른 기기에서는 새 PIN을 다시 입력해야 해요.');
       }, function (e) {
         if (e.code === 'bad_pin') toast('지금 PIN이 맞지 않아요.');
+        else if (e.code === 'same_as_operator') toast('진행 PIN과 다른 번호로 정해 주세요.');
         else if (e.code === 'unauthorized') { dropAdmin(); ui.admin = false; ui.pinMsg = '관리자 로그인이 만료됐어요. PIN을 다시 입력하세요.'; render(); }
         else toast('PIN을 바꾸지 못했어요 (' + e.code + ').');
       });
@@ -1639,15 +1677,19 @@
     saved = state; work = clone(saved);
     restoreDraft();
     if (!ui.week || seasonDates().indexOf(ui.week) < 0) ui.week = defaultWeek();
-    token = R.loadToken(LS, Date.now());
-    ui.admin = !!token;
+    var sess = R.loadSession(LS, Date.now());
+    token = sess ? sess.token : null;
+    ui.admin = !!sess && sess.role === 'admin'; ui.op = !!sess && sess.role === 'operator';
     render();
     // 돼블스플랜: 마감된 주의 예측(보너스 계산용), 카운트다운·다시 읽기 타이머
     loadAllPreds().then(render);
     setInterval(predTick, 1000);
     document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible' && pred.week) { refreshPred(); loadAllPreds().then(render); } });
     // 기억한 토큰이 만료·무효(PIN 변경 등)면 PIN 입력 화면으로
-    if (token) remote.check(token).then(function (ok) { if (!ok) { dropAdmin(); ui.admin = false; render(); } }, function () { });
+    if (token) remote.liveCheck(token).then(function (role) {
+      if (!role) { dropAdmin(); ui.admin = false; render(); return; }
+      if ((role === 'admin') !== ui.admin) { ui.admin = role === 'admin'; ui.op = role === 'operator'; render(); }
+    }, function () { });
   }
   try { remote = R.connect(window.DDW_CONFIG, window.supabase); }
   catch (e) { bootView(e.code === 'config' ? 'config.js에 Supabase 주소와 키를 넣어 주세요.' : '데이터를 불러오지 못했어요.', e.code !== 'config'); return; }

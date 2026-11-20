@@ -20,6 +20,9 @@ create table if not exists public.admin_session (
   token uuid primary key default gen_random_uuid(),
   expires_at timestamptz not null
 );
+-- 진행 PIN(2026-11-20): 세션에 역할. admin=돼장(전부), operator=진행 도우미(경기 진행 화면만). 아래 admin_check가 role을 쓰므로 먼저 만듦
+alter table public.admin_session add column if not exists role text not null default 'admin';
+alter table public.admin_secret add column if not exists op_pin_hash text;
 
 -- ---------- 권한 ----------
 alter table public.app_state enable row level security;
@@ -51,7 +54,7 @@ end $$;
 
 create or replace function public.admin_check(token uuid) returns boolean
 language sql security definer set search_path = public as $$
-  select exists (select 1 from public.admin_session s where s.token = admin_check.token and s.expires_at > now());
+  select exists (select 1 from public.admin_session s where s.token = admin_check.token and s.expires_at > now() and s.role = 'admin');
 $$;
 
 create or replace function public.admin_logout(token uuid) returns void
@@ -85,6 +88,8 @@ begin
   if new_pin !~ '^[0-9]{4}$' then raise exception 'bad_new_pin'; end if;
   select pin_hash into h from public.admin_secret where id = 1 for update;
   if h is null or old_pin is null or crypt(old_pin, h) <> h then raise exception 'bad_pin'; end if;
+  -- 진행 PIN과 같으면 PIN 칸에서 구분이 안 됨
+  if exists (select 1 from public.admin_secret a where a.id = 1 and a.op_pin_hash is not null and crypt(new_pin, a.op_pin_hash) = a.op_pin_hash) then raise exception 'same_as_operator'; end if;
   update public.admin_secret set pin_hash = crypt(new_pin, gen_salt('bf', 8)) where id = 1;
   -- 다른 기기의 관리자 로그인은 끊고 지금 기기만 유지
   delete from public.admin_session s where s.token <> change_pin.token;
@@ -493,7 +498,7 @@ language plpgsql security definer set search_path = public as $$
 declare
   u timestamptz;
 begin
-  if not public.admin_check(admin_set_availability.token) then raise exception 'unauthorized'; end if;
+  if public.live_check(admin_set_availability.token) is null then raise exception 'unauthorized'; end if;
   if p_status is null or p_status not in ('late', 'away', 'out', 'here') then raise exception 'bad_status'; end if;
   if p_status = 'here' then
     delete from public.availability a where a.week_date = p_week and a.player_id = p_player;
@@ -506,6 +511,93 @@ begin
     on conflict (week_date, player_id) do update set status = excluded.status, until = excluded.until, by_admin = true, updated_at = now();
   return u;
 end $$;
+
+-- ---------- 진행 PIN: 경기 진행만 하는 도우미 (2026-11-20) ----------
+-- 돼장이 설정에서 진행 PIN을 정함(관리 PIN과 달라야 함). 도우미 로그인은 그날 KST 다음 새벽 4시까지
+create or replace function public.live_check(token uuid) returns text
+language sql stable security definer set search_path = public as $$
+  select s.role from public.admin_session s where s.token = live_check.token and s.expires_at > now();
+$$;
+
+create or replace function public.operator_login(pin text) returns uuid
+language plpgsql security definer set search_path = public, extensions as $$
+declare
+  h text;
+  t uuid;
+  kst date := (now() at time zone 'Asia/Seoul')::date;
+  until timestamptz;
+begin
+  select op_pin_hash into h from public.admin_secret where id = 1;
+  if h is null then raise exception 'no_op_pin'; end if;
+  if pin is null or crypt(pin, h) <> h then return null; end if;
+  until := ((case when (now() at time zone 'Asia/Seoul')::time < time '04:00' then kst else kst + 1 end) + time '04:00') at time zone 'Asia/Seoul';
+  delete from public.admin_session where expires_at < now();
+  insert into public.admin_session (expires_at, role) values (until, 'operator') returning token into t;
+  return t;
+end $$;
+
+-- 돼장만. new_pin이 null이면 진행 PIN 끄기. 바꾸거나 끄면 도우미 로그인은 모두 끊김
+create or replace function public.set_operator_pin(token uuid, new_pin text) returns void
+language plpgsql security definer set search_path = public, extensions as $$
+declare
+  h text;
+begin
+  if not public.admin_check(set_operator_pin.token) then raise exception 'unauthorized'; end if;
+  if new_pin is not null then
+    if new_pin !~ '^[0-9]{4}$' then raise exception 'bad_new_pin'; end if;
+    select pin_hash into h from public.admin_secret where id = 1;
+    if h is not null and crypt(new_pin, h) = h then raise exception 'same_as_admin'; end if;
+  end if;
+  update public.admin_secret set op_pin_hash = case when new_pin is null then null else crypt(new_pin, gen_salt('bf', 8)) end where id = 1;
+  delete from public.admin_session s where s.role = 'operator';
+end $$;
+
+-- 경기 진행 동작: 그 주의 경기 하나만 서버에서 바꿈 (돼장·도우미). logic.js startMatch/finishMatch/cancelMatch와 같은 규칙
+-- start(p_court 1~3) / finish(p_side a|b) / cancel. 성공하면 새 rev
+create or replace function public.live_action(token uuid, p_week date, p_match text, p_action text, p_court int, p_side text) returns int
+language plpgsql security definer set search_path = public as $$
+declare
+  st jsonb;
+  cur int;
+  wi int;
+  mi int;
+  m jsonb;
+  ts text := to_char(now() at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"');
+begin
+  if public.live_check(live_action.token) is null then raise exception 'unauthorized'; end if;
+  if p_action is null or p_action not in ('start', 'finish', 'cancel') then raise exception 'bad_action'; end if;
+  select state, rev into st, cur from public.app_state where id = 1 for update;
+  select (w.ord - 1)::int into wi from jsonb_array_elements(st->'weeks') with ordinality as w(val, ord) where w.val->>'date' = p_week::text limit 1;
+  if wi is null then raise exception 'no_week'; end if;
+  select (x.ord - 1)::int, x.val into mi, m from jsonb_array_elements(st->'weeks'->wi->'matches') with ordinality as x(val, ord) where x.val->>'id' = p_match limit 1;
+  if mi is null then raise exception 'no_match'; end if;
+  if p_action = 'start' then
+    if coalesce(m->>'win', '') <> '' then raise exception 'already_done'; end if;
+    if coalesce(m->>'court', '') <> '' then raise exception 'court_busy'; end if;
+    if p_court is null or p_court < 1 or p_court > 3 then raise exception 'bad_court'; end if;
+    if exists (select 1 from jsonb_array_elements(st->'weeks'->wi->'matches') x(val)
+                where coalesce(x.val->>'win', '') = '' and (x.val->>'court')::int = p_court) then raise exception 'court_busy'; end if;
+    if exists (select 1 from jsonb_array_elements(st->'weeks'->wi->'matches') x(val), jsonb_array_elements_text(x.val->'a' || x.val->'b') p(pid)
+                where coalesce(x.val->>'win', '') = '' and coalesce(x.val->>'court', '') <> ''
+                  and p.pid in (select jsonb_array_elements_text(m->'a' || m->'b'))) then raise exception 'player_busy'; end if;
+    m := m || jsonb_build_object('court', p_court, 'startedAt', ts);
+  elsif p_action = 'finish' then
+    if coalesce(m->>'win', '') <> '' then raise exception 'already_done'; end if;
+    if coalesce(m->>'court', '') = '' then raise exception 'not_on_court'; end if;
+    if p_side is null or p_side not in ('a', 'b') then raise exception 'bad_side'; end if;
+    m := m || jsonb_build_object('win', p_side, 'endedAt', ts, 'court', null);
+  else
+    if coalesce(m->>'court', '') = '' then raise exception 'not_on_court'; end if;
+    m := m || jsonb_build_object('court', null, 'startedAt', null);
+  end if;
+  update public.app_state set state = jsonb_set(st, array['weeks', wi::text, 'matches', mi::text], m), rev = cur + 1, saved_at = now() where id = 1;
+  return cur + 1;
+end $$;
+
+revoke all on function public.live_check(uuid), public.operator_login(text), public.set_operator_pin(uuid, text),
+  public.live_action(uuid, date, text, text, int, text) from public;
+grant execute on function public.live_check(uuid), public.operator_login(text), public.set_operator_pin(uuid, text),
+  public.live_action(uuid, date, text, text, int, text) to anon, authenticated;
 
 revoke all on function public.avail_attending(date, text) from public, anon, authenticated;
 grant execute on function public.set_availability(date, text, text, int), public.admin_set_availability(uuid, date, text, text, int)
