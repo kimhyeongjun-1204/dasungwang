@@ -171,6 +171,31 @@ test('공개 전 주의 미입력 경기는 대기·참가 주에 안 잡힘', (
   assert.strictEqual(c.pending, 1); // 10/7(공개) m3 미입력은 대기로 잡힘
 });
 
+test('결과 대기는 그 경기날 17:30(KST) 이후만, 그 전 경기는 upcoming으로 따로 (사용자 요청 2026-11-20)', () => {
+  const st = JSON.parse(JSON.stringify(state));
+  st.weeks[0].published = true;
+  st.weeks.push({ date: '2026-10-14', published: true, attendees: { a: 'A' }, matches: [{ id: 'n1', pool: 'A', a: ['a', 'b'], b: ['c', 'd'], off: [], win: null }] });
+  const at = (iso) => L.standings(st, { now: Date.parse(iso) }).A.find(r => r.name === '조영재');
+  // 10/14 17:29 KST: 아직 시작 전 → 결과 대기 아님, 참가 주에도 안 셈
+  let a = at('2026-10-14T17:29:00+09:00');
+  assert.deepStrictEqual([a.pending, a.upcoming, a.weeks], [0, 1, 1]);
+  // 10/14 17:30 KST: 시작 시각이 지나면 결과 대기
+  a = at('2026-10-14T17:30:00+09:00');
+  assert.deepStrictEqual([a.pending, a.upcoming, a.weeks], [1, 0, 2]);
+  // 결과가 들어간 경기는 시각과 상관없이 승패
+  st.weeks[1].matches[0].win = 'a';
+  a = at('2026-10-13T12:00:00+09:00');
+  assert.deepStrictEqual([a.wins, a.pending, a.upcoming], [3, 0, 0]);
+  // now를 안 넘기면 예전처럼 미입력 전부 대기 (기존 호출 호환)
+  st.weeks[1].matches[0].win = null;
+  a = L.standings(st).A.find(r => r.name === '조영재');
+  assert.deepStrictEqual([a.pending, a.upcoming], [1, 0]);
+});
+test('matchStarted: 경기날 17:30 KST 경계', () => {
+  assert.strictEqual(L.matchStarted('2026-11-25', Date.parse('2026-11-25T17:29:59+09:00')), false);
+  assert.strictEqual(L.matchStarted('2026-11-25', Date.parse('2026-11-25T17:30:00+09:00')), true);
+});
+
 console.log('validateWeek');
 test('공식 2경기 아닌 참석자·파트너 중복·중복 출전 경고', () => {
   const w = {
@@ -605,6 +630,21 @@ test('하이리스크 하나 틀림 → miss -2', () => {
   const r = L.scorePrediction(HIGH, decided({ p1: 'a', p2: 'b', p3: 'b', p4: 'b' }));
   assert.strictEqual(r.status, 'miss'); assert.strictEqual(r.bonus, -2);
   assert.strictEqual(r.picks[2].result, 'miss');
+});
+test('livePrediction: 경기 중 내 예측 상태 (사용자 요청 2026-11-20, 수요일 이번 주 탭)', () => {
+  // 2개 맞고 2개 남음 → 진행 중, 다 맞히면 +3
+  assert.deepStrictEqual(L.livePrediction(HIGH, decided({ p1: 'a', p2: 'b' })),
+    { status: 'pending', hits: 2, misses: 0, left: 2, bonus: 0, ifAllHit: 3 });
+  // 하나 틀리면 남은 경기와 상관없이 실패 확정
+  assert.deepStrictEqual(L.livePrediction(HIGH, decided({ p1: 'b' })),
+    { status: 'miss', hits: 0, misses: 1, left: 3, bonus: -2, ifAllHit: 3 });
+  assert.deepStrictEqual(L.livePrediction(SAFE, decided({ p1: 'b' })),
+    { status: 'miss', hits: 0, misses: 1, left: 3, bonus: 0, ifAllHit: 1 });
+  // 다 맞힘
+  assert.deepStrictEqual(L.livePrediction(SAFE, decided({ p1: 'a', p2: 'b', p3: 'a', p4: 'b' })),
+    { status: 'hit', hits: 4, misses: 0, left: 0, bonus: 1, ifAllHit: 1 });
+  // 예측 없음
+  assert.strictEqual(L.livePrediction(null, decided({})), null);
 });
 test('안전형 적중 +1, 실패 0', () => {
   assert.deepStrictEqual(pick2(L.scorePrediction(SAFE, decided({ p1: 'a', p2: 'b', p3: 'a', p4: 'b' }))), ['hit', 1]);

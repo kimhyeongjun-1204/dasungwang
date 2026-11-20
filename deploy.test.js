@@ -237,6 +237,42 @@ test('순위표 열: 순위·이름·총합·승·보너스·패 (사용자 요�
   const cols = [...m[1].matchAll(/<span>([^<]*)<\/span>/g)].map(x => x[1]);
   assert.deepStrictEqual(cols, ['순위', '이름', '총합', '승', '보너스', '패']);
 });
+test('다승왕권·동률 추첨: 글자 배지 없이 왕관 아이콘만 (사용자 요청 2026-11-20)', () => {
+  assert.ok(!/chip (king|lot)">(다승왕권|동률 추첨)</.test(appSrc), '다승왕권·동률 추첨 글자 배지가 남아 있음');
+  assert.ok(/function crown\(/.test(appSrc), 'crown() 아이콘 함수 없음');
+  assert.ok(/<svg class="crown"[^>]*role="img"[^>]*aria-label=/.test(appSrc), '왕관 svg에 role=img·aria-label 없음(화면 읽기용 이름)');
+  const css = fs.readFileSync(path.join(__dirname, 'app.css'), 'utf8');
+  assert.ok(/\.chip\.king \{/.test(css) && /\.chip\.lot \{/.test(css), '다른 곳(마감·바뀜·승 표시)에서 쓰는 배지 스타일이 지워짐');
+  assert.ok(/\.crown \{/.test(css), '.crown 스타일 없음');
+});
+test('화면 문구: "결과 미입력" 대신 "결과 대기", 순위 계산에 now 전달 (사용자 요청 2026-11-20)', () => {
+  assert.ok(!/결과 미입력/.test(appSrc), '"결과 미입력" 문구가 남아 있음');
+  const calls = appSrc.match(/L\.standings\([^;]*\)/g) || [];
+  assert.ok(calls.length >= 2 && calls.every(c => /now:/.test(c)), 'standings 호출에 now가 빠짐: ' + calls.join(' / '));
+});
+test('이번 주 탭: 내 경기 | 전체 전환, 기본은 내 경기 (사용자 요청 2026-11-20)', () => {
+  assert.ok(/data-act="wview"/.test(appSrc), '전환 버튼(data-act=wview) 없음');
+  assert.ok(/wview: 'ddw-wview'/.test(appSrc), '마지막 선택 기억용 키 없음');
+  assert.ok(/LS\.get\(KEY\.wview\) \|\| 'mine'/.test(appSrc), '기본값이 내 경기가 아님');
+  assert.ok(/L\.livePrediction\(/.test(appSrc), '내 예측 실시간 상태를 logic.livePrediction으로 계산하지 않음');
+  assert.ok(/내 픽/.test(appSrc), '전체 보기에서 내가 고른 경기 표시 없음');
+});
+test('내 예측 카드: 글자 대신 조 색 테두리로 구분 (사용자 요청 2026-11-20)', () => {
+  assert.ok(/function pickCells\(w, s, P, small, grp\)/.test(appSrc), 'pickCells에 grp(조 색 테두리) 옵션 없음');
+  assert.ok(!/class="pk-body"/.test(appSrc), '조·경기 글자 라벨이 남아 있음');
+  // 내 예측 카드 3곳(이번 주 탭, 돼블스플랜 마감 전·후)만, 전원 공개 목록은 그대로
+  assert.strictEqual((appSrc.match(/P, (true|false), true\)/g) || []).length, 3, '조 색 테두리 pickCells 호출이 3곳이 아님');
+  const css = fs.readFileSync(path.join(__dirname, 'app.css'), 'utf8');
+  assert.ok(/\.pick4\.grp \.pk \{[^}]*border:[^}]*var\(--gc[,)]/.test(css), '조 색(--gc) 테두리 스타일 없음');
+});
+test('내 예측 카드: 점 대신 조 캐릭터 얼굴 아이콘 (사용자 요청 2026-11-20)', () => {
+  const img = fs.readFileSync(path.join(__dirname, 'images.css'), 'utf8');
+  ['cv', 'lb', 'bf', 'lm', 'pk', 'ck'].forEach(k => assert.ok(new RegExp('--face-' + k + ': url\\(data:image/webp;base64,').test(img), '--face-' + k + ' 없음'));
+  assert.ok(/GROUP_FACE = \{ A: '\w\w', B: '\w\w', C: '\w\w' \}/.test(appSrc), '조 → 얼굴 아이콘 표(GROUP_FACE) 없음');
+  assert.ok(/<i class="face face-' \+ [^>]*role="img" aria-label=/.test(appSrc), '얼굴 아이콘에 role=img·aria-label(조 이름) 없음');
+  const css = fs.readFileSync(path.join(__dirname, 'app.css'), 'utf8');
+  assert.ok(/\.face \{[^}]*width: 24px; height: 24px/.test(css), '.face 24px 스타일 없음');
+});
 test('app.js: 기존 충돌 UI·저장 실패 배너·임시저장 유지', () => {
   for (const s of ['draftConflict', 'ui.saveError', 'KEY.draft', 'draft-load', 'draft-drop']) assert.ok(appSrc.includes(s), s + ' 없음');
 });

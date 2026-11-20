@@ -63,8 +63,10 @@ var Logic = (function () {
 
   // 조별 순위. countBy: 'registered'(현재 등록 조) | 'pool'(경기한 조)
   // opts.bonus: {pid: 돼블스플랜 보너스} → 원소속 조 행에 bonus·total(공식 승 + 보너스)을 넣고 total로 순위
+  // opts.now(ms): 결과 없는 경기 중 그 날 17:30 KST 전은 upcoming(참가 주에도 안 셈), 지난 건 pending(결과 대기). now 없으면 전부 pending
   function standings(state, opts) {
     var useBonus = !!(opts && opts.bonus);
+    var now = opts && opts.now != null ? opts.now : null;
     var bonus = useBonus ? opts.bonus : {};
     var pm = playerMap(state);
     var mode = state.settings.countBy || 'registered';
@@ -73,7 +75,7 @@ var Logic = (function () {
     function row(gid, pid) {
       if (!rows[gid]) rows[gid] = {};
       var p = pm[pid];
-      return rows[gid][pid] || (rows[gid][pid] = { id: pid, name: p ? p.name : '(삭제된 선수)', wins: 0, losses: 0, pending: 0, weeks: 0 });
+      return rows[gid][pid] || (rows[gid][pid] = { id: pid, name: p ? p.name : '(삭제된 선수)', wins: 0, losses: 0, pending: 0, upcoming: 0, weeks: 0 });
     }
     state.players.forEach(function (p) { if (p.active !== false) row(p.group, p.id); });
     state.weeks.forEach(function (w) {
@@ -85,6 +87,7 @@ var Logic = (function () {
             if (!m.win && w.published === false) return; // 공개 전 편성은 집계 제외
             var gid = mode === 'pool' ? m.pool : (pm[pid] ? pm[pid].group : m.pool);
             var r = row(gid, pid);
+            if (!m.win && now != null && !matchStarted(w.date, now)) { r.upcoming++; return; } // 앞으로 할 경기
             if (!seen[gid + pid]) { seen[gid + pid] = 1; r.weeks++; }
             if (!m.win) r.pending++;
             else if (m.win === side) r.wins++;
@@ -595,6 +598,8 @@ var Logic = (function () {
     return new Date(Date.UTC(+p[0], +p[1] - 1, +p[2], PREDICT.closeUtc.h, PREDICT.closeUtc.m));
   }
   function isPredictionClosed(weekDate, now) { return now >= predictionDeadline(weekDate).getTime(); }
+  // 경기 시작(= 예측 마감과 같은 수요일 17:30 KST) 지났는지. 결과 대기 표시 기준
+  function matchStarted(weekDate, now) { return isPredictionClosed(weekDate, now); }
   function matchOf(week, id) { return week && (week.matches || []).filter(function (m) { return m.id === id; })[0] || null; }
   function matchValid(m) { return !!m && m.a.length === 2 && m.b.length === 2 && m.a.concat(m.b).every(Boolean); }
 
@@ -797,6 +802,14 @@ var Logic = (function () {
     var w = row ? row.wins || 0 : 0, l = row ? row.losses || 0 : 0, b = row ? row.bonus || 0 : 0;
     return { has: w + l > 0 || b !== 0, total: w + b, wins: w, losses: l, bonus: b };
   }
+  // 경기 중 내 예측 상태(이번 주 탭). 숫자만 돌려주고 문구는 화면에서 → { status, hits, misses, left, bonus, ifAllHit } | null
+  function livePrediction(pred, week) {
+    if (!pred) return null;
+    var s = scorePrediction(pred, week);
+    var n = function (k) { return s.picks.filter(function (p) { return p.result === k; }).length; };
+    var b = PREDICT.bonus[pred.mode] || { hit: 0, miss: 0 };
+    return { status: s.status, hits: n('hit'), misses: n('miss'), left: n('pending'), bonus: s.bonus, ifAllHit: b.hit };
+  }
   // 한 사람의 돼블스플랜 기록 (공개된 주만, bonusByPlayer와 같은 기준) → { hit, miss, pending, bonus }
   function predictionRecord(state, predictions, pid) {
     var r = { hit: 0, miss: 0, pending: 0, bonus: 0 };
@@ -812,7 +825,7 @@ var Logic = (function () {
   }
 
   return {
-    meRecord: meRecord, predictionRecord: predictionRecord,
+    meRecord: meRecord, matchStarted: matchStarted, livePrediction: livePrediction, predictionRecord: predictionRecord,
     PREDICT: PREDICT, pickQuota: pickQuota, quotaStatus: quotaStatus, predictionDeadline: predictionDeadline, isPredictionClosed: isPredictionClosed, validatePicks: validatePicks,
     scorePrediction: scorePrediction, bonusByPlayer: bonusByPlayer, popularPicks: popularPicks, pickChanges: pickChanges,
     pickBadges: pickBadges, playerPicks: playerPicks, matchBoard: matchBoard, superMatches: superMatches, closeFromPredictions: closeFromPredictions, closingReport: closingReport,
