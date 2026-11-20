@@ -1,7 +1,7 @@
 (function () {
   'use strict';
   var L = window.Logic, R = window.Remote;
-  var KEY = { me: 'ddw-me', draft: 'ddw-draft', tab: 'ddw-tab' };
+  var KEY = { me: 'ddw-me', draft: 'ddw-draft', tab: 'ddw-tab', wview: 'ddw-wview' };
   var SKEY = { week: 'ddw-week', sec: 'ddw-sec' };
 
   function store(kind) {
@@ -24,7 +24,9 @@
     tab: LS.get(KEY.tab) || 'week',
     week: SS.get(SKEY.week) || null,
     me: LS.get(KEY.me) || '',
+    wview: LS.get(KEY.wview) || 'mine',   // 이번 주 탭: 'mine'(내 경기) | 'all'. 기본 내 경기 (사용자 요청 2026-11-20)
     admin: false,
+    op: false,      // 진행 도우미(진행 PIN): 이번 주 탭의 경기 진행만
     saveError: null,
     sec: SS.get(SKEY.sec) || 'plan',
     rankGroup: null,
@@ -55,7 +57,7 @@
 
   // 관리자 잠금 해제: 서버가 발급한 30일 토큰을 이 기기에 기억. PIN이 바뀌면 서버에서 무효
   function rememberAdmin(t) { token = t; R.saveToken(LS, t, Date.now()); }
-  function dropAdmin() { token = null; R.clearToken(LS); }
+  function dropAdmin() { token = null; ui.op = false; R.clearToken(LS); }
   function forgetAdmin() { if (token && remote) remote.logout(token).catch(function () { }); dropAdmin(); }
   function pm() { var m = {}; work.players.forEach(function (p) { m[p.id] = p; }); return m; }
   function groups() { return work.settings.groups; }
@@ -117,7 +119,7 @@
     remote.save(token, next, base).then(function (rev) {
       next.rev = rev; next.savedAt = new Date().toISOString();
       saved = next; work = clone(next); LS.del(KEY.draft);
-      ui.busy = null; toast('저장했어요.');
+      ui.busy = null; live.stateAt = Date.now(); toast('저장했어요.');
     }).catch(function (e) {
       ui.busy = null;
       var code = e && e.code;
@@ -174,6 +176,8 @@
 
   // 팀 배너: 팀 배경 + 원본 캐릭터 2명 + 팀명/정보 (이벤트 비주얼 영역)
   var TEAM_CHARS = { A: ['cv', 'lb'], B: ['bf', 'lm'], C: ['pk', 'ck'] };
+  // 내 예측 카드에서 조를 나타내는 얼굴 아이콘(24px). 6개 모두 images.css에 있어서 여기만 바꾸면 됨 (2026-11-20)
+  var GROUP_FACE = { A: 'lb', B: 'bf', C: 'pk' };
   var CHAR_NAME = { cv: '캐비어', lb: '랍스터', bf: '소갈비', lm: '양갈비', pk: '돼지갈비', ck: '닭갈비' };
   function teamBanner(g, metas, tag) {
     var parts = g.name.split('·');
@@ -211,7 +215,57 @@
     var done = w.matches.filter(function (m) { return m.win; }).length;
     out += '<div class="daybar"><h2 class="day num">' + md(w.date) + '(수) 공식전</h2><dl class="facts"><div><dt>참석</dt><dd class="num">' + Object.keys(w.attendees).length + '명</dd></div><div><dt>경기</dt><dd class="num">' + w.matches.length + '</dd></div><div><dt>결과 입력</dt><dd class="num">' + done + '/' + w.matches.length + '</dd></div></dl></div>';
     if (ui.admin && !w.published) out += '<div class="banner warn">회원에게는 아직 안 보이는 편성이에요. 관리 › 공개에서 공개할 수 있어요.</div>';
-    if (ui.admin) out += '<div class="banner info small"><span>이긴 팀을 누르면 승리로 기록돼요. 한 번 더 누르면 취소. 다 입력하고 아래 <b>저장</b>!</span></div>';
+    if (ui.admin && (ui.awv || (isMatchDay(w.date) ? 'live' : 'table')) === 'table') out += '<div class="banner info small"><span>이긴 팀을 누르면 승리로 기록돼요. 한 번 더 누르면 취소. 다 입력하고 아래 <b>저장</b>!</span></div>';
+    var started = L.matchStarted(w.date, Date.now());   // 그 날 17:30 KST 전이면 '경기 전' (결과 대기는 시작 뒤부터)
+    var myp = myPredFor(w), lvp = L.livePrediction(myp, w), pickOf = {};
+    if (myp) L.scorePrediction(myp, w).picks.forEach(function (p) { pickOf[p.match] = p; });
+    // 경기 카드 하나. tag: 내 경기 보기에서 조 이름 붙일 때
+    function card(m, i, tag) {
+      var state = m.win ? '<span class="m-state done">결과 입력됨</span>' : m.court ? '<span class="m-state on">진행 중 · 코트 ' + m.court + '</span>' : started ? '<span class="m-state">결과 대기</span>' : '<span class="m-state">경기 전</span>';
+      var pk = pickOf[m.id];
+      var pkChip = pk ? '<span class="chip mypick ' + pk.result + '">내 픽 ' + PK_ICON[pk.result] + '<span class="sr">' + PK_SR[pk.result] + '</span></span>' : '';
+      var o = '<article class="match' + (m.win ? ' decided' : '') + (sm[m.id] ? ' super' : '') + '">' + (tag ? '<span class="m-grp gdot g' + m.pool + '">' + esc(gname(m.pool)) + '</span>' : '') + '<div class="m-head"><span class="m-no num">' + (i + 1) + '경기</span>' +
+        (sm[m.id] ? '<span class="chip super num">🔥 슈퍼매치 · ' + sm[m.id] + '명 참여</span>' : '') + pkChip + state + '</div><div class="m-teams">';
+      ['a', 'b'].forEach(function (side, si) {
+        var st = m.win ? (m.win === side ? ' win' : ' lose') : '';
+        var names = '<span class="names">' + m[side].map(function (pid) { return plHtml(pid, m, w.date, P); }).join('<span class="sep">·</span>') + '</span>';
+        var res = m.win === side ? '<span class="res win-badge">WIN</span>' : m.win ? '<span class="res lose-txt">패</span>' : (ui.admin ? '<span class="res tap">승리 기록</span>' : '');
+        var cls = 'team' + st + (pk && pk.side === side ? ' picked' : '');
+        if (ui.admin) o += '<button class="' + cls + '" data-act="win" data-m="' + m.id + '" data-side="' + side + '" aria-label="' + esc(m[side].map(function (p) { return P[p] ? P[p].name : ''; }).join(', ')) + ' 승리 기록">' + names + res + '</button>';
+        else o += '<div class="' + cls + '">' + names + res + '</div>';
+        if (si === 0) o += '<span class="vs" aria-label="대">vs</span>';
+      });
+      return o + '</div></article>';
+    }
+    // 오늘 경기날이면 코트 상황·자리 비움을 실시간으로
+    var today = isMatchDay(w.date);
+    if (today) ensureLive(w.date);
+    var board = today ? L.liveBoard(w, liveRows(), Date.now()) : null;
+    // 진행 도우미: 경기 진행만
+    if (ui.op) return out + (today ? '' : '<p class="banner info small">오늘이 경기날이 아니라 자리 비움은 안 보여요.</p>') + viewLive(w, P);
+    // 돼장: 경기 진행 | 결과 표 (경기날은 경기 진행이 먼저)
+    if (ui.admin) {
+      var av = ui.awv || (today ? 'live' : 'table');
+      out += '<div class="seg wview" role="group" aria-label="관리 보기"><button data-act="awv" data-v="live" aria-pressed="' + (av === 'live') + '">경기 진행</button><button data-act="awv" data-v="table" aria-pressed="' + (av === 'table') + '">결과 표</button></div>';
+      if (av === 'live') return out + (today ? '' : '<p class="banner info small">오늘이 경기날이 아니라 자리 비움은 안 보여요. 코트 넣기·결과는 그대로 돼요.</p>') + viewLive(w, P);
+    }
+    // 내 경기 | 전체 (이름을 골라야 보임. 관리 모드는 결과 입력 때문에 항상 전체)
+    var mine = ui.me && !ui.admin && ui.wview !== 'all';
+    if (!ui.admin) out += ui.me ? '<div class="seg wview" role="group" aria-label="보기"><button data-act="wview" data-v="mine" aria-pressed="' + (ui.wview !== 'all') + '">내 경기</button><button data-act="wview" data-v="all" aria-pressed="' + (ui.wview === 'all') + '">전체</button></div>'
+      : '<p class="small muted">내 기록 탭에서 이름을 고르면 <b>내 경기만</b> 모아 볼 수 있어요.</p>';
+    if (board && !ui.admin) out += courtsStrip(w, board, P) + (ui.me ? myLiveCard(w, board, P) : '');
+    if (ui.me && !ui.admin) out += myPredCard(w, myp, lvp, P);
+    if (mine) {
+      var my = [];
+      groups().concat([{ id: null }]).forEach(function (g) {
+        w.matches.filter(function (m) { return g.id ? m.pool === g.id : poolOrder(m.pool) === 99; }).forEach(function (m, i) {
+          if (m.a.concat(m.b).indexOf(ui.me) >= 0) my.push(card(m, i, true));
+        });
+      });
+      out += my.length ? '<section class="my-matches"><h3>' + esc((P[ui.me] || {}).name || '') + ' · 내 경기 ' + my.length + '</h3><div class="match-list">' + my.join('') + '</div></section>'
+        : '<div class="card empty"><b>' + md(w.date) + '(수)엔 내 경기가 없어요</b><p class="muted">전체를 누르면 모든 경기를 볼 수 있어요.</p></div>';
+      return out;
+    }
     out += legend();
     groups().forEach(function (g) {
       var ms = w.matches.filter(function (m) { return m.pool === g.id; });
@@ -219,21 +273,8 @@
       var ppl = {};
       ms.forEach(function (m) { m.a.concat(m.b).forEach(function (p) { if (p) ppl[p] = 1; }); });
       var dn = ms.filter(function (m) { return m.win; }).length;
-      out += '<section class="group g' + g.id + '">' + teamBanner(g, [Object.keys(ppl).length + '명', ms.length + '경기', dn === ms.length ? '결과 완료' : '결과 ' + dn + '/' + ms.length]) + '<div class="match-list">';
-      ms.forEach(function (m, i) {
-        var state = m.win ? '<span class="m-state done">결과 입력됨</span>' : '<span class="m-state">결과 대기</span>';
-        out += '<article class="match' + (m.win ? ' decided' : '') + (sm[m.id] ? ' super' : '') + '"><div class="m-head"><span class="m-no num">' + (i + 1) + '경기</span>' + (sm[m.id] ? '<span class="chip super num">🔥 슈퍼매치 · ' + sm[m.id] + '명 참여</span>' : '') + state + '</div><div class="m-teams">';
-        ['a', 'b'].forEach(function (side, si) {
-          var st = m.win ? (m.win === side ? ' win' : ' lose') : '';
-          var names = '<span class="names">' + m[side].map(function (pid) { return plHtml(pid, m, w.date, P); }).join('<span class="sep">·</span>') + '</span>';
-          var res = m.win === side ? '<span class="res win-badge">WIN</span>' : m.win ? '<span class="res lose-txt">패</span>' : (ui.admin ? '<span class="res tap">승리 기록</span>' : '');
-          var cls = 'team' + st;
-          if (ui.admin) out += '<button class="' + cls + '" data-act="win" data-m="' + m.id + '" data-side="' + side + '" aria-label="' + esc(m[side].map(function (p) { return P[p] ? P[p].name : ''; }).join(', ')) + ' 승리 기록">' + names + res + '</button>';
-          else out += '<div class="' + cls + '">' + names + res + '</div>';
-          if (si === 0) out += '<span class="vs" aria-label="대">vs</span>';
-        });
-        out += '</div></article>';
-      });
+      out += '<section class="group g' + g.id + '">' + teamBanner(g, [Object.keys(ppl).length + '명', ms.length + '경기', dn === ms.length ? '결과 완료' : !started && !dn ? '경기 전' : '결과 ' + dn + '/' + ms.length]) + '<div class="match-list">';
+      ms.forEach(function (m, i) { out += card(m, i); });
       out += '</div></section>';
     });
     var other = w.matches.filter(function (m) { return poolOrder(m.pool) === 99; });
@@ -253,7 +294,7 @@
   }
 
   function viewRank() {
-    var S = L.standings(work, { bonus: bonusMap() }), P = pm();
+    var S = L.standings(work, { bonus: bonusMap(), now: Date.now() }), P = pm();
     var meP = P[ui.me];
     var gid = ui.rankGroup || (meP ? meP.group : groups()[0].id);
     var g = groups().filter(function (x) { return x.id === gid; })[0] || groups()[0];
@@ -270,10 +311,10 @@
       out += '<div class="card empty"><div class="pig" aria-hidden="true"></div><b>아직 입력된 결과가 없어요</b><p class="muted">돼장이 경기 결과를 입력하면 승수와 순위가 바로 계산돼요.</p></div>';
     } else {
       out += '<div class="board"><div class="rrow rhead" aria-hidden="true"><span>순위</span><span>이름</span><span>총합</span><span>승</span><span>보너스</span><span>패</span></div>' + played.map(function (r) {
-        var tag = r.lottery ? ' <span class="chip lot">동률 추첨</span>' : r.contender ? ' <span class="chip king">다승왕권</span>' : '';
+        var tag = r.lottery ? crown('동률 추첨') : r.contender ? crown('다승왕권') : '';
         var dec = r.wins + r.losses, tot = r.total != null ? r.total : r.wins;
         return '<div class="rrow' + (r.contender ? ' contender' : '') + (r.id === ui.me ? ' me' : '') + '"><span class="medal num' + (r.rank <= 3 && tot > 0 ? ' m' + r.rank : '') + '">' + (dec || r.bonus ? r.rank : '–') + '</span>' +
-          '<span class="rname"><b>' + esc(r.name) + '</b>' + tag + '<span class="sub num">' + r.weeks + '주 참가' + (r.pending ? ' · 결과 미입력 ' + r.pending + '경기' : '') + '</span></span>' +
+          '<span class="rname"><b>' + esc(r.name) + '</b>' + tag + '<span class="sub num">' + r.weeks + '주 참가' + (r.pending ? ' · <span class="nw">결과 대기 ' + r.pending + '경기</span>' : '') + '</span></span>' +
           '<span class="rnum strong num total" aria-label="총합 ' + tot + '승">' + tot + '</span><span class="rnum num">' + r.wins + '</span><span class="rnum num bonus' + (r.bonus > 0 ? ' plus' : r.bonus < 0 ? ' minus' : '') + '" aria-label="보너스 ' + r.bonus + '">' + (r.bonus ? signed(r.bonus) : '–') + '</span><span class="rnum num">' + r.losses + '</span></div>';
       }).join('') + '</div><p class="small muted">총합 = 승(공식 경기) + 돼블스플랜 보너스 · 순위는 총합 기준</p>';
     }
@@ -305,7 +346,7 @@
     var P = pm(), me = P[ui.me];
     var pick = mePicker();
     if (!me) return pick + '<div class="card empty"><div class="pig" aria-hidden="true"></div><b>이름을 고르면 내 경기만 모아 보여 줘요</b><p class="muted">내 매칭, 누적 승수, 다음 주 지옥도·천국도 배정까지. 이 기기에만 기억돼요.</p></div>';
-    var S = L.standings(work, { bonus: bonusMap() });
+    var S = L.standings(work, { bonus: bonusMap(), now: Date.now() });
     var gid = work.settings.countBy === 'pool' ? null : me.group;
     var row = null, gsize = 0, gw = 1;
     Object.keys(S).forEach(function (k) {
@@ -330,8 +371,8 @@
           (prec && prec.hit + prec.miss + prec.pending ? '<small class="num">적중 ' + prec.hit + ' · 실패 ' + prec.miss + (prec.pending ? ' · 진행 ' + prec.pending : '') + '</small>' : '') + '</div>' +
         '<div class="loss"><span>패</span><b class="num">' + rec.losses + '</b></div>' +
       '</div>' +
-      (row && row.pending ? '<p class="small muted num">결과 미입력 ' + row.pending + '경기</p>' : '') +
-      (row && row.lottery ? '<p class="small"><span class="chip lot">동률 추첨</span> 지금 끝나면 다승왕 ' + gw + '자리를 두고 추첨 대상이에요.</p>' : row && row.contender ? '<p class="small"><span class="chip king">다승왕권</span> 지금 순위면 다승왕이에요!</p>' : '') +
+      (row && row.pending ? '<p class="small muted num">결과 대기 ' + row.pending + '경기</p>' : '') +
+      (row && row.lottery ? '<p class="small">' + crown('동률 추첨') + ' 지금 끝나면 다승왕 ' + gw + '자리를 두고 추첨 대상이에요.</p>' : row && row.contender ? '<p class="small">' + crown('다승왕권') + ' 지금 순위면 다승왕이에요!</p>' : '') +
       '</div>';
     var fk = tier.tier === 'hell' || tier.tier === 'heaven' ? tier.tier : 'mid';
     var fch = (TEAM_CHARS[me.group] || [])[1];
@@ -397,6 +438,8 @@
   }
   function hhmm(t) { try { return new Date(t).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Seoul' }); } catch (e) { return ''; } }
   function pct(x) { return Math.round(x * 100); }
+  // 다승왕권·동률 추첨 표시: 글자 없이 왕관 아이콘만 (사용자 요청 2026-11-20). 이름은 화면 읽기용으로만
+  function crown(label) { return '<svg class="crown" viewBox="0 0 24 24" role="img" aria-label="' + label + '"><title>' + label + '</title><path d="M3 8.5l4.6 3.9L12 5l4.4 7.4L21 8.5 19.4 18H4.6z"/><rect x="4.6" y="19.2" width="14.8" height="2.3" rx="1"/></svg>'; }
   function signed(n) { return n > 0 ? '+' + n : n < 0 ? '−' + Math.abs(n) : '0'; }
   function resultLabel(s, mode) {
     var b = L.PREDICT.bonus[mode] || { hit: 0, miss: 0 };
@@ -406,12 +449,148 @@
     return '진행 중 ' + s.picks.filter(function (p) { return p.result === 'hit'; }).length + '/' + L.PREDICT.picks;
   }
   var PK_ICON = { hit: '✓', miss: '✕', pending: '⏳', check: '!' }, PK_SR = { hit: '적중', miss: '실패', pending: '대기', check: '확인 필요' };
-  function pickCells(w, s, P, small) {
-    var ord = function (p) { var m = matchById(w, p.match); return m ? poolOrder(m.pool) : 100; };
-    return '<div class="pick4' + (small ? ' sm' : '') + '">' + s.picks.slice().sort(function (x, y) { return ord(x) - ord(y); }).map(function (p) {
+  // grp: 내 예측 카드에서 픽마다 조 색 테두리로 어느 조 경기인지 구분 (사용자 요청 2026-11-20, 글자 라벨 대신)
+  function pickCells(w, s, P, small, grp) {
+    var ord = function (p) { var m = matchById(w, p.match); return m ? poolOrder(m.pool) * 100 + w.matches.indexOf(m) : 1e4; };
+    return '<div class="pick4' + (small ? ' sm' : '') + (grp ? ' grp' : '') + '">' + s.picks.slice().sort(function (x, y) { return ord(x) - ord(y); }).map(function (p) {
       var m = matchById(w, p.match);
-      return '<span class="pk ' + p.result + '"><i aria-hidden="true">' + PK_ICON[p.result] + '</i><span' + (m ? ' class="gdot g' + m.pool + '"' : '') + '>' + esc(teamText(m, p.side, P)) + '</span><span class="sr">' + PK_SR[p.result] + '</span></span>';
+      var face = grp && m && GROUP_FACE[m.pool] ? '<i class="face face-' + GROUP_FACE[m.pool] + '" role="img" aria-label="' + esc(gname(m.pool)) + '"></i>' : '';
+      return '<span class="pk ' + p.result + (grp && m ? ' g' + m.pool : '') + '"><i aria-hidden="true">' + PK_ICON[p.result] + '</i>' + face + '<span' + (m && !face ? ' class="gdot g' + m.pool + '"' : '') + '>' + esc(teamText(m, p.side, P)) + '</span><span class="sr">' + PK_SR[p.result] + '</span></span>';
     }).join('') + '</div>';
+  }
+
+  // 이번 주 내 예측: 마감 뒤엔 서버의 전원 공개 목록, 마감 전엔 이 기기에 저장한 것
+  function myPredFor(w) {
+    if (!ui.me) return null;
+    if (isClosed(w.date)) return pred.allOk ? pred.all.filter(function (p) { return p.week_date === w.date && p.player_id === ui.me; })[0] || null : null;
+    return localPred(w.date, ui.me);
+  }
+  function liveText(lv) {
+    if (lv.status === 'hit') return '적중 확정 +' + lv.bonus + '승';
+    if (lv.status === 'miss') return '실패 확정 ' + (lv.bonus ? '−' + Math.abs(lv.bonus) + '승' : '· 0승');
+    if (lv.status === 'check') return '편성이 바뀐 경기가 있어요 · 돼장 확인 중';
+    return '남은 ' + lv.left + '경기 다 맞히면 +' + lv.ifAllHit + '승';
+  }
+  // 이번 주 탭 맨 위 '내 예측' (돼장이 결과를 저장하면 Realtime으로 바로 바뀜)
+  function myPredCard(w, p, lv, P) {
+    if (!p) return isClosed(w.date) ? '' : '<div class="card my-pred mini"><p class="small">이번 주 예측을 아직 안 했어요. <button class="link" data-act="tab" data-v="plan">돼블스플랜 하러 가기</button></p></div>';
+    return '<div class="card my-pred live ' + lv.status + '"><div class="mp-head"><h3>내 예측</h3><span class="mchip ' + p.mode + '">' + MODE_LABEL[p.mode] + '</span><span class="mp-score num">' + lv.hits + '/' + L.PREDICT.picks + ' 적중</span></div>' +
+      pickCells(w, L.scorePrediction(p, w), P, false, true) + '<b class="pred-res ' + lv.status + '">' + liveText(lv) + '</b></div>';
+  }
+  // ---------- 경기 진행(코트 3칸) ----------
+  // 코트·결과는 app_state(돼장 저장), 자리 비움은 availability 테이블. 둘 다 Realtime(안 되면 20초마다 다시 읽기)
+  var live = { week: null, rows: [], ok: null, watch: null, at: 0, stateAt: 0 };
+  var AWAY_LABEL = { late: '늦음', away: '잠시 빠짐', out: '오늘 못 함' };
+  function isMatchDay(d) { return d === todayKST(); }
+  function liveRows() { return live.week === ui.week && live.ok ? live.rows : []; }
+  function loadAvail(d) {
+    return remote.availability(d).then(function (rows) { if (live.week === d) { live.rows = rows || []; live.ok = true; live.at = Date.now(); } },
+      function () { if (live.week === d) { live.ok = false; live.at = Date.now(); } });
+  }
+  // 돼장 저장을 받아 옴: 내가(돼장) 저장 안 한 변경이 있으면 건드리지 않음(저장할 때 기존 충돌 안내로 처리)
+  function reloadState() {
+    if (dirty() || ui.busy) return Promise.resolve(false);
+    live.stateAt = Date.now();
+    return remote.load().then(function (s) {
+      if (dirty() || ui.busy || s.rev === saved.rev) return false;
+      saved = s; work = clone(s); return true;
+    }, function () { return false; });
+  }
+  function ensureLive(d) {
+    if (live.week === d) return;
+    if (live.watch) { live.watch.stop(); live.watch = null; }
+    live.week = d; live.rows = []; live.ok = null;
+    if (!isMatchDay(d)) return;
+    loadAvail(d).then(render);
+    var t = null;
+    live.watch = remote.watchLive(d, function (table) {
+      clearTimeout(t);
+      t = setTimeout(function () { (table === 'availability' ? loadAvail(d) : reloadState()).then(function () { render(); }); }, 300);
+    });
+  }
+  function liveTick() {
+    var d = live.week;
+    if (!d || d !== ui.week || ui.tab !== 'week' || !isMatchDay(d) || document.visibilityState === 'hidden') return;
+    var polling = !live.watch || !live.watch.live();
+    if (polling && Date.now() - live.at > 20000) loadAvail(d).then(render);
+    if (polling && Date.now() - live.stateAt > 20000) reloadState().then(function (ch) { if (ch) render(); });
+    // 레슨 복귀 시각이 지나면 다시 그림
+    if (liveRows().some(function (r) { return r.status === 'away' && r.until && Date.parse(r.until) <= Date.now() && Date.parse(r.until) > Date.now() - 1000; })) render();
+  }
+  function pname(P, pid) { return P[pid] ? P[pid].name : '?'; }
+  function teamNames(m, side, P) { return m[side].map(function (p) { return esc(pname(P, p)); }).join('·'); }
+  function untilText(u) { return u ? '~' + hhmm(u) : ''; }
+  function mins(iso) { return Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 60000)); }
+  function whyText(x, P) {
+    return x.why.map(function (y) { return esc(pname(P, y.pid)) + ' ' + (y.kind === 'playing' ? '코트 ' + y.court + ' 경기 중' : AWAY_LABEL[y.kind] + (y.until ? ' ' + untilText(y.until) : '')); }).join(' · ');
+  }
+  // 돼장: 코트 3칸 + 지금 못 하는 사람 + 바로 가능(오래 기다린 순) + 지금 못 함 + 완료(접힘)
+  function viewLive(w, P) {
+    var b = L.liveBoard(w, liveRows(), Date.now()), out = '';
+    out += '<section class="courts" aria-label="코트">' + b.courts.map(function (m, k) {
+      if (!m) return '<div class="court empty"><b>코트 ' + (k + 1) + '</b><span>비어 있음</span></div>';
+      return '<div class="court on g' + m.pool + '"><div class="c-head"><b>코트 ' + (k + 1) + '</b><span class="gdot g' + m.pool + '">' + esc(matchLabel(w, m)) + '</span><span class="num muted">' + (m.startedAt ? mins(m.startedAt) + '분째' : '') + '</span></div>' +
+        ['a', 'b'].map(function (side) { return '<button class="c-team" data-act="lv-win" data-m="' + m.id + '" data-side="' + side + '"><span>' + teamNames(m, side, P) + '</span><small>이김</small></button>'; }).join('<span class="vs">vs</span>') +
+        '<button class="link small" data-act="lv-cancel" data-m="' + m.id + '">코트에서 빼기</button></div>';
+    }).join('') + '</section>';
+    // 지금 못 하는 사람
+    var awayIds = Object.keys(b.away);
+    out += '<section class="card away-box"><div class="ab-head"><h3>지금 못 하는 사람 <span class="num muted">' + awayIds.length + '</span></h3><button class="btn sm" data-act="lv-add">' + (ui.lvAdd ? '닫기' : '+ 추가') + '</button></div>' +
+      (live.ok === false ? '<p class="small" style="color:var(--hell-text)">자리 비움 목록을 불러오지 못했어요. 인터넷 연결을 확인해 주세요.</p>' : '') +
+      (awayIds.length ? '<div class="ab-list">' + awayIds.map(function (pid) {
+        var a = b.away[pid], row = liveRows().filter(function (r) { return r.player_id === pid; })[0] || {};
+        return '<span class="ab-chip ' + a.status + '"><b>' + esc(pname(P, pid)) + '</b> ' + AWAY_LABEL[a.status] + (a.until ? ' ' + untilText(a.until) : '') + (row.by_admin ? '' : ' <small>본인</small>') +
+          '<button data-act="lv-set" data-p="' + pid + '" data-st="here" aria-label="' + esc(pname(P, pid)) + ' 다시 가능">×</button></span>';
+      }).join('') + '</div>' : (ui.lvAdd ? '' : '<p class="small muted">모두 있어요. 늦거나 레슨으로 빠지는 사람은 + 추가</p>'));
+    if (ui.lvAdd) {
+      var att = Object.keys(w.attendees || {}).filter(function (pid) { return !b.away[pid] && P[pid]; }).sort(function (x, y) { return poolOrder(w.attendees[x]) - poolOrder(w.attendees[y]) || pname(P, x).localeCompare(pname(P, y), 'ko'); });
+      out += ui.lvPick && P[ui.lvPick] ? '<div class="ab-pick"><p><b>' + esc(pname(P, ui.lvPick)) + '</b>을(를) 어떻게 표시할까요?</p><div class="row">' +
+        '<button class="btn sm" data-act="lv-set" data-p="' + ui.lvPick + '" data-st="late">늦음</button><button class="btn sm" data-act="lv-set" data-p="' + ui.lvPick + '" data-st="away" data-min="30">레슨 30분</button>' +
+        '<button class="btn sm" data-act="lv-set" data-p="' + ui.lvPick + '" data-st="out">오늘 못 함</button><button class="btn sm" data-act="lv-pick" data-p="">취소</button></div></div>'
+        : '<div class="chips ab-att">' + att.map(function (pid) { return '<button data-act="lv-pick" data-p="' + pid + '"><span class="gdot g' + w.attendees[pid] + '">' + esc(pname(P, pid)) + '</span></button>'; }).join('') + '</div>';
+    }
+    out += '</section>';
+    // 바로 가능
+    var free = b.freeCourts[0];
+    out += '<section class="lv-sec"><h3>바로 가능 <span class="num muted">' + b.ready.length + '</span><small class="muted">오래 기다린 순</small></h3>' +
+      (b.ready.length ? b.ready.map(function (r) {
+        var m = r.m;
+        return '<div class="lv-row g' + m.pool + '"><div class="lv-main"><span class="gdot g' + m.pool + ' small">' + esc(matchLabel(w, m)) + '</span><span class="lv-teams">' + teamNames(m, 'a', P) + ' <i>vs</i> ' + teamNames(m, 'b', P) + '</span><small class="num muted">최대 ' + r.longest + '분 기다림</small></div>' +
+          (free ? '<button class="btn sm primary" data-act="lv-start" data-m="' + m.id + '" data-c="' + free + '">코트 ' + free + '에 넣기</button>' : '<span class="small muted">빈 코트 없음</span>') + '</div>';
+      }).join('') : '<p class="small muted">지금 바로 할 수 있는 경기가 없어요.</p>') + '</section>';
+    if (b.blocked.length) out += '<section class="lv-sec"><h3>지금 못 함 <span class="num muted">' + b.blocked.length + '</span></h3>' + b.blocked.map(function (x) {
+      var m = x.m;
+      return '<div class="lv-row blocked"><div class="lv-main"><span class="gdot g' + m.pool + ' small">' + esc(matchLabel(w, m)) + '</span><span class="lv-teams">' + teamNames(m, 'a', P) + ' <i>vs</i> ' + teamNames(m, 'b', P) + '</span><small>' + whyText(x, P) + '</small></div></div>';
+    }).join('') + '</section>';
+    if (b.done.length) out += '<details class="lv-sec lv-done"' + (ui.lvDone ? ' open' : '') + '><summary data-act="lv-done"><h3>완료 <span class="num muted">' + b.done.length + '</span></h3></summary>' + b.done.map(function (m) {
+      return '<div class="lv-row done"><div class="lv-main"><span class="gdot g' + m.pool + ' small">' + esc(matchLabel(w, m)) + '</span><span class="lv-teams"><b>' + teamNames(m, m.win, P) + '</b> 승 · ' + teamNames(m, m.win === 'a' ? 'b' : 'a', P) + '</span></div></div>';
+    }).join('') + '<p class="small muted">' + (ui.op ? '결과를 고치려면 돼장에게 말해 주세요.' : '결과를 고치려면 위에서 <b>결과 표</b>로 바꿔 주세요.') + '</p></details>';
+    return out;
+  }
+  // 회원: 오늘 코트 상황(진행 중 3칸)
+  function courtsStrip(w, b, P) {
+    if (!b.courts.some(Boolean)) return '';
+    return '<section class="courts mini" aria-label="지금 코트">' + b.courts.map(function (m, k) {
+      return m ? '<div class="court on g' + m.pool + '"><b>코트 ' + (k + 1) + '</b><span class="gdot g' + m.pool + ' small">' + esc(matchLabel(w, m)) + '</span><span class="c-names">' + teamNames(m, 'a', P) + '<i>vs</i>' + teamNames(m, 'b', P) + '</span></div>'
+        : '<div class="court empty"><b>코트 ' + (k + 1) + '</b><span>비어 있음</span></div>';
+    }).join('') + '</section>';
+  }
+  // 회원: 내 차례 + 본인 늦음/레슨 표시
+  function myLiveCard(w, b, P) {
+    var me = ui.me, st = L.myLive(b, me), a = b.away[me], row = liveRows().filter(function (r) { return r.player_id === me; })[0] || {};
+    if (!w.attendees || !w.attendees[me]) return '';
+    var head = st.state === 'playing' ? '<b class="ml-big">코트 ' + st.court + '에서 경기 중</b>'
+      : st.state === 'next' ? '<b class="ml-big">곧 내 차례예요</b><span class="small">바로 할 수 있는 경기 중 ' + st.rank + '번째 · 준비해 주세요</span>'
+      : st.state === 'waiting' ? '<b class="ml-big">대기 ' + st.rank + '번째</b>'
+      : st.state === 'blocked' ? '<b class="ml-big">지금은 내 경기를 못 해요</b>' + (function () {
+          var x = b.blocked.filter(function (y) { return y.m.id === st.match; })[0], others = { why: x.why.filter(function (y) { return y.pid !== me; }) };
+          return others.why.length ? '<span class="small">' + whyText(others, P) + '</span>' : '';   // 나 때문이면 아래 '내 상태'로 충분
+        })()
+      : '<b class="ml-big">오늘 남은 내 경기가 없어요</b>';
+    var mine = st.state === 'playing' ? '' : a ? '<p class="small">내 상태: <b>' + AWAY_LABEL[a.status] + (a.until ? ' ' + untilText(a.until) : '') + '</b>' + (row.by_admin ? ' (돼장이 표시)' : '') + '</p>' +
+        (a.status === 'out' && row.by_admin ? '' : '<button class="btn sm primary" data-act="my-avail" data-st="here">왔어요 · 다시 가능</button>')
+      : '<div class="row"><button class="btn sm" data-act="my-avail" data-st="late">늦어요</button><button class="btn sm" data-act="my-avail" data-st="away" data-min="30">레슨 30분 빠져요</button></div>';
+    return '<div class="card my-live ' + st.state + '">' + head + mine + '</div>';
   }
 
   // ---- 서버에서 읽기 ----
@@ -460,6 +639,7 @@
   // 1초마다: 카운트다운 글자만 바꿈. 마감 순간에는 공개 목록을 다시 읽음. Realtime이 안 되면 20초마다 다시 읽음
   function predTick() {
     if (!work) return;
+    liveTick();
     var els = document.querySelectorAll('[data-cd]'), rerender = false;
     for (var i = 0; i < els.length; i++) {
       var left = L.predictionDeadline(els[i].getAttribute('data-cd')).getTime() - Date.now();
@@ -578,7 +758,7 @@
     if (mine) {
       var s = L.scorePrediction(mine, w);
       out += '<div class="card my-pred"><div class="mp-head"><h3>내 예측 · ' + esc((P[ui.me] || {}).name || '') + '</h3><span class="mchip ' + mine.mode + '">' + MODE_LABEL[mine.mode] + '</span></div>' +
-        pickCells(w, s, P) + (s.status === 'check' ? '<p class="small" style="color:var(--hell-text)">편성이 바뀌어서 빠진 경기가 있어요. 다시 골라 제출해 주세요.</p>' : '') +
+        pickCells(w, s, P, false, true) + (s.status === 'check' ? '<p class="small" style="color:var(--hell-text)">편성이 바뀌어서 빠진 경기가 있어요. 다시 골라 제출해 주세요.</p>' : '') +
         '<p class="small muted">' + hhmm(mine.at) + ' 제출 · 마감 전까지 수정할 수 있어요 (이 기기에 보관)</p></div>';
     }
     out += viewPopular(w, P, false) + viewFeed(w, P);
@@ -706,7 +886,7 @@
       .sort(function (a, b) { return order[a.s.status] - order[b.s.status] || a.name.localeCompare(b.name, 'ko'); });
     var mine = scored.filter(function (x) { return x.p.player_id === ui.me; })[0];
     if (mine) out += '<div class="card my-pred"><div class="mp-head"><h3>내 예측 · ' + esc(mine.name) + '</h3><span class="mchip ' + mine.p.mode + '">' + MODE_LABEL[mine.p.mode] + '</span></div>' +
-      pickCells(w, mine.s, P) + '<b class="pred-res ' + mine.s.status + '">' + resultLabel(mine.s, mine.p.mode) + '</b></div>';
+      pickCells(w, mine.s, P, false, true) + '<b class="pred-res ' + mine.s.status + '">' + resultLabel(mine.s, mine.p.mode) + '</b></div>';
     out += '<div class="card"><h3>전원 공개 <span class="small muted num">' + rows.length + '명</span></h3><div class="pub">' + scored.map(function (x) {
       return '<div class="pub-row' + (x.p.player_id === ui.me ? ' me' : '') + '"><div class="pub-who"><b>' + esc(x.name) + '</b><span class="mchip ' + x.p.mode + '">' + MODE_LABEL[x.p.mode] + '</span>' +
         '<span class="pred-res ' + x.s.status + '">' + resultLabel(x.s, x.p.mode) + '</span></div>' + pickCells(w, x.s, P, true) + '</div>';
@@ -828,6 +1008,10 @@
   }
 
   function viewAdmin() {
+    if (ui.op) return '<div class="card lockcard"><div class="pig" aria-hidden="true"></div><h2>진행 도우미로 들어와 있어요</h2>' +
+      '<p class="muted small">이번 주 탭의 <b>경기 진행</b>(코트 넣기·이김·빼기, 지금 못 하는 사람)만 할 수 있어요. 이 기기에서 계속 유지되고, 돼장이 진행 PIN을 바꾸거나 끄면 잠겨요.</p>' +
+      '<div class="row" style="justify-content:center"><button class="btn primary" data-act="tab" data-v="week">경기 진행으로</button><button class="btn" data-act="lock">잠그기</button></div>' +
+      '<p class="muted small">돼장 PIN으로 들어가려면 잠근 뒤 다시 입력하세요.</p></div>';
     if (!ui.admin) return viewLock();
     var out = '<div class="row" style="justify-content:space-between"><div class="seg" role="group" aria-label="관리 메뉴">' +
       [['plan', '참석·편성'], ['seeds', '실력 순위'], ['pred', '예측'], ['settings', '설정']].map(function (s) {
@@ -1122,6 +1306,9 @@
 
   function viewSettings() {
     return '' +
+      '<div class="card"><h2>진행 PIN</h2><p class="small muted">경기 진행(코트 넣기·이김·빼기, 지금 못 하는 사람)만 할 수 있는 PIN이에요. 도우미에게 알려 주면 관리 탭에서 이 PIN으로 들어와요. 이 기기에서 계속 유지되고, 관리 PIN과는 달라야 해요. 바꾸거나 끄면 도우미 로그인은 모두 끊겨요.</p>' +
+      '<form id="op-pin-form" class="row" style="align-items:flex-end"><label class="f pinf" for="op-pin">새 진행 PIN<input id="op-pin" class="pin num" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off"></label>' +
+      '<button class="btn primary" type="submit">정하기</button><button class="btn" type="button" data-act="op-pin-off">진행 PIN 끄기</button></form></div>' +
       '<div class="card"><h2>관리 PIN 바꾸기</h2><form id="pin-change" class="row" style="align-items:flex-end"><label class="f pinf" for="pc0">지금 PIN<input id="pc0" class="pin num" type="password" inputmode="numeric" maxlength="4"></label><label class="f pinf" for="pc1">새 PIN<input id="pc1" class="pin num" type="password" inputmode="numeric" maxlength="4"></label><label class="f pinf" for="pc2">한 번 더 입력<input id="pc2" class="pin num" type="password" inputmode="numeric" maxlength="4"></label><button class="btn" type="submit">바꾸기</button></form></div>' +
       '<p class="small muted num">마지막 저장: ' + (saved.savedAt ? new Date(saved.savedAt).toLocaleString('ko-KR') : '-') + ' · 버전 ' + saved.rev + '</p>';
   }
@@ -1135,6 +1322,38 @@
     return b;
   }
 
+  // 경기 진행 동작: 서버(live_action)가 그 경기 하나만 바꿈 → 돼장·도우미 여러 기기가 동시에 눌러도 서로 덮어쓰지 않음.
+  // fn은 같은 규칙(logic.js)으로 먼저 확인하고, 돼장 기기에 저장 안 한 변경이 있으면 그 변경 위에도 똑같이 적용
+  var LIVE_ERR = { court_busy: '그 코트는 방금 다른 기기에서 찼어요.', player_busy: '그 경기 선수가 방금 다른 코트에 들어갔어요.', already_done: '방금 다른 기기에서 결과가 들어갔어요.', not_on_court: '이미 코트에서 빠진 경기예요.', no_match: '편성이 바뀌어 없는 경기예요.' };
+  function liveEdit(fn, action, mid, court, side, msg) {
+    var w = getWeek(ui.week), d = ui.week;
+    if (!w || !token || ui.liveBusy) return;
+    if (!fn(clone(w), new Date().toISOString())) { toast('지금은 할 수 없어요. 화면을 다시 확인해 주세요.'); return; }
+    ui.liveBusy = true; render();
+    remote.liveAction(token, d, mid, action, court, side).then(function () {
+      return remote.load().then(function (s) {
+        var wasDirty = dirty();
+        saved = s;
+        if (!wasDirty) work = clone(s);
+        else { var mw = getWeek(d); if (mw) fn(mw, new Date().toISOString()); }
+        live.stateAt = Date.now(); ui.liveBusy = false; toast(msg);
+      });
+    }).catch(function (e) {
+      ui.liveBusy = false;
+      var code = e && e.code;
+      if (code === 'unauthorized') { dropAdmin(); ui.admin = false; ui.pinMsg = '로그인이 만료됐어요. PIN을 다시 입력하세요.'; toast('로그인이 만료됐어요. 관리 탭에서 PIN을 다시 입력해 주세요.'); return; }
+      toast(LIVE_ERR[code] || (code === 'network' ? '인터넷 연결을 확인해 주세요.' : '저장하지 못했어요 (' + (code || '오류') + ').'));
+      reloadState().then(function () { render(); });
+    });
+  }
+  var AVAIL_ERR = { not_today: '경기날 당일에만 표시할 수 있어요.', not_attending: '이번 주 참석 명단에 없어요.', admin_locked: '돼장이 오늘 못 함으로 표시했어요. 돼장에게 말해 주세요.', bad_minutes: '시간이 잘못됐어요.', unauthorized: '관리자 로그인이 만료됐어요. PIN을 다시 입력해 주세요.', network: '인터넷 연결을 확인해 주세요.' };
+  function setAvail(admin, pid, st, minutes) {
+    var d = ui.week;
+    if (!pid || !d) return;
+    var p = admin ? remote.adminSetAvailability(token, d, pid, st, minutes) : remote.setAvailability(d, pid, st, minutes);
+    ui.lvPick = ''; if (admin) ui.lvAdd = false;
+    p.then(function () { return loadAvail(d); }).then(function () { render(); }, function (e) { toast(AVAIL_ERR[e && e.code] || '저장하지 못했어요 (' + (e && e.code || '오류') + ').'); });
+  }
   function render() {
     var app = document.getElementById('app');
     var focusId = document.activeElement && document.activeElement.id;
@@ -1214,11 +1433,22 @@
     if (!work) return;
     var w, m, P;
     switch (act) {
+      case 'awv': ui.awv = v; render(); break;
+      case 'lv-start': liveEdit(function (w, t) { return L.startMatch(w, el.getAttribute('data-m'), +el.getAttribute('data-c'), t); }, 'start', el.getAttribute('data-m'), +el.getAttribute('data-c'), null, '코트에 넣었어요.'); break;
+      case 'lv-win': liveEdit(function (w, t) { return L.finishMatch(w, el.getAttribute('data-m'), el.getAttribute('data-side'), t); }, 'finish', el.getAttribute('data-m'), null, el.getAttribute('data-side'), '결과를 저장했어요.'); break;
+      case 'lv-cancel': liveEdit(function (w) { return L.cancelMatch(w, el.getAttribute('data-m')); }, 'cancel', el.getAttribute('data-m'), null, null, '코트에서 뺐어요.'); break;
+      case 'op-pin-off': remote.setOperatorPin(token, null).then(function () { toast('진행 PIN을 껐어요. 도우미 로그인도 모두 끊겼어요.'); }, function (e) { toast('진행 PIN을 끄지 못했어요 (' + e.code + ').'); }); break;
+      case 'lv-add': ui.lvAdd = !ui.lvAdd; ui.lvPick = ''; render(); break;
+      case 'lv-pick': ui.lvPick = el.getAttribute('data-p') || ''; render(); break;
+      case 'lv-done': ev.preventDefault(); ui.lvDone = !ui.lvDone; render(); break;
+      case 'lv-set': setAvail(true, el.getAttribute('data-p'), el.getAttribute('data-st'), +el.getAttribute('data-min') || null); break;
+      case 'my-avail': setAvail(false, ui.me, el.getAttribute('data-st'), +el.getAttribute('data-min') || null); break;
+      case 'wview': ui.wview = v === 'all' ? 'all' : 'mine'; LS.set(KEY.wview, ui.wview); render(); break;
       case 'tab': ui.tab = v; LS.set(KEY.tab, v); ui.notice = null; ui.pred.edit = false; ui.pred.full = false; ui.pred.confirm = false; render(); window.scrollTo(0, 0); break;
       case 'week': ui.week = v; SS.set(SKEY.week, v); ui.confirm = null; ui.notice = null; ui.ai.res = null; ui.ai.err = ''; ui.shiftSel = { p: '', dir: 'up' }; ui.pred.edit = false; ui.pred.more = false; ui.pred.adm = null; ui.pred.admDel = ''; render(); break;
       case 'rankg': ui.rankGroup = v; render(); break;
       case 'sec': ui.sec = v; SS.set(SKEY.sec, v); render(); break;
-      case 'lock': ui.admin = false; forgetAdmin(); render(); break;
+      case 'lock': ui.admin = false; ui.op = false; forgetAdmin(); render(); break;
       case 'win':
         m = findMatch(el.getAttribute('data-m')); if (!m) return;
         m.win = m.win === el.getAttribute('data-side') ? null : el.getAttribute('data-side');
@@ -1397,14 +1627,25 @@
       if (pinBusy) return;
       pinBusy = true; ui.pinMsg = ''; render();
       remote.login(p1).then(function (t) {
-        pinBusy = false;
-        if (!t) { ui.pinMsg = 'PIN이 맞지 않아요.'; render(); return; }
-        rememberAdmin(t); ui.admin = true; render();
-      }, function (e) {
+        if (t) { pinBusy = false; rememberAdmin(t); ui.admin = true; ui.op = false; render(); return; }
+        // 관리 PIN이 아니면 진행 PIN인지 (진행 도우미: 계속 유지, 경기 진행만)
+        return remote.operatorLogin(p1).catch(function (e) { if (e && e.code === 'no_op_pin') return null; throw e; }).then(function (ot) {
+          pinBusy = false;
+          if (!ot) { ui.pinMsg = 'PIN이 맞지 않아요.'; render(); return; }
+          token = ot; R.saveToken(LS, ot, Date.now(), 'operator', Date.now() + R.OP_DAYS * 864e5);
+          ui.op = true; ui.admin = false; ui.tab = 'week'; LS.set(KEY.tab, 'week'); toast('진행 도우미로 들어왔어요. 이 기기에서 계속 유지돼요.');
+        });
+      }).catch(function (e) {
         pinBusy = false;
         ui.pinMsg = e.code === 'no_pin' ? '관리 PIN이 아직 설정되지 않았어요. 설치 안내(README)대로 PIN을 먼저 정해 주세요.' :
           e.code === 'network' ? '인터넷 연결을 확인하고 다시 해 주세요.' : '잠금을 해제하지 못했어요 (' + e.code + ').';
         render();
+      });
+    } else if (f.id === 'op-pin-form') {
+      var np = document.getElementById('op-pin').value;
+      if (!/^\d{4}$/.test(np)) { toast('숫자 4자리를 입력하세요.'); return; }
+      remote.setOperatorPin(token, np).then(function () { document.getElementById('op-pin').value = ''; toast('진행 PIN을 정했어요. 도우미에게 알려 주세요.'); }, function (e) {
+        toast(e.code === 'same_as_admin' ? '관리 PIN과 다른 번호로 정해 주세요.' : e.code === 'unauthorized' ? '관리자 로그인이 만료됐어요. PIN을 다시 입력해 주세요.' : '진행 PIN을 정하지 못했어요 (' + e.code + ').');
       });
     } else if (f.id === 'pin-change') {
       var o = document.getElementById('pc0').value, a = document.getElementById('pc1').value, b = document.getElementById('pc2').value;
@@ -1414,6 +1655,7 @@
         toast('PIN을 바꿨어요. 다른 기기에서는 새 PIN을 다시 입력해야 해요.');
       }, function (e) {
         if (e.code === 'bad_pin') toast('지금 PIN이 맞지 않아요.');
+        else if (e.code === 'same_as_operator') toast('진행 PIN과 다른 번호로 정해 주세요.');
         else if (e.code === 'unauthorized') { dropAdmin(); ui.admin = false; ui.pinMsg = '관리자 로그인이 만료됐어요. PIN을 다시 입력하세요.'; render(); }
         else toast('PIN을 바꾸지 못했어요 (' + e.code + ').');
       });
@@ -1435,15 +1677,19 @@
     saved = state; work = clone(saved);
     restoreDraft();
     if (!ui.week || seasonDates().indexOf(ui.week) < 0) ui.week = defaultWeek();
-    token = R.loadToken(LS, Date.now());
-    ui.admin = !!token;
+    var sess = R.loadSession(LS, Date.now());
+    token = sess ? sess.token : null;
+    ui.admin = !!sess && sess.role === 'admin'; ui.op = !!sess && sess.role === 'operator';
     render();
     // 돼블스플랜: 마감된 주의 예측(보너스 계산용), 카운트다운·다시 읽기 타이머
     loadAllPreds().then(render);
     setInterval(predTick, 1000);
     document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible' && pred.week) { refreshPred(); loadAllPreds().then(render); } });
     // 기억한 토큰이 만료·무효(PIN 변경 등)면 PIN 입력 화면으로
-    if (token) remote.check(token).then(function (ok) { if (!ok) { dropAdmin(); ui.admin = false; render(); } }, function () { });
+    if (token) remote.liveCheck(token).then(function (role) {
+      if (!role) { dropAdmin(); ui.admin = false; render(); return; }
+      if ((role === 'admin') !== ui.admin) { ui.admin = role === 'admin'; ui.op = role === 'operator'; render(); }
+    }, function () { });
   }
   try { remote = R.connect(window.DDW_CONFIG, window.supabase); }
   catch (e) { bootView(e.code === 'config' ? 'config.js에 Supabase 주소와 키를 넣어 주세요.' : '데이터를 불러오지 못했어요.', e.code !== 'config'); return; }
