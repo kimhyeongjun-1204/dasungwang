@@ -250,7 +250,7 @@ test('schema.sql 진행 PIN: 역할(role) 세션, admin_check는 돼장만, 진�
   assert.ok(/function public\.admin_check\(token uuid\)[\s\S]*?s\.role = 'admin'/.test(sql), 'admin_check가 진행 도우미 토큰도 돼장으로 인정함');
   assert.ok(/alter table public\.admin_secret add column if not exists op_pin_hash text/.test(sql), '진행 PIN 저장 칸 없음');
   const login = sql.match(/function public\.operator_login\([\s\S]*?end \$\$;/);
-  assert.ok(login && /'operator'/.test(login[0]) && /time '04:00'/.test(login[0]), '진행 로그인이 operator 역할·다음날 04:00 만료가 아님');
+  assert.ok(login && /'operator'/.test(login[0]) && /interval '365 days'/.test(login[0]), '진행 로그인이 operator 역할·계속 유지(365일, PIN 바꾸거나 끄면 끊김)가 아님 (사용자 결정 2026-11-20)');
   const setp = sql.match(/function public\.set_operator_pin\([\s\S]*?end \$\$;/);
   assert.ok(setp && /admin_check\(/.test(setp[0]) && /'same_as_admin'/.test(setp[0]), '진행 PIN 설정이 돼장 확인·관리 PIN과 같은지 확인을 안 함');
   assert.ok(/function public\.change_pin[\s\S]*?'same_as_operator'[\s\S]*?end \$\$;/.test(sql), '관리 PIN을 진행 PIN과 같게 바꾸는 걸 안 막음');
@@ -274,13 +274,12 @@ test('api 진행 PIN: 로그인·역할 확인·진행 동작·PIN 설정, 토�
   assert.deepStrictEqual(c.calls[2][2], { token: 'otok', p_week: '2026-11-25', p_match: 'm1', p_action: 'start', p_court: 2, p_side: null });
   for (const m of ['court_busy', 'player_busy', 'already_done', 'not_on_court', 'no_match', 'same_as_admin', 'same_as_operator', 'no_op_pin']) assert.strictEqual(need().errorCode({ message: m }).code, m);
   const r = need(), ls = memStore(), now = Date.parse('2026-11-25T19:00:00+09:00');
-  r.saveToken(ls, 'otok', now, 'operator', Date.parse('2026-11-26T04:00:00+09:00'));
-  assert.deepStrictEqual(r.loadSession(ls, now), { token: 'otok', role: 'operator' });
-  assert.strictEqual(r.loadSession(ls, Date.parse('2026-11-26T04:00:01+09:00')), null);
+  r.saveToken(ls, 'otok', now, 'operator', now + r.OP_DAYS * 864e5);
+  assert.strictEqual(r.OP_DAYS, 365, '도우미 로그인은 계속 유지(365일)');
+  assert.deepStrictEqual(r.loadSession(ls, now + 300 * 864e5), { token: 'otok', role: 'operator' });
+  assert.strictEqual(r.loadSession(ls, now + 366 * 864e5), null);
   r.saveToken(ls, 'atok', now);
   assert.deepStrictEqual(r.loadSession(ls, now), { token: 'atok', role: 'admin' }, '예전처럼 저장하면 돼장');
-  assert.strictEqual(r.nextFourAm(now), Date.parse('2026-11-26T04:00:00+09:00'));
-  assert.strictEqual(r.nextFourAm(Date.parse('2026-11-26T02:00:00+09:00')), Date.parse('2026-11-26T04:00:00+09:00'), '새벽 2시면 그날 4시');
 });
 test('Edge Function rematch: 조건 종류가 logic.js와 같고, 모델·폴백·키 처리가 맞음', () => {
   const src = fs.readFileSync(path.join(__dirname, 'supabase', 'functions', 'rematch', 'index.ts'), 'utf8');

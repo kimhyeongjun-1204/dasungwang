@@ -1009,7 +1009,7 @@
 
   function viewAdmin() {
     if (ui.op) return '<div class="card lockcard"><div class="pig" aria-hidden="true"></div><h2>진행 도우미로 들어와 있어요</h2>' +
-      '<p class="muted small">이번 주 탭의 <b>경기 진행</b>(코트 넣기·이김·빼기, 지금 못 하는 사람)만 할 수 있어요. 새벽 4시가 지나면 자동으로 잠겨요.</p>' +
+      '<p class="muted small">이번 주 탭의 <b>경기 진행</b>(코트 넣기·이김·빼기, 지금 못 하는 사람)만 할 수 있어요. 이 기기에서 계속 유지되고, 돼장이 진행 PIN을 바꾸거나 끄면 잠겨요.</p>' +
       '<div class="row" style="justify-content:center"><button class="btn primary" data-act="tab" data-v="week">경기 진행으로</button><button class="btn" data-act="lock">잠그기</button></div>' +
       '<p class="muted small">돼장 PIN으로 들어가려면 잠근 뒤 다시 입력하세요.</p></div>';
     if (!ui.admin) return viewLock();
@@ -1306,7 +1306,7 @@
 
   function viewSettings() {
     return '' +
-      '<div class="card"><h2>진행 PIN</h2><p class="small muted">경기 진행(코트 넣기·이김·빼기, 지금 못 하는 사람)만 할 수 있는 PIN이에요. 도우미에게 알려 주면 관리 탭에서 이 PIN으로 들어와요. 로그인은 다음 새벽 4시까지, 관리 PIN과는 달라야 해요. 바꾸거나 끄면 도우미 로그인은 모두 끊겨요.</p>' +
+      '<div class="card"><h2>진행 PIN</h2><p class="small muted">경기 진행(코트 넣기·이김·빼기, 지금 못 하는 사람)만 할 수 있는 PIN이에요. 도우미에게 알려 주면 관리 탭에서 이 PIN으로 들어와요. 이 기기에서 계속 유지되고, 관리 PIN과는 달라야 해요. 바꾸거나 끄면 도우미 로그인은 모두 끊겨요.</p>' +
       '<form id="op-pin-form" class="row" style="align-items:flex-end"><label class="f pinf" for="op-pin">새 진행 PIN<input id="op-pin" class="pin num" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off"></label>' +
       '<button class="btn primary" type="submit">정하기</button><button class="btn" type="button" data-act="op-pin-off">진행 PIN 끄기</button></form></div>' +
       '<div class="card"><h2>관리 PIN 바꾸기</h2><form id="pin-change" class="row" style="align-items:flex-end"><label class="f pinf" for="pc0">지금 PIN<input id="pc0" class="pin num" type="password" inputmode="numeric" maxlength="4"></label><label class="f pinf" for="pc1">새 PIN<input id="pc1" class="pin num" type="password" inputmode="numeric" maxlength="4"></label><label class="f pinf" for="pc2">한 번 더 입력<input id="pc2" class="pin num" type="password" inputmode="numeric" maxlength="4"></label><button class="btn" type="submit">바꾸기</button></form></div>' +
@@ -1628,12 +1628,12 @@
       pinBusy = true; ui.pinMsg = ''; render();
       remote.login(p1).then(function (t) {
         if (t) { pinBusy = false; rememberAdmin(t); ui.admin = true; ui.op = false; render(); return; }
-        // 관리 PIN이 아니면 진행 PIN인지 (진행 도우미: 다음 새벽 4시까지, 경기 진행만)
+        // 관리 PIN이 아니면 진행 PIN인지 (진행 도우미: 계속 유지, 경기 진행만)
         return remote.operatorLogin(p1).catch(function (e) { if (e && e.code === 'no_op_pin') return null; throw e; }).then(function (ot) {
           pinBusy = false;
           if (!ot) { ui.pinMsg = 'PIN이 맞지 않아요.'; render(); return; }
-          token = ot; R.saveToken(LS, ot, Date.now(), 'operator', R.nextFourAm(Date.now()));
-          ui.op = true; ui.admin = false; ui.tab = 'week'; LS.set(KEY.tab, 'week'); toast('진행 도우미로 들어왔어요. 새벽 4시까지 유지돼요.');
+          token = ot; R.saveToken(LS, ot, Date.now(), 'operator', Date.now() + R.OP_DAYS * 864e5);
+          ui.op = true; ui.admin = false; ui.tab = 'week'; LS.set(KEY.tab, 'week'); toast('진행 도우미로 들어왔어요. 이 기기에서 계속 유지돼요.');
         });
       }).catch(function (e) {
         pinBusy = false;

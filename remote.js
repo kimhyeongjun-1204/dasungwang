@@ -1,7 +1,7 @@
 // Supabase 저장소: 읽기는 app_state SELECT, 쓰기·관리자 인증은 RPC(SECURITY DEFINER)만
 var Remote = (function () {
   'use strict';
-  var TOKEN_KEY = 'ddw-admin-token', TOKEN_DAYS = 30;
+  var TOKEN_KEY = 'ddw-admin-token', TOKEN_DAYS = 30, OP_DAYS = 365;   // 진행 도우미는 계속 유지 (PIN 바꾸거나 끄면 서버에서 끊김)
   var CODES = ['unauthorized', 'stale_rev', 'no_pin', 'bad_pin', 'bad_new_pin', 'too_large', 'bad_state', 'ai_limit', 'ai_failed', 'ai_refused', 'bad_request',
     // 돼블스플랜 제출 검사 (schema.sql pred_check / submit_prediction)
     'closed', 'bad_mode', 'bad_player', 'no_week', 'bad_count', 'bad_side', 'dup_match', 'bad_match', 'bad_quota',
@@ -30,7 +30,7 @@ var Remote = (function () {
     return { code: 'error', message: msg };
   }
 
-  // 관리 토큰: 이 기기 localStorage에. 돼장(admin)은 30일, 진행 도우미(operator)는 until(다음 새벽 4시)까지
+  // 관리 토큰: 이 기기 localStorage에. 돼장(admin)은 30일, 진행 도우미(operator)는 until(OP_DAYS)까지
   // (store는 get/set/del, 각 호출 예외는 여기서 막음)
   function saveToken(ls, token, now, role, until) {
     try { ls.set(TOKEN_KEY, JSON.stringify({ token: token, until: until || now + TOKEN_DAYS * 864e5, role: role || 'admin' })); } catch (e) { }
@@ -40,12 +40,6 @@ var Remote = (function () {
       var r = JSON.parse(ls.get(TOKEN_KEY) || 'null');
       return r && r.token && r.until > now ? { token: r.token, role: r.role === 'operator' ? 'operator' : 'admin' } : null;
     } catch (e) { return null; }
-  }
-  // 진행 도우미 로그인 만료(schema.sql operator_login과 같게): KST 기준 다음 새벽 4시 (지금이 4시 전이면 그날 4시)
-  function nextFourAm(now) {
-    var k = new Date(now + 9 * 3600e3), day = Date.UTC(k.getUTCFullYear(), k.getUTCMonth(), k.getUTCDate());
-    var four = day + 4 * 3600e3 - 9 * 3600e3;
-    return now < four ? four : four + 864e5;
   }
   function loadToken(ls, now) {
     try {
@@ -141,7 +135,7 @@ var Remote = (function () {
 
   return {
     TOKEN_KEY: TOKEN_KEY, publicState: publicState, fromRow: fromRow, errorCode: errorCode,
-    saveToken: saveToken, loadToken: loadToken, loadSession: loadSession, nextFourAm: nextFourAm, clearToken: clearToken, api: api, connect: connect,
+    saveToken: saveToken, loadToken: loadToken, loadSession: loadSession, OP_DAYS: OP_DAYS, clearToken: clearToken, api: api, connect: connect,
   };
 })();
 if (typeof module !== 'undefined') module.exports = Remote;

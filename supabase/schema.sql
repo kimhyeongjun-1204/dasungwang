@@ -513,7 +513,7 @@ begin
 end $$;
 
 -- ---------- 진행 PIN: 경기 진행만 하는 도우미 (2026-11-20) ----------
--- 돼장이 설정에서 진행 PIN을 정함(관리 PIN과 달라야 함). 도우미 로그인은 그날 KST 다음 새벽 4시까지
+-- 돼장이 설정에서 진행 PIN을 정함(관리 PIN과 달라야 함). 도우미 로그인은 계속 유지(365일) — 진행 PIN을 바꾸거나 끄면 모두 끊김
 create or replace function public.live_check(token uuid) returns text
 language sql stable security definer set search_path = public as $$
   select s.role from public.admin_session s where s.token = live_check.token and s.expires_at > now();
@@ -524,15 +524,12 @@ language plpgsql security definer set search_path = public, extensions as $$
 declare
   h text;
   t uuid;
-  kst date := (now() at time zone 'Asia/Seoul')::date;
-  until timestamptz;
 begin
   select op_pin_hash into h from public.admin_secret where id = 1;
   if h is null then raise exception 'no_op_pin'; end if;
   if pin is null or crypt(pin, h) <> h then return null; end if;
-  until := ((case when (now() at time zone 'Asia/Seoul')::time < time '04:00' then kst else kst + 1 end) + time '04:00') at time zone 'Asia/Seoul';
   delete from public.admin_session where expires_at < now();
-  insert into public.admin_session (expires_at, role) values (until, 'operator') returning token into t;
+  insert into public.admin_session (expires_at, role) values (now() + interval '365 days', 'operator') returning token into t;
   return t;
 end $$;
 

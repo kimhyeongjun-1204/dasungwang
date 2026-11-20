@@ -1056,3 +1056,15 @@ $ node deploy.test.js | tail -1; node logic.test.js | tail -1   (바꾼 뒤)
 | 돼장이 진행 PIN 끄기 | 도우미 토큰 live_check null, 도우미가 누르면 "로그인이 만료됐어요" |
 실제 DB(plpgsql live_action)는 SQL 실행 전이라 못 봄. 가짜 서버는 logic.js 함수로 같은 규칙을 흉내 냄.
 사진: docs/screenshots/live-courts/operator_pin_360.jpg
+
+## 41. 진행 도우미 로그인: 새벽 4시 만료 → 계속 유지 (사용자 결정, 같은 브랜치 feat/live-courts, 2026-11-20)
+40번에서 기본값으로 둔 "다음 새벽 4시까지"를 사용자가 "계속 유지"로 정함 → 돼장처럼 기기에 남기되 365일(`OP_DAYS`, schema `interval '365 days'`). 끊는 방법은 돼장이 진행 PIN을 바꾸거나 끄기(도우미 세션 전부 삭제)·도우미 기기에서 잠그기.
+```
+$ node deploy.test.js   (테스트 먼저: 만료를 365일로 바꾸고 새벽 4시 계산 테스트 삭제)
+  FAIL schema.sql 진행 PIN … / FAIL api 진행 PIN …
+33 passed
+$ node deploy.test.js | tail -1; node logic.test.js | tail -1
+35 passed
+129 passed
+```
+가짜 서버: 도우미 로그인 토큰 role=operator, 만료 2027-11-18(1년 뒤), 안내 "이 기기에서 계속 유지돼요". 진행 PIN 끄면 live_check null → 도우미가 누르면 "로그인이 만료됐어요".
