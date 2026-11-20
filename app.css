@@ -126,7 +126,7 @@ main { display: grid; gap: var(--sp-4); padding-top: var(--sp-4); }
 .btn.sm { min-height: 32px; padding: 0 10px; font-size: 13px; }
 .btn[disabled] { opacity: .45; cursor: not-allowed; }
 .chip { display: inline-flex; align-items: center; padding: 1px 7px; border-radius: var(--r-badge); font-size: 11px; font-weight: 700; white-space: nowrap; vertical-align: 2px; border: 1px solid transparent; }
-.chip.king { padding: 3px 10px; background: var(--yellow-50); color: #7A5600; border-color: #F0DC9C; }
+.chip.king { background: var(--yellow-50); color: #7A5600; border-color: #F0DC9C; }
 .chip.lot { background: var(--navy-50); color: var(--navy); border-color: #D5DAEE; }
 .chip.bal-even { background: var(--win-50); color: var(--win-text); }
 .chip.bal-ok { background: var(--surface-2); color: var(--text-2); border-color: var(--line); }
@@ -419,10 +419,13 @@ textarea { width: 100%; min-height: 84px; resize: vertical; }
 .group .m-state.done { color: var(--t-deep); }
 .me-zone .r.w { background: var(--t-deep); }
 .pl.me { color: var(--t-deep, var(--heaven-text)); text-decoration-color: var(--t-mid, currentColor); text-decoration-thickness: 2px; }
-/* 순위: 다승왕권 줄은 팀 연한 색, 배지는 팀 진한 색 / 1위 메달 금색 유지 */
+/* 순위: 다승왕권·동률 추첨은 이름 옆 왕관 아이콘만(글자 배지 없음, 2026-11-20) / 1위 메달 금색 유지 */
+.crown { width: 18px; height: 18px; vertical-align: -3px; fill: #E9A800; stroke: #8A5A00; stroke-width: .8; stroke-linejoin: round; flex: none; }
+p .crown { margin-right: 2px; }
 .team-zone .rrow.contender { background: var(--t-tint); }
 .team-zone .rnum.strong { color: var(--t-deep); }
 .team-zone .rrow.me .rname b { color: var(--t-deep); text-decoration: underline; text-decoration-color: var(--t-mid); text-underline-offset: 3px; }
+.chip.king::before { content: "♛"; margin-right: 3px; }
 .team-zone .chip.king { background: var(--t-deep); border-color: var(--t-deep); color: #fff; }
 /* 내 기록: 작은 팀 배너 + 숫자·강조를 팀색으로 */
 .me-zone .team-banner { min-height: 104px; }

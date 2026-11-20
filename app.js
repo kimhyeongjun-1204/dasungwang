@@ -270,7 +270,7 @@
       out += '<div class="card empty"><div class="pig" aria-hidden="true"></div><b>아직 입력된 결과가 없어요</b><p class="muted">돼장이 경기 결과를 입력하면 승수와 순위가 바로 계산돼요.</p></div>';
     } else {
       out += '<div class="board"><div class="rrow rhead" aria-hidden="true"><span>순위</span><span>이름</span><span>총합</span><span>승</span><span>보너스</span><span>패</span></div>' + played.map(function (r) {
-        var tag = r.lottery ? ' <span class="chip lot">동률 추첨</span>' : r.contender ? ' <span class="chip king">다승왕권</span>' : '';
+        var tag = r.lottery ? crown('동률 추첨') : r.contender ? crown('다승왕권') : '';
         var dec = r.wins + r.losses, tot = r.total != null ? r.total : r.wins;
         return '<div class="rrow' + (r.contender ? ' contender' : '') + (r.id === ui.me ? ' me' : '') + '"><span class="medal num' + (r.rank <= 3 && tot > 0 ? ' m' + r.rank : '') + '">' + (dec || r.bonus ? r.rank : '–') + '</span>' +
           '<span class="rname"><b>' + esc(r.name) + '</b>' + tag + '<span class="sub num">' + r.weeks + '주 참가' + (r.pending ? ' · 결과 미입력 ' + r.pending + '경기' : '') + '</span></span>' +
@@ -331,7 +331,7 @@
         '<div class="loss"><span>패</span><b class="num">' + rec.losses + '</b></div>' +
       '</div>' +
       (row && row.pending ? '<p class="small muted num">결과 미입력 ' + row.pending + '경기</p>' : '') +
-      (row && row.lottery ? '<p class="small"><span class="chip lot">동률 추첨</span> 지금 끝나면 다승왕 ' + gw + '자리를 두고 추첨 대상이에요.</p>' : row && row.contender ? '<p class="small"><span class="chip king">다승왕권</span> 지금 순위면 다승왕이에요!</p>' : '') +
+      (row && row.lottery ? '<p class="small">' + crown('동률 추첨') + ' 지금 끝나면 다승왕 ' + gw + '자리를 두고 추첨 대상이에요.</p>' : row && row.contender ? '<p class="small">' + crown('다승왕권') + ' 지금 순위면 다승왕이에요!</p>' : '') +
       '</div>';
     var fk = tier.tier === 'hell' || tier.tier === 'heaven' ? tier.tier : 'mid';
     var fch = (TEAM_CHARS[me.group] || [])[1];
@@ -397,6 +397,8 @@
   }
   function hhmm(t) { try { return new Date(t).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Seoul' }); } catch (e) { return ''; } }
   function pct(x) { return Math.round(x * 100); }
+  // 다승왕권·동률 추첨 표시: 글자 없이 왕관 아이콘만 (사용자 요청 2026-11-20). 이름은 화면 읽기용으로만
+  function crown(label) { return '<svg class="crown" viewBox="0 0 24 24" role="img" aria-label="' + label + '"><title>' + label + '</title><path d="M3 8.5l4.6 3.9L12 5l4.4 7.4L21 8.5 19.4 18H4.6z"/><rect x="4.6" y="19.2" width="14.8" height="2.3" rx="1"/></svg>'; }
   function signed(n) { return n > 0 ? '+' + n : n < 0 ? '−' + Math.abs(n) : '0'; }
   function resultLabel(s, mode) {
     var b = L.PREDICT.bonus[mode] || { hit: 0, miss: 0 };

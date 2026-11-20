@@ -863,4 +863,20 @@ $ node logic.test.js | tail -1
 120 passed
 ```
 화면 확인(MOCK_DEMO, 360px, 돼지갈비·닭갈비조 김진호): 전 `::before` "♛", 후 `none`·padding 3px 10px. 가로 넘침 없음, 넘친 칸 0.
-사진: docs/screenshots/king-chip/before_after_360.jpg
+사진: (33번으로 대체되어 삭제)
+
+## 33. 다승왕권·동률 추첨: 글자 배지 빼고 왕관 아이콘만 (사용자 요청, 같은 브랜치 fix/king-chip, 2026-11-20)
+32번(여백 넓힘)을 대신함. "다 아니까 글자는 빼고 왕관 하나만" — 순위표 이름 옆과 내 기록 안내 문장의 배지를 금색 왕관 SVG(18px)로 바꿈.
+- 왕관에는 `role="img"` + `aria-label`(다승왕권 / 동률 추첨)을 붙여 화면 읽기 프로그램에서는 구분되게 함.
+- `.chip.king`·`.chip.lot`은 다른 곳(돼블스플랜 마감 상태, 대진 "바뀜", 결과 "왼쪽/오른쪽 승")에서도 써서 스타일은 main 그대로 둠. 처음엔 지웠다가 grep으로 3곳 더 쓰는 걸 보고 되돌림 → 테스트에 "배지 스타일 유지" 조건 추가.
+```
+$ node deploy.test.js   (테스트 먼저)
+  FAIL 다승왕권·동률 추첨: 글자 배지 없이 왕관 아이콘만 (사용자 요청 2026-11-20)
+24 passed
+$ node deploy.test.js | tail -1   (바꾼 뒤)
+25 passed
+$ node logic.test.js | tail -1
+120 passed
+```
+화면 확인(MOCK_DEMO, 360·390px, 세 조 모두): 전 배지 글자 2개씩 → 후 배지 0개, 왕관 2개씩(18px, 라벨 다승왕권/동률 추첨). 가로 넘침 없음, 넘친 칸 0.
+사진: docs/screenshots/crown/before_after_360.jpg
