@@ -219,9 +219,10 @@
       var ppl = {};
       ms.forEach(function (m) { m.a.concat(m.b).forEach(function (p) { if (p) ppl[p] = 1; }); });
       var dn = ms.filter(function (m) { return m.win; }).length;
-      out += '<section class="group g' + g.id + '">' + teamBanner(g, [Object.keys(ppl).length + '명', ms.length + '경기', dn === ms.length ? '결과 완료' : '결과 ' + dn + '/' + ms.length]) + '<div class="match-list">';
+      var started = L.matchStarted(w.date, Date.now());   // 그 날 17:30 KST 전이면 '경기 전' (결과 대기는 시작 뒤부터)
+      out += '<section class="group g' + g.id + '">' + teamBanner(g, [Object.keys(ppl).length + '명', ms.length + '경기', dn === ms.length ? '결과 완료' : !started && !dn ? '경기 전' : '결과 ' + dn + '/' + ms.length]) + '<div class="match-list">';
       ms.forEach(function (m, i) {
-        var state = m.win ? '<span class="m-state done">결과 입력됨</span>' : '<span class="m-state">결과 대기</span>';
+        var state = m.win ? '<span class="m-state done">결과 입력됨</span>' : started ? '<span class="m-state">결과 대기</span>' : '<span class="m-state">경기 전</span>';
         out += '<article class="match' + (m.win ? ' decided' : '') + (sm[m.id] ? ' super' : '') + '"><div class="m-head"><span class="m-no num">' + (i + 1) + '경기</span>' + (sm[m.id] ? '<span class="chip super num">🔥 슈퍼매치 · ' + sm[m.id] + '명 참여</span>' : '') + state + '</div><div class="m-teams">';
         ['a', 'b'].forEach(function (side, si) {
           var st = m.win ? (m.win === side ? ' win' : ' lose') : '';
@@ -253,7 +254,7 @@
   }
 
   function viewRank() {
-    var S = L.standings(work, { bonus: bonusMap() }), P = pm();
+    var S = L.standings(work, { bonus: bonusMap(), now: Date.now() }), P = pm();
     var meP = P[ui.me];
     var gid = ui.rankGroup || (meP ? meP.group : groups()[0].id);
     var g = groups().filter(function (x) { return x.id === gid; })[0] || groups()[0];
@@ -273,7 +274,7 @@
         var tag = r.lottery ? crown('동률 추첨') : r.contender ? crown('다승왕권') : '';
         var dec = r.wins + r.losses, tot = r.total != null ? r.total : r.wins;
         return '<div class="rrow' + (r.contender ? ' contender' : '') + (r.id === ui.me ? ' me' : '') + '"><span class="medal num' + (r.rank <= 3 && tot > 0 ? ' m' + r.rank : '') + '">' + (dec || r.bonus ? r.rank : '–') + '</span>' +
-          '<span class="rname"><b>' + esc(r.name) + '</b>' + tag + '<span class="sub num">' + r.weeks + '주 참가' + (r.pending ? ' · 결과 미입력 ' + r.pending + '경기' : '') + '</span></span>' +
+          '<span class="rname"><b>' + esc(r.name) + '</b>' + tag + '<span class="sub num">' + r.weeks + '주 참가' + (r.pending ? ' · <span class="nw">결과 대기 ' + r.pending + '경기</span>' : '') + '</span></span>' +
           '<span class="rnum strong num total" aria-label="총합 ' + tot + '승">' + tot + '</span><span class="rnum num">' + r.wins + '</span><span class="rnum num bonus' + (r.bonus > 0 ? ' plus' : r.bonus < 0 ? ' minus' : '') + '" aria-label="보너스 ' + r.bonus + '">' + (r.bonus ? signed(r.bonus) : '–') + '</span><span class="rnum num">' + r.losses + '</span></div>';
       }).join('') + '</div><p class="small muted">총합 = 승(공식 경기) + 돼블스플랜 보너스 · 순위는 총합 기준</p>';
     }
@@ -305,7 +306,7 @@
     var P = pm(), me = P[ui.me];
     var pick = mePicker();
     if (!me) return pick + '<div class="card empty"><div class="pig" aria-hidden="true"></div><b>이름을 고르면 내 경기만 모아 보여 줘요</b><p class="muted">내 매칭, 누적 승수, 다음 주 지옥도·천국도 배정까지. 이 기기에만 기억돼요.</p></div>';
-    var S = L.standings(work, { bonus: bonusMap() });
+    var S = L.standings(work, { bonus: bonusMap(), now: Date.now() });
     var gid = work.settings.countBy === 'pool' ? null : me.group;
     var row = null, gsize = 0, gw = 1;
     Object.keys(S).forEach(function (k) {
@@ -330,7 +331,7 @@
           (prec && prec.hit + prec.miss + prec.pending ? '<small class="num">적중 ' + prec.hit + ' · 실패 ' + prec.miss + (prec.pending ? ' · 진행 ' + prec.pending : '') + '</small>' : '') + '</div>' +
         '<div class="loss"><span>패</span><b class="num">' + rec.losses + '</b></div>' +
       '</div>' +
-      (row && row.pending ? '<p class="small muted num">결과 미입력 ' + row.pending + '경기</p>' : '') +
+      (row && row.pending ? '<p class="small muted num">결과 대기 ' + row.pending + '경기</p>' : '') +
       (row && row.lottery ? '<p class="small">' + crown('동률 추첨') + ' 지금 끝나면 다승왕 ' + gw + '자리를 두고 추첨 대상이에요.</p>' : row && row.contender ? '<p class="small">' + crown('다승왕권') + ' 지금 순위면 다승왕이에요!</p>' : '') +
       '</div>';
     var fk = tier.tier === 'hell' || tier.tier === 'heaven' ? tier.tier : 'mid';

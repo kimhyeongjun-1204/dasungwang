@@ -245,6 +245,11 @@ test('다승왕권·동률 추첨: 글자 배지 없이 왕관 아이콘만 (사
   assert.ok(/\.chip\.king \{/.test(css) && /\.chip\.lot \{/.test(css), '다른 곳(마감·바뀜·승 표시)에서 쓰는 배지 스타일이 지워짐');
   assert.ok(/\.crown \{/.test(css), '.crown 스타일 없음');
 });
+test('화면 문구: "결과 미입력" 대신 "결과 대기", 순위 계산에 now 전달 (사용자 요청 2026-11-20)', () => {
+  assert.ok(!/결과 미입력/.test(appSrc), '"결과 미입력" 문구가 남아 있음');
+  const calls = appSrc.match(/L\.standings\([^;]*\)/g) || [];
+  assert.ok(calls.length >= 2 && calls.every(c => /now:/.test(c)), 'standings 호출에 now가 빠짐: ' + calls.join(' / '));
+});
 test('app.js: 기존 충돌 UI·저장 실패 배너·임시저장 유지', () => {
   for (const s of ['draftConflict', 'ui.saveError', 'KEY.draft', 'draft-load', 'draft-drop']) assert.ok(appSrc.includes(s), s + ' 없음');
 });
