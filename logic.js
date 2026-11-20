@@ -802,6 +802,14 @@ var Logic = (function () {
     var w = row ? row.wins || 0 : 0, l = row ? row.losses || 0 : 0, b = row ? row.bonus || 0 : 0;
     return { has: w + l > 0 || b !== 0, total: w + b, wins: w, losses: l, bonus: b };
   }
+  // 경기 중 내 예측 상태(이번 주 탭). 숫자만 돌려주고 문구는 화면에서 → { status, hits, misses, left, bonus, ifAllHit } | null
+  function livePrediction(pred, week) {
+    if (!pred) return null;
+    var s = scorePrediction(pred, week);
+    var n = function (k) { return s.picks.filter(function (p) { return p.result === k; }).length; };
+    var b = PREDICT.bonus[pred.mode] || { hit: 0, miss: 0 };
+    return { status: s.status, hits: n('hit'), misses: n('miss'), left: n('pending'), bonus: s.bonus, ifAllHit: b.hit };
+  }
   // 한 사람의 돼블스플랜 기록 (공개된 주만, bonusByPlayer와 같은 기준) → { hit, miss, pending, bonus }
   function predictionRecord(state, predictions, pid) {
     var r = { hit: 0, miss: 0, pending: 0, bonus: 0 };
@@ -817,7 +825,7 @@ var Logic = (function () {
   }
 
   return {
-    meRecord: meRecord, matchStarted: matchStarted, predictionRecord: predictionRecord,
+    meRecord: meRecord, matchStarted: matchStarted, livePrediction: livePrediction, predictionRecord: predictionRecord,
     PREDICT: PREDICT, pickQuota: pickQuota, quotaStatus: quotaStatus, predictionDeadline: predictionDeadline, isPredictionClosed: isPredictionClosed, validatePicks: validatePicks,
     scorePrediction: scorePrediction, bonusByPlayer: bonusByPlayer, popularPicks: popularPicks, pickChanges: pickChanges,
     pickBadges: pickBadges, playerPicks: playerPicks, matchBoard: matchBoard, superMatches: superMatches, closeFromPredictions: closeFromPredictions, closingReport: closingReport,

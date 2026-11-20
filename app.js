@@ -1,7 +1,7 @@
 (function () {
   'use strict';
   var L = window.Logic, R = window.Remote;
-  var KEY = { me: 'ddw-me', draft: 'ddw-draft', tab: 'ddw-tab' };
+  var KEY = { me: 'ddw-me', draft: 'ddw-draft', tab: 'ddw-tab', wview: 'ddw-wview' };
   var SKEY = { week: 'ddw-week', sec: 'ddw-sec' };
 
   function store(kind) {
@@ -24,6 +24,7 @@
     tab: LS.get(KEY.tab) || 'week',
     week: SS.get(SKEY.week) || null,
     me: LS.get(KEY.me) || '',
+    wview: LS.get(KEY.wview) || 'mine',   // 이번 주 탭: 'mine'(내 경기) | 'all'. 기본 내 경기 (사용자 요청 2026-11-20)
     admin: false,
     saveError: null,
     sec: SS.get(SKEY.sec) || 'plan',
@@ -212,6 +213,43 @@
     out += '<div class="daybar"><h2 class="day num">' + md(w.date) + '(수) 공식전</h2><dl class="facts"><div><dt>참석</dt><dd class="num">' + Object.keys(w.attendees).length + '명</dd></div><div><dt>경기</dt><dd class="num">' + w.matches.length + '</dd></div><div><dt>결과 입력</dt><dd class="num">' + done + '/' + w.matches.length + '</dd></div></dl></div>';
     if (ui.admin && !w.published) out += '<div class="banner warn">회원에게는 아직 안 보이는 편성이에요. 관리 › 공개에서 공개할 수 있어요.</div>';
     if (ui.admin) out += '<div class="banner info small"><span>이긴 팀을 누르면 승리로 기록돼요. 한 번 더 누르면 취소. 다 입력하고 아래 <b>저장</b>!</span></div>';
+    var started = L.matchStarted(w.date, Date.now());   // 그 날 17:30 KST 전이면 '경기 전' (결과 대기는 시작 뒤부터)
+    var myp = myPredFor(w), live = L.livePrediction(myp, w), pickOf = {};
+    if (myp) L.scorePrediction(myp, w).picks.forEach(function (p) { pickOf[p.match] = p; });
+    // 경기 카드 하나. tag: 내 경기 보기에서 조 이름 붙일 때
+    function card(m, i, tag) {
+      var state = m.win ? '<span class="m-state done">결과 입력됨</span>' : started ? '<span class="m-state">결과 대기</span>' : '<span class="m-state">경기 전</span>';
+      var pk = pickOf[m.id];
+      var pkChip = pk ? '<span class="chip mypick ' + pk.result + '">내 픽 ' + PK_ICON[pk.result] + '<span class="sr">' + PK_SR[pk.result] + '</span></span>' : '';
+      var o = '<article class="match' + (m.win ? ' decided' : '') + (sm[m.id] ? ' super' : '') + '">' + (tag ? '<span class="m-grp gdot g' + m.pool + '">' + esc(gname(m.pool)) + '</span>' : '') + '<div class="m-head"><span class="m-no num">' + (i + 1) + '경기</span>' +
+        (sm[m.id] ? '<span class="chip super num">🔥 슈퍼매치 · ' + sm[m.id] + '명 참여</span>' : '') + pkChip + state + '</div><div class="m-teams">';
+      ['a', 'b'].forEach(function (side, si) {
+        var st = m.win ? (m.win === side ? ' win' : ' lose') : '';
+        var names = '<span class="names">' + m[side].map(function (pid) { return plHtml(pid, m, w.date, P); }).join('<span class="sep">·</span>') + '</span>';
+        var res = m.win === side ? '<span class="res win-badge">WIN</span>' : m.win ? '<span class="res lose-txt">패</span>' : (ui.admin ? '<span class="res tap">승리 기록</span>' : '');
+        var cls = 'team' + st + (pk && pk.side === side ? ' picked' : '');
+        if (ui.admin) o += '<button class="' + cls + '" data-act="win" data-m="' + m.id + '" data-side="' + side + '" aria-label="' + esc(m[side].map(function (p) { return P[p] ? P[p].name : ''; }).join(', ')) + ' 승리 기록">' + names + res + '</button>';
+        else o += '<div class="' + cls + '">' + names + res + '</div>';
+        if (si === 0) o += '<span class="vs" aria-label="대">vs</span>';
+      });
+      return o + '</div></article>';
+    }
+    // 내 경기 | 전체 (이름을 골라야 보임. 관리 모드는 결과 입력 때문에 항상 전체)
+    var mine = ui.me && !ui.admin && ui.wview !== 'all';
+    if (!ui.admin) out += ui.me ? '<div class="seg wview" role="group" aria-label="보기"><button data-act="wview" data-v="mine" aria-pressed="' + (ui.wview !== 'all') + '">내 경기</button><button data-act="wview" data-v="all" aria-pressed="' + (ui.wview === 'all') + '">전체</button></div>'
+      : '<p class="small muted">내 기록 탭에서 이름을 고르면 <b>내 경기만</b> 모아 볼 수 있어요.</p>';
+    if (ui.me && !ui.admin) out += myPredCard(w, myp, live, P);
+    if (mine) {
+      var my = [];
+      groups().concat([{ id: null }]).forEach(function (g) {
+        w.matches.filter(function (m) { return g.id ? m.pool === g.id : poolOrder(m.pool) === 99; }).forEach(function (m, i) {
+          if (m.a.concat(m.b).indexOf(ui.me) >= 0) my.push(card(m, i, true));
+        });
+      });
+      out += my.length ? '<section class="my-matches"><h3>' + esc((P[ui.me] || {}).name || '') + ' · 내 경기 ' + my.length + '</h3><div class="match-list">' + my.join('') + '</div></section>'
+        : '<div class="card empty"><b>' + md(w.date) + '(수)엔 내 경기가 없어요</b><p class="muted">전체를 누르면 모든 경기를 볼 수 있어요.</p></div>';
+      return out;
+    }
     out += legend();
     groups().forEach(function (g) {
       var ms = w.matches.filter(function (m) { return m.pool === g.id; });
@@ -219,22 +257,8 @@
       var ppl = {};
       ms.forEach(function (m) { m.a.concat(m.b).forEach(function (p) { if (p) ppl[p] = 1; }); });
       var dn = ms.filter(function (m) { return m.win; }).length;
-      var started = L.matchStarted(w.date, Date.now());   // 그 날 17:30 KST 전이면 '경기 전' (결과 대기는 시작 뒤부터)
       out += '<section class="group g' + g.id + '">' + teamBanner(g, [Object.keys(ppl).length + '명', ms.length + '경기', dn === ms.length ? '결과 완료' : !started && !dn ? '경기 전' : '결과 ' + dn + '/' + ms.length]) + '<div class="match-list">';
-      ms.forEach(function (m, i) {
-        var state = m.win ? '<span class="m-state done">결과 입력됨</span>' : started ? '<span class="m-state">결과 대기</span>' : '<span class="m-state">경기 전</span>';
-        out += '<article class="match' + (m.win ? ' decided' : '') + (sm[m.id] ? ' super' : '') + '"><div class="m-head"><span class="m-no num">' + (i + 1) + '경기</span>' + (sm[m.id] ? '<span class="chip super num">🔥 슈퍼매치 · ' + sm[m.id] + '명 참여</span>' : '') + state + '</div><div class="m-teams">';
-        ['a', 'b'].forEach(function (side, si) {
-          var st = m.win ? (m.win === side ? ' win' : ' lose') : '';
-          var names = '<span class="names">' + m[side].map(function (pid) { return plHtml(pid, m, w.date, P); }).join('<span class="sep">·</span>') + '</span>';
-          var res = m.win === side ? '<span class="res win-badge">WIN</span>' : m.win ? '<span class="res lose-txt">패</span>' : (ui.admin ? '<span class="res tap">승리 기록</span>' : '');
-          var cls = 'team' + st;
-          if (ui.admin) out += '<button class="' + cls + '" data-act="win" data-m="' + m.id + '" data-side="' + side + '" aria-label="' + esc(m[side].map(function (p) { return P[p] ? P[p].name : ''; }).join(', ')) + ' 승리 기록">' + names + res + '</button>';
-          else out += '<div class="' + cls + '">' + names + res + '</div>';
-          if (si === 0) out += '<span class="vs" aria-label="대">vs</span>';
-        });
-        out += '</div></article>';
-      });
+      ms.forEach(function (m, i) { out += card(m, i); });
       out += '</div></section>';
     });
     var other = w.matches.filter(function (m) { return poolOrder(m.pool) === 99; });
@@ -417,6 +441,24 @@
     }).join('') + '</div>';
   }
 
+  // 이번 주 내 예측: 마감 뒤엔 서버의 전원 공개 목록, 마감 전엔 이 기기에 저장한 것
+  function myPredFor(w) {
+    if (!ui.me) return null;
+    if (isClosed(w.date)) return pred.allOk ? pred.all.filter(function (p) { return p.week_date === w.date && p.player_id === ui.me; })[0] || null : null;
+    return localPred(w.date, ui.me);
+  }
+  function liveText(lv) {
+    if (lv.status === 'hit') return '적중 확정 +' + lv.bonus + '승';
+    if (lv.status === 'miss') return '실패 확정 ' + (lv.bonus ? '−' + Math.abs(lv.bonus) + '승' : '· 0승');
+    if (lv.status === 'check') return '편성이 바뀐 경기가 있어요 · 돼장 확인 중';
+    return '남은 ' + lv.left + '경기 다 맞히면 +' + lv.ifAllHit + '승';
+  }
+  // 이번 주 탭 맨 위 '내 예측' (돼장이 결과를 저장하면 Realtime으로 바로 바뀜)
+  function myPredCard(w, p, lv, P) {
+    if (!p) return isClosed(w.date) ? '' : '<div class="card my-pred mini"><p class="small">이번 주 예측을 아직 안 했어요. <button class="link" data-act="tab" data-v="plan">돼블스플랜 하러 가기</button></p></div>';
+    return '<div class="card my-pred live ' + lv.status + '"><div class="mp-head"><h3>내 예측</h3><span class="mchip ' + p.mode + '">' + MODE_LABEL[p.mode] + '</span><span class="mp-score num">' + lv.hits + '/' + L.PREDICT.picks + ' 적중</span></div>' +
+      pickCells(w, L.scorePrediction(p, w), P, true) + '<b class="pred-res ' + lv.status + '">' + liveText(lv) + '</b></div>';
+  }
   // ---- 서버에서 읽기 ----
   function loadAllPreds() {
     return remote.predictions().then(function (rows) { pred.all = rows || []; pred.allOk = true; }, function () { pred.allOk = false; });
@@ -1217,6 +1259,7 @@
     if (!work) return;
     var w, m, P;
     switch (act) {
+      case 'wview': ui.wview = v === 'all' ? 'all' : 'mine'; LS.set(KEY.wview, ui.wview); render(); break;
       case 'tab': ui.tab = v; LS.set(KEY.tab, v); ui.notice = null; ui.pred.edit = false; ui.pred.full = false; ui.pred.confirm = false; render(); window.scrollTo(0, 0); break;
       case 'week': ui.week = v; SS.set(SKEY.week, v); ui.confirm = null; ui.notice = null; ui.ai.res = null; ui.ai.err = ''; ui.shiftSel = { p: '', dir: 'up' }; ui.pred.edit = false; ui.pred.more = false; ui.pred.adm = null; ui.pred.admDel = ''; render(); break;
       case 'rankg': ui.rankGroup = v; render(); break;

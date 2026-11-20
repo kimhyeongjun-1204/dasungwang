@@ -665,3 +665,30 @@ p .crown { margin-right: 2px; }
 .rp-overlay { position: fixed; inset: 0; z-index: 20; overflow: auto; display: grid; justify-items: center; align-content: start; gap: 10px; padding: 12px; background: #0B0407; }
 .rp-overlay .report { width: 100%; max-width: 420px; }
 .rp-overlay .btn { background: transparent; color: #fff; border-color: rgb(255 255 255 / .4); }
+
+/* 이번 주 탭: 내 경기 | 전체 + 내 예측 실시간 (사용자 요청 2026-11-20) */
+.seg.wview { display: flex; width: 100%; margin: 4px 0 10px; }
+.seg.wview button { flex: 1; min-height: 40px; font-size: 15px; }
+.my-pred.live { display: grid; gap: 8px; margin-bottom: 12px; }
+.my-pred.live .mp-head { justify-content: flex-start; }
+.my-pred.live .mp-head h3 { margin: 0; }
+.mp-score { margin-left: auto; font-size: 15px; font-weight: 700; }
+.my-pred.live.hit { border-color: #BFE3CF; background: var(--win-50); }
+.my-pred.live.miss { border-color: #F1CACA; background: var(--hell-50); }
+.my-pred.live .pred-res { font-size: 16px; }
+.my-pred.mini { padding: 10px 12px; margin-bottom: 12px; }
+.my-pred.mini p { margin: 0; }
+button.link { border: 0; background: none; padding: 0; font: inherit; font-weight: 700; color: var(--navy); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.my-matches h3 { margin: 0 0 8px; font-size: 16px; }
+.my-matches .match-list { display: grid; gap: 10px; }
+.m-grp { font-size: var(--fs-cap); color: var(--text-2); margin-bottom: -4px; }
+.m-head { flex-wrap: wrap; row-gap: 6px; }
+.m-no, .m-state { white-space: nowrap; }
+.chip.mypick { background: #FCE8F0; color: var(--plan-text); border-color: #F5C3D7; }
+.chip.mypick.hit { background: var(--win-50); color: var(--win-text); border-color: #BFE3CF; }
+.chip.mypick.miss { background: var(--hell-50); color: var(--hell-text); border-color: #F1CACA; }
+.m-head .chip.mypick { margin-left: auto; }
+.m-head .chip.super + .chip.mypick { margin-left: 0; }
+.team.picked { box-shadow: inset 0 0 0 2px #F5C3D7; }
+.team.picked.win { box-shadow: inset 0 0 0 2px #8FCFAA; }
+.team.picked.lose { box-shadow: inset 0 0 0 2px #E8A3A3; }

@@ -250,6 +250,13 @@ test('화면 문구: "결과 미입력" 대신 "결과 대기", 순위 계산에
   const calls = appSrc.match(/L\.standings\([^;]*\)/g) || [];
   assert.ok(calls.length >= 2 && calls.every(c => /now:/.test(c)), 'standings 호출에 now가 빠짐: ' + calls.join(' / '));
 });
+test('이번 주 탭: 내 경기 | 전체 전환, 기본은 내 경기 (사용자 요청 2026-11-20)', () => {
+  assert.ok(/data-act="wview"/.test(appSrc), '전환 버튼(data-act=wview) 없음');
+  assert.ok(/wview: 'ddw-wview'/.test(appSrc), '마지막 선택 기억용 키 없음');
+  assert.ok(/LS\.get\(KEY\.wview\) \|\| 'mine'/.test(appSrc), '기본값이 내 경기가 아님');
+  assert.ok(/L\.livePrediction\(/.test(appSrc), '내 예측 실시간 상태를 logic.livePrediction으로 계산하지 않음');
+  assert.ok(/내 픽/.test(appSrc), '전체 보기에서 내가 고른 경기 표시 없음');
+});
 test('app.js: 기존 충돌 UI·저장 실패 배너·임시저장 유지', () => {
   for (const s of ['draftConflict', 'ui.saveError', 'KEY.draft', 'draft-load', 'draft-drop']) assert.ok(appSrc.includes(s), s + ' 없음');
 });
