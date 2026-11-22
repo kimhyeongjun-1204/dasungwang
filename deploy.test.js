@@ -368,7 +368,12 @@ test('이름: 내 예측 카드만 이름만, 나머지는 성까지·가운데 
   assert.ok(/var nm = p \? p\.name : '빈 자리';/.test(appSrc), '경기 카드는 성까지 써야 함');
   const pick = appSrc.slice(appSrc.indexOf('function pickCells('), appSrc.indexOf('function pickCells(') + 1800);
   assert.ok(/grp \? shortTeam\(/.test(pick), '내 예측 카드(grp)는 이름만이어야 함');
-  assert.ok(/m\.court && !m\.win/.test(pick) && /코트 ' \+ m\.court/.test(pick), '내 예측 칸에 진행 중 코트 표시 없음');
+  assert.ok(!/pk-court/.test(pick), '내 예측 칸의 코트 배지는 빼기로 함(맨 위 코트에 표시)');
+  assert.ok(/face \+ '<span>' \+ esc\([^;]*\) \+ '<\/span>' \+ icon/.test(pick), '✓·✕가 이름 오른쪽에 있어야 함');
+  const strip = appSrc.slice(appSrc.indexOf('function courtsStrip('), appSrc.indexOf('function myLiveCard('));
+  assert.ok(/pickOf/.test(strip) && /내 픽/.test(strip), '맨 위 코트에 내 예측 경기 표시 없음');
+  const wk = appSrc.slice(appSrc.indexOf('if (mine) {\n      var my = [];'), appSrc.indexOf('    out += legend();'));
+  assert.ok(/my-matches[\s\S]*myPredCard\(/.test(wk), '내 경기 보기에서 내 경기가 내 예측보다 먼저여야 함');
   assert.ok(!/gdot/.test(pick) && /gface\(/.test(pick), '예측 칸이 아직 점(gdot)을 씀');
   assert.ok(/pending: ''/.test(appSrc) && !/⏳/.test(appSrc), '모래시계가 남아 있음');
   const live = appSrc.slice(appSrc.indexOf('function viewLive('), appSrc.indexOf('function myLiveCard('));

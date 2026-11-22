@@ -680,6 +680,7 @@ p .crown { margin-right: 2px; }
 .my-pred.mini { padding: 10px 12px; margin-bottom: 12px; }
 .my-pred.mini p { margin: 0; }
 button.link { border: 0; background: none; padding: 0; font: inherit; font-weight: 700; color: var(--navy); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.my-matches { margin-bottom: 14px; }
 .my-matches h3 { margin: 0 0 8px; font-size: 16px; }
 .my-matches .match-list { display: grid; gap: 10px; }
 .m-grp { font-size: var(--fs-cap); color: var(--text-2); margin-bottom: -4px; }
@@ -792,5 +793,10 @@ button.link { border: 0; background: none; padding: 0; font: inherit; font-weigh
 
 /* 예측 칸: 내 예측 말고는 가운데, 내 예측은 진행 중 코트 표시 (2026-11-22) */
 .pick4:not(.grp) .pk { justify-content: center; }
-.pk .pk-court { margin-left: auto; flex: none; font-size: 11px; font-weight: 700; color: #fff; background: var(--plan-text); border-radius: 999px; padding: 2px 7px; }
-.pk.live { background: #FCE8F0; }
+.pk .pk-res { margin-left: auto; font-style: normal; font-weight: 700; }   /* ✓·✕는 오른쪽 */
+.pick4:not(.grp) .pk .pk-res { margin-left: 4px; }
+/* 맨 위 지금 코트: 내가 예측한 경기 */
+.courts.mini .court.mine-pick { background: #FFF6FA; }
+.courts.mini .court .chip.mypick { justify-self: start; font-size: 11px; padding: 1px 8px; }
+.courts.mini .court.mine-pick { grid-template-columns: auto auto 1fr; }
+.c-pick { color: var(--plan-text); text-decoration: underline; text-underline-offset: 3px; }

@@ -253,8 +253,9 @@
     var mine = ui.me && !ui.admin && ui.wview !== 'all';
     if (!ui.admin) out += ui.me ? '<div class="seg wview" role="group" aria-label="보기"><button data-act="wview" data-v="mine" aria-pressed="' + (ui.wview !== 'all') + '">내 경기</button><button data-act="wview" data-v="all" aria-pressed="' + (ui.wview === 'all') + '">전체</button></div>'
       : '<p class="small muted">내 기록 탭에서 이름을 고르면 <b>내 경기만</b> 모아 볼 수 있어요.</p>';
-    if (board && !ui.admin) out += courtsStrip(w, board, P) + (ui.me ? myLiveCard(w, board, P) : '');
-    if (ui.me && !ui.admin) out += myPredCard(w, myp, lvp, P);
+    if (board && !ui.admin) out += courtsStrip(w, board, P, pickOf) + (ui.me ? myLiveCard(w, board, P) : '');
+    // 내 경기 보기: 내 경기 → 내 예측 순서 (사용자 요청 2026-11-22), 전체 보기: 내 예측 → 전체 경기
+    if (ui.me && !ui.admin && !mine) out += myPredCard(w, myp, lvp, P);
     if (mine) {
       var my = [];
       groups().concat([{ id: null }]).forEach(function (g) {
@@ -264,7 +265,7 @@
       });
       out += my.length ? '<section class="my-matches"><h3>' + esc((P[ui.me] || {}).name || '') + ' · 내 경기 ' + my.length + '</h3><div class="match-list">' + my.join('') + '</div></section>'
         : '<div class="card empty"><b>' + md(w.date) + '(수)엔 내 경기가 없어요</b><p class="muted">전체를 누르면 모든 경기를 볼 수 있어요.</p></div>';
-      return out;
+      return out + myPredCard(w, myp, lvp, P);
     }
     out += legend();
     groups().forEach(function (g) {
@@ -462,11 +463,9 @@
     return '<div class="pick4' + (small ? ' sm' : '') + (grp ? ' grp' : '') + '">' + s.picks.slice().sort(function (x, y) { return ord(x) - ord(y); }).map(function (p) {
       var m = matchById(w, p.match);
       var face = m ? gface(m.pool) : '';   // 조는 얼굴 아이콘 (점·조 이름 없이)
-      // 내 예측 카드: 그 경기가 코트에 들어가 있으면 '코트 N' (돼장 저장 → Realtime으로 바로)
-      var onCourt = grp && m && m.court && !m.win;
-      var icon = PK_ICON[p.result] ? '<i aria-hidden="true">' + PK_ICON[p.result] + '</i>' : '';   // 대기는 아이콘 없이
-      return '<span class="pk ' + p.result + (onCourt ? ' live' : '') + (grp && m ? ' g' + m.pool : '') + '">' + icon + face + '<span>' + esc(grp ? shortTeam(m, p.side, P) : teamText(m, p.side, P)) + '</span>' +
-        (onCourt ? '<b class="pk-court num">코트 ' + m.court + '</b>' : '') + '<span class="sr">' + (onCourt ? '코트 ' + m.court + ' 경기 중' : PK_SR[p.result]) + '</span></span>';
+      // ✓·✕는 이름 오른쪽, 대기는 아이콘 없이 (진행 중 코트는 맨 위 '지금 코트'에 표시, 2026-11-22)
+      var icon = PK_ICON[p.result] ? '<i class="pk-res" aria-hidden="true">' + PK_ICON[p.result] + '</i>' : '';
+      return '<span class="pk ' + p.result + (grp && m ? ' g' + m.pool : '') + '">' + face + '<span>' + esc(grp ? shortTeam(m, p.side, P) : teamText(m, p.side, P)) + '</span>' + icon + '<span class="sr">' + PK_SR[p.result] + '</span></span>';
     }).join('') + '</div>';
   }
 
@@ -579,10 +578,13 @@
     return out;
   }
   // 회원: 오늘 코트 상황(진행 중 3칸)
-  function courtsStrip(w, b, P) {
+  // pickOf: 내 예측 {경기 id: {side}} → 내가 예측한 경기가 코트에 있으면 '내 픽'과 고른 팀 강조
+  function courtsStrip(w, b, P, pickOf) {
     if (!b.courts.some(Boolean)) return '';
     return '<section class="courts mini" aria-label="지금 코트">' + b.courts.map(function (m, k) {
-      return m ? '<div class="court on g' + m.pool + '"><b>코트 ' + (k + 1) + '</b>' + gface(m.pool) + '<span class="c-names">' + teamNames(m, 'a', P) + '<i>vs</i>' + teamNames(m, 'b', P) + '</span></div>'
+      var pk = pickOf && pickOf[m && m.id];
+      var tn = function (side) { var t = teamNames(m, side, P); return pk && pk.side === side ? '<b class="c-pick">' + t + '</b>' : t; };
+      return m ? '<div class="court on g' + m.pool + (pk ? ' mine-pick' : '') + '"><b>코트 ' + (k + 1) + '</b>' + (pk ? '<span class="chip mypick">내 픽</span>' : '') + gface(m.pool) + '<span class="c-names">' + tn('a') + '<i>vs</i>' + tn('b') + '</span></div>'
         : '<div class="court empty"><b>코트 ' + (k + 1) + '</b><span>비어 있음</span></div>';
     }).join('') + '</section>';
   }
