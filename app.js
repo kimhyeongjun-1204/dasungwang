@@ -149,7 +149,7 @@
   function tierClass(pid, date) { var t = L.tierOf(work, pid, date).tier; return t === 'hell' || t === 'heaven' || t === 'mid' ? 't-' + t : ''; }
   function plHtml(pid, m, date, P) {
     var p = P[pid];
-    var nm = p ? sname(pid, P) : '빈 자리';
+    var nm = p ? p.name : '빈 자리';
     var cls = 'pl ' + (pid ? tierClass(pid, date) : '') + (pid && pid === ui.me ? ' me' : '');
     var x = pid && !L.isOfficial(m, pid) ? '<i class="x">추가출전</i>' : '';
     return '<span class="' + cls + '">' + esc(nm) + x + '</span>';
@@ -428,12 +428,14 @@
     var same = w.matches.filter(function (x) { return x.pool === m.pool; });
     return (poolOrder(m.pool) === 99 ? '' : gname(m.pool) + ' ') + (same.indexOf(m) + 1) + '경기';
   }
-  // 경기·예측 화면은 성 빼고 이름만(겹치면 성까지, logic.shortNames). 순위·내 기록·관리 명단은 전체 이름 그대로 (2026-11-22)
+  // 짧은 이름(성 빼고, 겹치면 성까지, logic.shortNames): 내 예측 카드에서만 씀. 나머지는 성까지 (2026-11-22)
   var SN = null;
   function sname(pid, P) { if (!SN) SN = L.shortNames(work.players); return SN[pid] || (P && P[pid] ? P[pid].name : '?'); }
   // 조 표시: 점·조 이름 대신 조 캐릭터 얼굴 (화면 읽기용 이름은 조 이름)
   function gface(pool) { var k = GROUP_FACE[pool]; return k ? '<i class="face face-' + k + '" role="img" aria-label="' + esc(gname(pool)) + '"></i>' : ''; }
-  function teamText(m, side, P) { return m ? m[side].map(function (p) { return P[p] ? sname(p, P) : '?'; }).join('·') : '(빠진 경기)'; }
+  function teamText(m, side, P) { return m ? m[side].map(function (p) { return P[p] ? P[p].name : '?'; }).join('·') : '(빠진 경기)'; }
+  // 내 예측 카드만 이름만 (사용자 요청 2026-11-22: 나머지는 성까지)
+  function shortTeam(m, side, P) { return m ? m[side].map(function (p) { return P[p] ? sname(p, P) : '?'; }).join('·') : '(빠진 경기)'; }
   function matchById(w, id) { return w.matches.filter(function (m) { return m.id === id; })[0] || null; }
   function bonusMap() { return pred.allOk ? L.bonusByPlayer(work, pred.all) : {}; }
   function fmtLeft(ms) {
@@ -453,14 +455,18 @@
     if (s.status === 'check') return '확인 필요';
     return '진행 중 ' + s.picks.filter(function (p) { return p.result === 'hit'; }).length + '/' + L.PREDICT.picks;
   }
-  var PK_ICON = { hit: '✓', miss: '✕', pending: '⏳', check: '!' }, PK_SR = { hit: '적중', miss: '실패', pending: '대기', check: '확인 필요' };
+  var PK_ICON = { hit: '✓', miss: '✕', pending: '', check: '!' }, PK_SR = { hit: '적중', miss: '실패', pending: '대기', check: '확인 필요' };
   // grp: 내 예측 카드에서 픽마다 조 색 테두리로 어느 조 경기인지 구분 (사용자 요청 2026-11-20, 글자 라벨 대신)
   function pickCells(w, s, P, small, grp) {
     var ord = function (p) { var m = matchById(w, p.match); return m ? poolOrder(m.pool) * 100 + w.matches.indexOf(m) : 1e4; };
     return '<div class="pick4' + (small ? ' sm' : '') + (grp ? ' grp' : '') + '">' + s.picks.slice().sort(function (x, y) { return ord(x) - ord(y); }).map(function (p) {
       var m = matchById(w, p.match);
       var face = m ? gface(m.pool) : '';   // 조는 얼굴 아이콘 (점·조 이름 없이)
-      return '<span class="pk ' + p.result + (grp && m ? ' g' + m.pool : '') + '"><i aria-hidden="true">' + PK_ICON[p.result] + '</i>' + face + '<span>' + esc(teamText(m, p.side, P)) + '</span><span class="sr">' + PK_SR[p.result] + '</span></span>';
+      // 내 예측 카드: 그 경기가 코트에 들어가 있으면 '코트 N' (돼장 저장 → Realtime으로 바로)
+      var onCourt = grp && m && m.court && !m.win;
+      var icon = PK_ICON[p.result] ? '<i aria-hidden="true">' + PK_ICON[p.result] + '</i>' : '';   // 대기는 아이콘 없이
+      return '<span class="pk ' + p.result + (onCourt ? ' live' : '') + (grp && m ? ' g' + m.pool : '') + '">' + icon + face + '<span>' + esc(grp ? shortTeam(m, p.side, P) : teamText(m, p.side, P)) + '</span>' +
+        (onCourt ? '<b class="pk-court num">코트 ' + m.court + '</b>' : '') + '<span class="sr">' + (onCourt ? '코트 ' + m.court + ' 경기 중' : PK_SR[p.result]) + '</span></span>';
     }).join('') + '</div>';
   }
 
@@ -523,7 +529,7 @@
     if (liveRows().some(function (r) { return r.status === 'away' && r.until && Date.parse(r.until) <= Date.now() && Date.parse(r.until) > Date.now() - 1000; })) render();
   }
   function pname(P, pid) { return P[pid] ? P[pid].name : '?'; }
-  function teamNames(m, side, P) { return m[side].map(function (p) { return esc(sname(p, P)); }).join('·'); }
+  function teamNames(m, side, P) { return m[side].map(function (p) { return esc(pname(P, p)); }).join('·'); }
   function untilText(u) { return u ? '~' + hhmm(u) : ''; }
   function mins(iso) { return Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 60000)); }
   function whyText(x, P) {

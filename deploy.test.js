@@ -361,17 +361,21 @@ test('진행 도우미: 같은 PIN 칸에서 진행 PIN도 받고, 코트 동작
   assert.ok(/ui\.op/.test(appSrc), '진행 도우미 상태(ui.op) 없음');
   assert.ok(/id="op-pin"/.test(appSrc), '설정에 진행 PIN 칸 없음');
 });
-test('경기·예측 화면: 이름만(성 빼고), 조는 점 대신 얼굴 아이콘, "N경기" 표시 없음 (사용자 요청 2026-11-22)', () => {
-  assert.ok(/var SN = L\.shortNames\(/.test(appSrc) || /L\.shortNames\(work\.players\)/.test(appSrc), '짧은 이름 표 없음');
-  assert.ok(/function teamText\(m, side, P\) \{[^\n]*sname\(/.test(appSrc), '예측 화면 팀 이름이 짧은 이름이 아님');
-  assert.ok(/function teamNames\(m, side, P\) \{[^\n]*sname\(/.test(appSrc), '경기 진행 팀 이름이 짧은 이름이 아님');
-  const live = appSrc.slice(appSrc.indexOf('function viewLive('), appSrc.indexOf('function myLiveCard('));
-  assert.ok(!/matchLabel\(/.test(live), '경기 진행 화면에 "조 N경기" 표시가 남아 있음');
-  assert.ok(/gface\(m\.pool\)/.test(live), '경기 진행 화면에 조 얼굴 아이콘 없음');
-  const pick = appSrc.slice(appSrc.indexOf('function pickCells('), appSrc.indexOf('function pickCells(') + 1500);
+test('이름: 내 예측 카드만 이름만, 나머지는 성까지·가운데 / 조는 얼굴 아이콘 / "N경기" 없음 / 모래시계 없음 / 내 예측에 진행 코트 (사용자 요청 2026-11-22)', () => {
+  assert.ok(/L\.shortNames\(work\.players\)/.test(appSrc), '짧은 이름 표 없음');
+  assert.ok(/function teamText\(m, side, P\) \{[^\n]*P\[p\]\.name/.test(appSrc) && !/function teamText\(m, side, P\) \{[^\n]*sname\(/.test(appSrc), '예측 화면(내 예측 말고)은 성까지 써야 함');
+  assert.ok(/function teamNames\(m, side, P\) \{[^\n]*pname\(/.test(appSrc), '경기 진행은 성까지 써야 함');
+  assert.ok(/var nm = p \? p\.name : '빈 자리';/.test(appSrc), '경기 카드는 성까지 써야 함');
+  const pick = appSrc.slice(appSrc.indexOf('function pickCells('), appSrc.indexOf('function pickCells(') + 1800);
+  assert.ok(/grp \? shortTeam\(/.test(pick), '내 예측 카드(grp)는 이름만이어야 함');
+  assert.ok(/m\.court && !m\.win/.test(pick) && /코트 ' \+ m\.court/.test(pick), '내 예측 칸에 진행 중 코트 표시 없음');
   assert.ok(!/gdot/.test(pick) && /gface\(/.test(pick), '예측 칸이 아직 점(gdot)을 씀');
+  assert.ok(/pending: ''/.test(appSrc) && !/⏳/.test(appSrc), '모래시계가 남아 있음');
+  const live = appSrc.slice(appSrc.indexOf('function viewLive('), appSrc.indexOf('function myLiveCard('));
+  assert.ok(!/matchLabel\(/.test(live) && /gface\(m\.pool\)/.test(live), '경기 진행 화면 조 표시가 얼굴 아이콘이 아님');
   const css = fs.readFileSync(path.join(__dirname, 'app.css'), 'utf8');
   assert.ok(/\.gdot\.gA::before \{[^}]*--face-lb/.test(css), '조 점(gdot)이 얼굴 아이콘으로 안 바뀜');
+  assert.ok(/\.team \{[^}]*justify-content: center/.test(css), '경기 카드 이름이 가운데가 아님');
 });
 test('app.js: 기존 충돌 UI·저장 실패 배너·임시저장 유지', () => {
   for (const s of ['draftConflict', 'ui.saveError', 'KEY.draft', 'draft-load', 'draft-drop']) assert.ok(appSrc.includes(s), s + ' 없음');

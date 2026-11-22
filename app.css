@@ -224,9 +224,10 @@ details summary { cursor: pointer; color: var(--text-2); font-size: var(--fs-sm)
 .m-state { font-size: var(--fs-cap); color: var(--text-2); }
 .m-state.done { color: var(--win-text); }
 .m-teams { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 8px; align-items: stretch; }
-.team { display: flex; align-items: center; justify-content: space-between; gap: 6px; min-height: 48px; padding: 8px 10px; border: 1px solid var(--line-2); background: var(--surface-2); border-radius: var(--r-ctl); text-align: left; width: 100%; font-size: 15px; font-weight: 500; color: var(--text); }
+.team { display: flex; align-items: center; justify-content: center; position: relative; gap: 6px; min-height: 48px; padding: 8px 64px; border: 1px solid var(--line-2); background: var(--surface-2); border-radius: var(--r-ctl); text-align: left; width: 100%; font-size: 15px; font-weight: 500; color: var(--text); }
 button.team:hover { border-color: var(--line); background: #F1F4F9; }
-.team .names { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 4px; min-width: 0; }
+.team .names { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 2px 4px; min-width: 0; text-align: center; }
+.team .res { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); }  /* 이름은 가운데, WIN·패는 오른쪽 (2026-11-22) */
 .team.win { background: var(--win-50); border-color: #BFE3CF; font-weight: 700; }
 .team.lose { background: var(--surface); color: var(--text-2); }
 .res { flex: none; font-size: 11px; font-weight: 700; border-radius: var(--r-badge); padding: 2px 6px; }
@@ -788,3 +789,8 @@ button.link { border: 0; background: none; padding: 0; font: inherit; font-weigh
 .m-head .face { width: 24px; height: 24px; }
 /* 예측 확정 목록·인기 픽 제목의 얼굴 */
 .mb-title .face, .pc-picks .face { width: 22px; height: 22px; vertical-align: middle; }
+
+/* 예측 칸: 내 예측 말고는 가운데, 내 예측은 진행 중 코트 표시 (2026-11-22) */
+.pick4:not(.grp) .pk { justify-content: center; }
+.pk .pk-court { margin-left: auto; flex: none; font-size: 11px; font-weight: 700; color: #fff; background: var(--plan-text); border-radius: 999px; padding: 2px 7px; }
+.pk.live { background: #FCE8F0; }
