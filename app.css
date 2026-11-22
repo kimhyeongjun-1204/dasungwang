@@ -757,10 +757,7 @@ button.link { border: 0; background: none; padding: 0; font: inherit; font-weigh
 .courts.mini .c-names { grid-column: 1 / -1; font-size: 13px; font-weight: 700; }
 .courts.mini .c-names i { font-style: normal; font-weight: 500; color: var(--text-2); margin: 0 4px; }
 .my-live { display: grid; gap: 6px; margin-bottom: 12px; border-left: 4px solid var(--navy); }
-.my-live.next { border-left-color: var(--win-text); background: var(--win-50); }
-.my-live.playing { border-left-color: var(--plan-text); }
-.my-live.blocked { border-left-color: var(--hell-text); }
-.ml-big { font-size: 17px; }
+.my-live.away { border-left-color: var(--hell-text); background: var(--yellow-50); }
 .my-live p { margin: 0; }
 
 /* ---------- 경기·예측 화면: 조 점 → 얼굴, 이름만·크게·가운데 (사용자 요청 2026-11-22) ---------- */

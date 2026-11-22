@@ -589,21 +589,14 @@
     }).join('') + '</section>';
   }
   // 회원: 내 차례 + 본인 늦음/레슨 표시
+  // 회원: 본인 늦음/레슨 표시만 (내 차례 문구는 빼기로 함, 사용자 요청 2026-11-22)
   function myLiveCard(w, b, P) {
-    var me = ui.me, st = L.myLive(b, me), a = b.away[me], row = liveRows().filter(function (r) { return r.player_id === me; })[0] || {};
+    var me = ui.me, a = b.away[me], row = liveRows().filter(function (r) { return r.player_id === me; })[0] || {};
     if (!w.attendees || !w.attendees[me]) return '';
-    var head = st.state === 'playing' ? '<b class="ml-big">코트 ' + st.court + '에서 경기 중</b>'
-      : st.state === 'next' ? '<b class="ml-big">곧 내 차례예요</b><span class="small">바로 할 수 있는 경기 중 ' + st.rank + '번째 · 준비해 주세요</span>'
-      : st.state === 'waiting' ? '<b class="ml-big">대기 ' + st.rank + '번째</b>'
-      : st.state === 'blocked' ? '<b class="ml-big">지금은 내 경기를 못 해요</b>' + (function () {
-          var x = b.blocked.filter(function (y) { return y.m.id === st.match; })[0], others = { why: x.why.filter(function (y) { return y.pid !== me; }) };
-          return others.why.length ? '<span class="small">' + whyText(others, P) + '</span>' : '';   // 나 때문이면 아래 '내 상태'로 충분
-        })()
-      : '<b class="ml-big">오늘 남은 내 경기가 없어요</b>';
-    var mine = st.state === 'playing' ? '' : a ? '<p class="small">내 상태: <b>' + AWAY_LABEL[a.status] + (a.until ? ' ' + untilText(a.until) : '') + '</b>' + (row.by_admin ? ' (돼장이 표시)' : '') + '</p>' +
+    var body = a ? '<p class="small">내 상태: <b>' + AWAY_LABEL[a.status] + (a.until ? ' ' + untilText(a.until) : '') + '</b>' + (row.by_admin ? ' (돼장이 표시)' : '') + '</p>' +
         (a.status === 'out' && row.by_admin ? '' : '<button class="btn sm primary" data-act="my-avail" data-st="here">왔어요 · 다시 가능</button>')
-      : '<div class="row"><button class="btn sm" data-act="my-avail" data-st="late">늦어요</button><button class="btn sm" data-act="my-avail" data-st="away" data-min="30">레슨 30분 빠져요</button></div>';
-    return '<div class="card my-live ' + st.state + '">' + head + mine + '</div>';
+      : '<p class="small muted">늦거나 레슨으로 잠시 빠지면 눌러 주세요.</p><div class="row"><button class="btn sm" data-act="my-avail" data-st="late">늦어요</button><button class="btn sm" data-act="my-avail" data-st="away" data-min="30">레슨 30분 빠져요</button></div>';
+    return '<div class="card my-live' + (a ? ' away' : '') + '">' + body + '</div>';
   }
 
   // ---- 서버에서 읽기 ----

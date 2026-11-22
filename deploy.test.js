@@ -382,6 +382,11 @@ test('이름: 내 예측 카드만 이름만, 나머지는 성까지·가운데 
   assert.ok(/\.gdot\.gA::before \{[^}]*--face-lb/.test(css), '조 점(gdot)이 얼굴 아이콘으로 안 바뀜');
   assert.ok(/\.team \{[^}]*justify-content: center/.test(css), '경기 카드 이름이 가운데가 아님');
 });
+test('회원 내 차례 문구는 빼고 늦어요·레슨·왔어요 버튼만 (사용자 요청 2026-11-22)', () => {
+  const card = appSrc.slice(appSrc.indexOf('function myLiveCard('), appSrc.indexOf('// ---- 서버에서 읽기 ----'));
+  assert.ok(!/곧 내 차례|대기 ' \+ st\.rank|에서 경기 중|오늘 남은 내 경기/.test(card), '내 차례 문구가 남아 있음');
+  assert.ok(/data-st="late"/.test(card) && /data-st="away" data-min="30"/.test(card) && /data-st="here"/.test(card), '늦어요·레슨·왔어요 버튼이 없음');
+});
 test('app.js: 기존 충돌 UI·저장 실패 배너·임시저장 유지', () => {
   for (const s of ['draftConflict', 'ui.saveError', 'KEY.draft', 'draft-load', 'draft-drop']) assert.ok(appSrc.includes(s), s + ' 없음');
 });
