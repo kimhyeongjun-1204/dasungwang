@@ -760,3 +760,31 @@ button.link { border: 0; background: none; padding: 0; font: inherit; font-weigh
 .my-live.blocked { border-left-color: var(--hell-text); }
 .ml-big { font-size: 17px; }
 .my-live p { margin: 0; }
+
+/* ---------- 경기·예측 화면: 조 점 → 얼굴, 이름만·크게·가운데 (사용자 요청 2026-11-22) ---------- */
+.gdot.gA::before, .gdot.gB::before, .gdot.gC::before { width: 18px; height: 18px; border-radius: 0; background: center / contain no-repeat; }
+.gdot.gA::before { background-image: var(--face-lb); }
+.gdot.gB::before { background-image: var(--face-bf); }
+.gdot.gC::before { background-image: var(--face-pk); }
+/* 코트 */
+.c-head .face { width: 26px; height: 26px; }
+.c-team { justify-content: center; position: relative; font-size: 18px; padding: 10px 56px; text-align: center; }
+.c-team span { word-break: keep-all; }
+.c-team small { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); }
+/* 바로 가능·못 함·완료: 얼굴은 왼쪽 위, 이름은 가운데 크게, 버튼은 아래 넓게 */
+.lv-row { flex-direction: column; align-items: stretch; gap: 8px; position: relative; padding: 12px 14px; }
+.lv-main { justify-items: center; text-align: center; gap: 4px; }
+.lv-main .face { position: absolute; left: 12px; top: 10px; width: 26px; height: 26px; }
+.lv-teams { font-size: 18px; line-height: 1.35; padding: 0 22px; }
+.lv-teams i { font-size: 14px; margin: 0 4px; }
+.lv-row .btn { width: 100%; min-height: 40px; }
+.lv-row > .small { text-align: center; }
+.lv-row.done .lv-teams { font-size: 16px; }
+.lv-row.done .lv-main .face { top: 8px; width: 22px; height: 22px; }
+/* 회원 지금 코트 */
+.courts.mini .court.on .face { justify-self: end; width: 22px; height: 22px; }
+.courts.mini .c-names { text-align: center; font-size: 16px; word-break: keep-all; }
+/* 내 경기 카드 머리의 얼굴 */
+.m-head .face { width: 24px; height: 24px; }
+/* 예측 확정 목록·인기 픽 제목의 얼굴 */
+.mb-title .face, .pc-picks .face { width: 22px; height: 22px; vertical-align: middle; }

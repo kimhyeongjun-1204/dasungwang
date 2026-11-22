@@ -149,7 +149,7 @@
   function tierClass(pid, date) { var t = L.tierOf(work, pid, date).tier; return t === 'hell' || t === 'heaven' || t === 'mid' ? 't-' + t : ''; }
   function plHtml(pid, m, date, P) {
     var p = P[pid];
-    var nm = p ? p.name : '빈 자리';
+    var nm = p ? sname(pid, P) : '빈 자리';
     var cls = 'pl ' + (pid ? tierClass(pid, date) : '') + (pid && pid === ui.me ? ' me' : '');
     var x = pid && !L.isOfficial(m, pid) ? '<i class="x">추가출전</i>' : '';
     return '<span class="' + cls + '">' + esc(nm) + x + '</span>';
@@ -224,7 +224,7 @@
       var state = m.win ? '<span class="m-state done">결과 입력됨</span>' : m.court ? '<span class="m-state on">진행 중 · 코트 ' + m.court + '</span>' : started ? '<span class="m-state">결과 대기</span>' : '<span class="m-state">경기 전</span>';
       var pk = pickOf[m.id];
       var pkChip = pk ? '<span class="chip mypick ' + pk.result + '">내 픽 ' + PK_ICON[pk.result] + '<span class="sr">' + PK_SR[pk.result] + '</span></span>' : '';
-      var o = '<article class="match' + (m.win ? ' decided' : '') + (sm[m.id] ? ' super' : '') + '">' + (tag ? '<span class="m-grp gdot g' + m.pool + '">' + esc(gname(m.pool)) + '</span>' : '') + '<div class="m-head"><span class="m-no num">' + (i + 1) + '경기</span>' +
+      var o = '<article class="match' + (m.win ? ' decided' : '') + (sm[m.id] ? ' super' : '') + '"><div class="m-head">' + (tag ? gface(m.pool) : '<span class="m-no num">' + (i + 1) + '경기</span>') +
         (sm[m.id] ? '<span class="chip super num">🔥 슈퍼매치 · ' + sm[m.id] + '명 참여</span>' : '') + pkChip + state + '</div><div class="m-teams">';
       ['a', 'b'].forEach(function (side, si) {
         var st = m.win ? (m.win === side ? ' win' : ' lose') : '';
@@ -428,7 +428,12 @@
     var same = w.matches.filter(function (x) { return x.pool === m.pool; });
     return (poolOrder(m.pool) === 99 ? '' : gname(m.pool) + ' ') + (same.indexOf(m) + 1) + '경기';
   }
-  function teamText(m, side, P) { return m ? m[side].map(function (p) { return P[p] ? P[p].name : '?'; }).join('·') : '(빠진 경기)'; }
+  // 경기·예측 화면은 성 빼고 이름만(겹치면 성까지, logic.shortNames). 순위·내 기록·관리 명단은 전체 이름 그대로 (2026-11-22)
+  var SN = null;
+  function sname(pid, P) { if (!SN) SN = L.shortNames(work.players); return SN[pid] || (P && P[pid] ? P[pid].name : '?'); }
+  // 조 표시: 점·조 이름 대신 조 캐릭터 얼굴 (화면 읽기용 이름은 조 이름)
+  function gface(pool) { var k = GROUP_FACE[pool]; return k ? '<i class="face face-' + k + '" role="img" aria-label="' + esc(gname(pool)) + '"></i>' : ''; }
+  function teamText(m, side, P) { return m ? m[side].map(function (p) { return P[p] ? sname(p, P) : '?'; }).join('·') : '(빠진 경기)'; }
   function matchById(w, id) { return w.matches.filter(function (m) { return m.id === id; })[0] || null; }
   function bonusMap() { return pred.allOk ? L.bonusByPlayer(work, pred.all) : {}; }
   function fmtLeft(ms) {
@@ -454,8 +459,8 @@
     var ord = function (p) { var m = matchById(w, p.match); return m ? poolOrder(m.pool) * 100 + w.matches.indexOf(m) : 1e4; };
     return '<div class="pick4' + (small ? ' sm' : '') + (grp ? ' grp' : '') + '">' + s.picks.slice().sort(function (x, y) { return ord(x) - ord(y); }).map(function (p) {
       var m = matchById(w, p.match);
-      var face = grp && m && GROUP_FACE[m.pool] ? '<i class="face face-' + GROUP_FACE[m.pool] + '" role="img" aria-label="' + esc(gname(m.pool)) + '"></i>' : '';
-      return '<span class="pk ' + p.result + (grp && m ? ' g' + m.pool : '') + '"><i aria-hidden="true">' + PK_ICON[p.result] + '</i>' + face + '<span' + (m && !face ? ' class="gdot g' + m.pool + '"' : '') + '>' + esc(teamText(m, p.side, P)) + '</span><span class="sr">' + PK_SR[p.result] + '</span></span>';
+      var face = m ? gface(m.pool) : '';   // 조는 얼굴 아이콘 (점·조 이름 없이)
+      return '<span class="pk ' + p.result + (grp && m ? ' g' + m.pool : '') + '"><i aria-hidden="true">' + PK_ICON[p.result] + '</i>' + face + '<span>' + esc(teamText(m, p.side, P)) + '</span><span class="sr">' + PK_SR[p.result] + '</span></span>';
     }).join('') + '</div>';
   }
 
@@ -518,7 +523,7 @@
     if (liveRows().some(function (r) { return r.status === 'away' && r.until && Date.parse(r.until) <= Date.now() && Date.parse(r.until) > Date.now() - 1000; })) render();
   }
   function pname(P, pid) { return P[pid] ? P[pid].name : '?'; }
-  function teamNames(m, side, P) { return m[side].map(function (p) { return esc(pname(P, p)); }).join('·'); }
+  function teamNames(m, side, P) { return m[side].map(function (p) { return esc(sname(p, P)); }).join('·'); }
   function untilText(u) { return u ? '~' + hhmm(u) : ''; }
   function mins(iso) { return Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 60000)); }
   function whyText(x, P) {
@@ -529,7 +534,7 @@
     var b = L.liveBoard(w, liveRows(), Date.now()), out = '';
     out += '<section class="courts" aria-label="코트">' + b.courts.map(function (m, k) {
       if (!m) return '<div class="court empty"><b>코트 ' + (k + 1) + '</b><span>비어 있음</span></div>';
-      return '<div class="court on g' + m.pool + '"><div class="c-head"><b>코트 ' + (k + 1) + '</b><span class="gdot g' + m.pool + '">' + esc(matchLabel(w, m)) + '</span><span class="num muted">' + (m.startedAt ? mins(m.startedAt) + '분째' : '') + '</span></div>' +
+      return '<div class="court on g' + m.pool + '"><div class="c-head"><b>코트 ' + (k + 1) + '</b>' + gface(m.pool) + '<span class="num muted">' + (m.startedAt ? mins(m.startedAt) + '분째' : '') + '</span></div>' +
         ['a', 'b'].map(function (side) { return '<button class="c-team" data-act="lv-win" data-m="' + m.id + '" data-side="' + side + '"><span>' + teamNames(m, side, P) + '</span><small>이김</small></button>'; }).join('<span class="vs">vs</span>') +
         '<button class="link small" data-act="lv-cancel" data-m="' + m.id + '">코트에서 빼기</button></div>';
     }).join('') + '</section>';
@@ -555,15 +560,15 @@
     out += '<section class="lv-sec"><h3>바로 가능 <span class="num muted">' + b.ready.length + '</span><small class="muted">오래 기다린 순</small></h3>' +
       (b.ready.length ? b.ready.map(function (r) {
         var m = r.m;
-        return '<div class="lv-row g' + m.pool + '"><div class="lv-main"><span class="gdot g' + m.pool + ' small">' + esc(matchLabel(w, m)) + '</span><span class="lv-teams">' + teamNames(m, 'a', P) + ' <i>vs</i> ' + teamNames(m, 'b', P) + '</span><small class="num muted">최대 ' + r.longest + '분 기다림</small></div>' +
+        return '<div class="lv-row g' + m.pool + '"><div class="lv-main">' + gface(m.pool) + '<span class="lv-teams">' + teamNames(m, 'a', P) + ' <i>vs</i> ' + teamNames(m, 'b', P) + '</span><small class="num muted">최대 ' + r.longest + '분 기다림</small></div>' +
           (free ? '<button class="btn sm primary" data-act="lv-start" data-m="' + m.id + '" data-c="' + free + '">코트 ' + free + '에 넣기</button>' : '<span class="small muted">빈 코트 없음</span>') + '</div>';
       }).join('') : '<p class="small muted">지금 바로 할 수 있는 경기가 없어요.</p>') + '</section>';
     if (b.blocked.length) out += '<section class="lv-sec"><h3>지금 못 함 <span class="num muted">' + b.blocked.length + '</span></h3>' + b.blocked.map(function (x) {
       var m = x.m;
-      return '<div class="lv-row blocked"><div class="lv-main"><span class="gdot g' + m.pool + ' small">' + esc(matchLabel(w, m)) + '</span><span class="lv-teams">' + teamNames(m, 'a', P) + ' <i>vs</i> ' + teamNames(m, 'b', P) + '</span><small>' + whyText(x, P) + '</small></div></div>';
+      return '<div class="lv-row blocked"><div class="lv-main">' + gface(m.pool) + '<span class="lv-teams">' + teamNames(m, 'a', P) + ' <i>vs</i> ' + teamNames(m, 'b', P) + '</span><small>' + whyText(x, P) + '</small></div></div>';
     }).join('') + '</section>';
     if (b.done.length) out += '<details class="lv-sec lv-done"' + (ui.lvDone ? ' open' : '') + '><summary data-act="lv-done"><h3>완료 <span class="num muted">' + b.done.length + '</span></h3></summary>' + b.done.map(function (m) {
-      return '<div class="lv-row done"><div class="lv-main"><span class="gdot g' + m.pool + ' small">' + esc(matchLabel(w, m)) + '</span><span class="lv-teams"><b>' + teamNames(m, m.win, P) + '</b> 승 · ' + teamNames(m, m.win === 'a' ? 'b' : 'a', P) + '</span></div></div>';
+      return '<div class="lv-row done"><div class="lv-main">' + gface(m.pool) + '<span class="lv-teams"><b>' + teamNames(m, m.win, P) + '</b> 승 · ' + teamNames(m, m.win === 'a' ? 'b' : 'a', P) + '</span></div></div>';
     }).join('') + '<p class="small muted">' + (ui.op ? '결과를 고치려면 돼장에게 말해 주세요.' : '결과를 고치려면 위에서 <b>결과 표</b>로 바꿔 주세요.') + '</p></details>';
     return out;
   }
@@ -571,7 +576,7 @@
   function courtsStrip(w, b, P) {
     if (!b.courts.some(Boolean)) return '';
     return '<section class="courts mini" aria-label="지금 코트">' + b.courts.map(function (m, k) {
-      return m ? '<div class="court on g' + m.pool + '"><b>코트 ' + (k + 1) + '</b><span class="gdot g' + m.pool + ' small">' + esc(matchLabel(w, m)) + '</span><span class="c-names">' + teamNames(m, 'a', P) + '<i>vs</i>' + teamNames(m, 'b', P) + '</span></div>'
+      return m ? '<div class="court on g' + m.pool + '"><b>코트 ' + (k + 1) + '</b>' + gface(m.pool) + '<span class="c-names">' + teamNames(m, 'a', P) + '<i>vs</i>' + teamNames(m, 'b', P) + '</span></div>'
         : '<div class="court empty"><b>코트 ' + (k + 1) + '</b><span>비어 있음</span></div>';
     }).join('') + '</section>';
   }
@@ -712,8 +717,6 @@
     var cards = g || ui.pred.more ? board : board.slice(0, 5);
     out += '<ol class="mb-list">' + cards.map(function (x) {
       var m = matchById(w, x.match);
-      var no = w.matches.filter(function (y) { return y.pool === m.pool; }).indexOf(m) + 1;
-      var title = no + '경기' + (poolOrder(m.pool) === 99 ? '' : ' · ' + gname(m.pool) + '조');
       var team = function (k) {
         var t = x[k];
         return '<div class="mb-team ' + k + '"><span class="mb-name">' + esc(teamText(m, k, P)) + '</span>' +
@@ -721,7 +724,7 @@
           (t.badge === 'hot' ? '<span class="chip hot">인기 픽</span>' : t.badge === 'under' ? '<span class="chip under">역배 후보</span>' : '') + '</div>';
       };
       var wa = x.total ? x.a.n / x.total * 100 : 0;
-      return '<li class="mb"><div class="mb-head"><span class="mb-title gdot g' + m.pool + ' num">' + esc(title) + '</span>' +
+      return '<li class="mb"><div class="mb-head"><span class="mb-title">' + gface(m.pool) + '</span>' +
         (sm[x.match] ? '<span class="chip super">🔥 슈퍼매치</span>' : '') + '</div>' +
         '<div class="mb-teams">' + team('a') + team('b') + '</div>' +
         '<div class="mb-bar" role="img" aria-label="' + esc(teamText(m, 'a', P)) + ' ' + pct(x.a.share) + '%, ' + esc(teamText(m, 'b', P)) + ' ' + pct(x.b.share) + '%">' +
@@ -824,7 +827,7 @@
     var ord = function (p) { var m = matchById(w, p.match); return m ? poolOrder(m.pool) : 100; };
     var lines = d.picks.slice().sort(function (x, y) { return ord(x) - ord(y); }).map(function (p) {
       var m = matchById(w, p.match);
-      return '<li><span class="gdot g' + m.pool + '">' + esc(matchLabel(w, m)) + '</span><b>' + esc(teamText(m, p.side, P)) + '</b></li>';
+      return '<li>' + gface(m.pool) + '<b>' + esc(teamText(m, p.side, P)) + '</b></li>';
     }).join('');
     return '<div class="pc-back" data-act="pc-no" aria-hidden="true"></div>' +
       '<section class="pc-sheet" role="dialog" aria-modal="true" aria-labelledby="pc-title">' +
@@ -1357,6 +1360,7 @@
   function render() {
     var app = document.getElementById('app');
     var focusId = document.activeElement && document.activeElement.id;
+    SN = null;   // 명단이 바뀌었을 수 있으니 그릴 때마다 다시
     var main = ui.tab === 'rank' ? viewRank() : ui.tab === 'plan' ? viewPredict() : ui.tab === 'me' ? viewMe() : ui.tab === 'admin' ? viewAdmin() : viewWeek();
     var html = header() + '<main>' + saveBar() + main + '</main>';
     if (dirty() || ui.busy && ui.busy.indexOf('편성') !== 0) {

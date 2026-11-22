@@ -810,6 +810,14 @@ var Logic = (function () {
     var b = PREDICT.bonus[pred.mode] || { hit: 0, miss: 0 };
     return { status: s.status, hits: n('hit'), misses: n('miss'), left: n('pending'), bonus: s.bonus, ifAllHit: b.hit };
   }
+  // 경기·예측 화면용 짧은 이름: 성(첫 글자) 빼고, 두 글자 이름은 그대로, 같은 짧은 이름이 둘 이상이면 그 사람들은 성까지 (2026-11-22)
+  function shortNames(players) {
+    var out = {}, cnt = {};
+    var cut = function (n) { n = String(n || '').trim(); return n.length >= 3 ? n.slice(1) : n; };
+    (players || []).forEach(function (p) { var k = cut(p.name); cnt[k] = (cnt[k] || 0) + 1; });
+    (players || []).forEach(function (p) { var k = cut(p.name); out[p.id] = cnt[k] > 1 ? String(p.name || '').trim() : k; });
+    return out;
+  }
   // ---------- 경기 진행(코트) ----------
   // 돼장 경기 진행 화면·회원 '진행 중/다음 차례'. 코트에 들어간 경기: m.court(1..3)·m.startedAt, 결과 입력 때 m.endedAt.
   // avail: [{player_id, status: 'late'|'away'|'out', until}] (availability 테이블). away는 until이 지나면 자동으로 풀림
@@ -903,7 +911,7 @@ var Logic = (function () {
   }
 
   return {
-    LIVE: LIVE, liveBoard: liveBoard, startMatch: startMatch, finishMatch: finishMatch, cancelMatch: cancelMatch, myLive: myLive,
+    LIVE: LIVE, liveBoard: liveBoard, shortNames: shortNames, startMatch: startMatch, finishMatch: finishMatch, cancelMatch: cancelMatch, myLive: myLive,
     meRecord: meRecord, matchStarted: matchStarted, livePrediction: livePrediction, predictionRecord: predictionRecord,
     PREDICT: PREDICT, pickQuota: pickQuota, quotaStatus: quotaStatus, predictionDeadline: predictionDeadline, isPredictionClosed: isPredictionClosed, validatePicks: validatePicks,
     scorePrediction: scorePrediction, bonusByPlayer: bonusByPlayer, popularPicks: popularPicks, pickChanges: pickChanges,

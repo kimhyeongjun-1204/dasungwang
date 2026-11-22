@@ -282,6 +282,18 @@ test('nextUp: 내 경기가 바로 가능 목록에서 빈 코트 수 + 진행 �
   function liveBoard2() { return L.liveBoard(liveWeek(), [], LT('18:10')); }
 });
 
+test('shortNames: 경기·예측 화면은 성 빼고 이름만, 겹치면 성까지 (사용자 요청 2026-11-22)', () => {
+  const ps = [{ id: 'a', name: '박지섭' }, { id: 'b', name: '유성준' }, { id: 'c', name: '이성준' }, { id: 'd', name: '김혁' }, { id: 'e', name: '남궁민수' }, { id: 'f', name: ' 조인규 ' }];
+  const n = L.shortNames(ps);
+  assert.strictEqual(n.a, '지섭');
+  assert.strictEqual(n.b, '유성준', '성준이 둘이면 성까지');
+  assert.strictEqual(n.c, '이성준');
+  assert.strictEqual(n.d, '김혁', '두 글자 이름은 그대로');
+  assert.strictEqual(n.e, '궁민수', '네 글자는 첫 글자만 뺌(복성은 구분 안 함)');
+  assert.strictEqual(n.f, '인규', '앞뒤 공백 무시');
+  assert.deepStrictEqual(L.shortNames([]), {});
+});
+
 console.log('validateWeek');
 test('공식 2경기 아닌 참석자·파트너 중복·중복 출전 경고', () => {
   const w = {
