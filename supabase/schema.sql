@@ -467,7 +467,7 @@ language sql stable security definer set search_path = public as $$
                   where s.id = 1 and w->>'date' = d::text and (w->'attendees') ? pid);
 $$;
 
--- 회원(본인): late(분 0~120, 0이면 시각 없이) / away(분 10~90) / here(해제)
+-- 회원(본인): late(분 0~120, 0이면 시각 없이) / away(레슨: 보통 시간 없이 '왔어요'까지, 주면 10~90분) / here(해제)
 create or replace function public.set_availability(p_week date, p_player text, p_status text, p_minutes int) returns timestamptz
 language plpgsql security definer set search_path = public as $$
 declare
@@ -483,7 +483,7 @@ begin
     delete from public.availability a where a.week_date = p_week and a.player_id = p_player;
     return null;
   end if;
-  if p_status = 'away' and (p_minutes is null or p_minutes < 10 or p_minutes > 90) then raise exception 'bad_minutes'; end if;
+  if p_status = 'away' and p_minutes is not null and (p_minutes < 10 or p_minutes > 90) then raise exception 'bad_minutes'; end if;   -- 레슨은 시간 없이도 됨(왔어요까지, 2026-11-22)
   if p_status = 'late' and p_minutes is not null and (p_minutes < 0 or p_minutes > 120) then raise exception 'bad_minutes'; end if;
   u := case when coalesce(p_minutes, 0) > 0 then now() + make_interval(mins => p_minutes) end;
   insert into public.availability as a (week_date, player_id, status, until, by_admin, updated_at)

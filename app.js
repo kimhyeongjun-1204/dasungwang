@@ -490,7 +490,7 @@
   // ---------- 경기 진행(코트 3칸) ----------
   // 코트·결과는 app_state(돼장 저장), 자리 비움은 availability 테이블. 둘 다 Realtime(안 되면 20초마다 다시 읽기)
   var live = { week: null, rows: [], ok: null, watch: null, at: 0, stateAt: 0 };
-  var AWAY_LABEL = { late: '늦음', away: '잠시 빠짐', out: '오늘 못 함' };
+  var AWAY_LABEL = { late: '늦음', away: '레슨 중', out: '오늘 못 함' };   // 레슨은 '왔어요'를 누를 때까지 (자동 복귀 없음)
   function isMatchDay(d) { return d === todayKST(); }
   function liveRows() { return live.week === ui.week && live.ok ? live.rows : []; }
   function loadAvail(d) {
@@ -555,7 +555,7 @@
     if (ui.lvAdd) {
       var att = Object.keys(w.attendees || {}).filter(function (pid) { return !b.away[pid] && P[pid]; }).sort(function (x, y) { return poolOrder(w.attendees[x]) - poolOrder(w.attendees[y]) || pname(P, x).localeCompare(pname(P, y), 'ko'); });
       out += ui.lvPick && P[ui.lvPick] ? '<div class="ab-pick"><p><b>' + esc(pname(P, ui.lvPick)) + '</b>을(를) 어떻게 표시할까요?</p><div class="row">' +
-        '<button class="btn sm" data-act="lv-set" data-p="' + ui.lvPick + '" data-st="late">늦음</button><button class="btn sm" data-act="lv-set" data-p="' + ui.lvPick + '" data-st="away" data-min="30">레슨 30분</button>' +
+        '<button class="btn sm" data-act="lv-set" data-p="' + ui.lvPick + '" data-st="late">늦음</button><button class="btn sm" data-act="lv-set" data-p="' + ui.lvPick + '" data-st="away">레슨</button>' +
         '<button class="btn sm" data-act="lv-set" data-p="' + ui.lvPick + '" data-st="out">오늘 못 함</button><button class="btn sm" data-act="lv-pick" data-p="">취소</button></div></div>'
         : '<div class="chips ab-att">' + att.map(function (pid) { return '<button data-act="lv-pick" data-p="' + pid + '"><span class="gdot g' + w.attendees[pid] + '">' + esc(pname(P, pid)) + '</span></button>'; }).join('') + '</div>';
     }
@@ -588,14 +588,13 @@
         : '<div class="court empty"><b>코트 ' + (k + 1) + '</b><span>비어 있음</span></div>';
     }).join('') + '</section>';
   }
-  // 회원: 내 차례 + 본인 늦음/레슨 표시
   // 회원: 본인 늦음/레슨 표시만 (내 차례 문구는 빼기로 함, 사용자 요청 2026-11-22)
   function myLiveCard(w, b, P) {
     var me = ui.me, a = b.away[me], row = liveRows().filter(function (r) { return r.player_id === me; })[0] || {};
     if (!w.attendees || !w.attendees[me]) return '';
     var body = a ? '<p class="small">내 상태: <b>' + AWAY_LABEL[a.status] + (a.until ? ' ' + untilText(a.until) : '') + '</b>' + (row.by_admin ? ' (돼장이 표시)' : '') + '</p>' +
         (a.status === 'out' && row.by_admin ? '' : '<button class="btn sm primary" data-act="my-avail" data-st="here">왔어요 · 다시 가능</button>')
-      : '<p class="small muted">늦거나 레슨으로 잠시 빠지면 눌러 주세요.</p><div class="row"><button class="btn sm" data-act="my-avail" data-st="late">늦어요</button><button class="btn sm" data-act="my-avail" data-st="away" data-min="30">레슨 30분 빠져요</button></div>';
+      : '<p class="small muted">늦거나 레슨으로 잠시 빠지면 눌러 주세요.</p><div class="row"><button class="btn sm" data-act="my-avail" data-st="late">늦어요</button><button class="btn sm" data-act="my-avail" data-st="away">레슨</button></div>';
     return '<div class="card my-live' + (a ? ' away' : '') + '">' + body + '</div>';
   }
 
@@ -1446,8 +1445,8 @@
       case 'lv-add': ui.lvAdd = !ui.lvAdd; ui.lvPick = ''; render(); break;
       case 'lv-pick': ui.lvPick = el.getAttribute('data-p') || ''; render(); break;
       case 'lv-done': ev.preventDefault(); ui.lvDone = !ui.lvDone; render(); break;
-      case 'lv-set': setAvail(true, el.getAttribute('data-p'), el.getAttribute('data-st'), +el.getAttribute('data-min') || null); break;
-      case 'my-avail': setAvail(false, ui.me, el.getAttribute('data-st'), +el.getAttribute('data-min') || null); break;
+      case 'lv-set': setAvail(true, el.getAttribute('data-p'), el.getAttribute('data-st'), null); break;
+      case 'my-avail': setAvail(false, ui.me, el.getAttribute('data-st'), null); break;
       case 'wview': ui.wview = v === 'all' ? 'all' : 'mine'; LS.set(KEY.wview, ui.wview); render(); break;
       case 'tab': ui.tab = v; LS.set(KEY.tab, v); ui.notice = null; ui.pred.edit = false; ui.pred.full = false; ui.pred.confirm = false; render(); window.scrollTo(0, 0); break;
       case 'week': ui.week = v; SS.set(SKEY.week, v); ui.confirm = null; ui.notice = null; ui.ai.res = null; ui.ai.err = ''; ui.shiftSel = { p: '', dir: 'up' }; ui.pred.edit = false; ui.pred.more = false; ui.pred.adm = null; ui.pred.admDel = ''; render(); break;

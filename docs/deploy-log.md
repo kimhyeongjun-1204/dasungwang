@@ -1137,3 +1137,17 @@ $ node deploy.test.js | tail -1; node logic.test.js | tail -1
 130 passed
 ```
 가짜 서버(서민희, 360·390px): 처음 버튼 2개 → 레슨 → "내 상태: 잠시 빠짐 ~21:07 / 왔어요" → 왔어요 → 버튼 2개 → 늦어요 → "내 상태: 늦음 / 왔어요". 넘침 없음.
+
+## 47. 레슨: "30분" 문구·자동 복귀 없애기 (사용자 요청, 같은 브랜치 feat/live-courts, 2026-11-22)
+- 버튼은 회원·돼장 모두 `레슨` 하나(시간 없이). 표시는 "레슨 중", **`왔어요`(회원)나 `×`(돼장)를 누를 때까지** 유지 — 30분 뒤 자동으로 풀리던 것 없앰.
+- schema.sql `set_availability`: 레슨(away)을 시간 없이 받게(`p_minutes is not null and …`일 때만 10~90 검사). 가짜 서버도 같게. `liveBoard`의 until 만료 처리는 시간이 있는 예전 행 대비로 남김.
+```
+$ node deploy.test.js   (테스트 먼저: data-min·"레슨 30분" 없음, SQL이 시간 없는 레슨 허용)
+  FAIL 회원 내 차례 문구는 빼고 늦어요·레슨·왔어요 버튼만
+36 passed
+$ node deploy.test.js | tail -1; node logic.test.js | tail -1
+37 passed
+130 passed
+```
+가짜 서버: 회원 [레슨] → "내 상태: 레슨 중 / 왔어요" → 왔어요 → 버튼. RPC `set_availability(away, 분 없음)` 200·until null, `away 5분` → bad_minutes.
+SQL이 또 바뀜 → 머지 전 schema.sql 다시 실행.

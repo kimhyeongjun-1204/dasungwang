@@ -164,7 +164,7 @@ const RPC = {
     if (!attending(d, a.p_player)) return fail(res, 'not_attending');
     const cur = P.availability.find(r => r.week_date === d && r.player_id === a.p_player);
     if (cur && cur.by_admin && cur.status === 'out') return fail(res, 'admin_locked');
-    if (st === 'away' && !(mn >= 10 && mn <= 90)) return fail(res, 'bad_minutes');
+    if (st === 'away' && mn != null && !(mn >= 10 && mn <= 90)) return fail(res, 'bad_minutes');
     if (st === 'late' && mn != null && !(mn >= 0 && mn <= 120)) return fail(res, 'bad_minutes');
     send(res, 200, JSON.stringify(availApply(d, a.p_player, st, mn || 0, false)));
   },
