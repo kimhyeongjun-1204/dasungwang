@@ -1068,3 +1068,10 @@ $ node deploy.test.js | tail -1; node logic.test.js | tail -1
 129 passed
 ```
 가짜 서버: 도우미 로그인 토큰 role=operator, 만료 2027-11-18(1년 뒤), 안내 "이 기기에서 계속 유지돼요". 진행 PIN 끄면 live_check null → 도우미가 누르면 "로그인이 만료됐어요".
+
+## 42. 머지 전 시험용: Windows에서 더블클릭으로 가짜 서버 (사용자 요청, 같은 브랜치 feat/live-courts, 2026-11-22)
+- `tools/preview.cmd`: 빌드 → `MOCK_DEMO=1 MOCK_TODAY=1 PORT=8791`로 가짜 서버 → 브라우저 열기. Node.js 없으면 안내 후 멈춤.
+- `MOCK_TODAY=1`: 가짜 데이터의 마지막 주(11/18)를 오늘 날짜로 옮김 → 수요일이 아니어도 경기날 화면(경기 진행·자리 비움·내 차례)을 시험.
+- `/config.js`가 접속한 주소(Host)를 그대로 씀 → 같은 와이파이 휴대폰에서 `http://PC-IP:8791`로 열어도 가짜 서버로 붙음(전엔 localhost로 고정이라 휴대폰에선 안 됨).
+확인(이 컨테이너): `MOCK_TODAY=1`로 띄우면 주 목록 끝이 오늘(2026-11-22), 돼장 로그인 시 `경기 진행*`·코트 3·넣기 버튼 17. `Host: 192.168.0.5:8791`로 config.js 요청 → url이 그 주소.
+Windows에서 실제 더블클릭은 못 해 봄(사용자 PC).

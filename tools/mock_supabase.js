@@ -15,6 +15,13 @@ const now = () => Date.now() + clockOffset;
 // MOCK_STATE=파일경로 로 다른 데이터를 쓸 수 있음 (예: 실제 DB를 읽어 둔 사본)
 // MOCK_DEMO=1 이면 seed.js 명단으로 만든 돼블스플랜 가짜 주차·예측 (tools/daebles_demo.js)
 const demo = process.env.MOCK_DEMO ? require('./daebles_demo.js').build(require('../seed.js'), now()) : null;
+// MOCK_TODAY=1: 가짜 데이터의 마지막 주(11/18)를 오늘 날짜로 옮김 → 아무 날에나 '경기날' 화면(경기 진행·자리 비움·내 차례)을 시험
+if (demo && process.env.MOCK_TODAY) {
+  const today = new Date(now() + 9 * 3600e3).toISOString().slice(0, 10), from = '2026-11-18';
+  demo.state.weeks.forEach(w => { if (w.date === from) w.date = today; });
+  demo.state.weeks.sort((a, b) => (a.date < b.date ? -1 : 1));
+  demo.predictions.forEach(p => { if (p.week_date === from) p.week_date = today; });
+}
 const src = demo ? demo.state : process.env.MOCK_STATE ? JSON.parse(fs.readFileSync(process.env.MOCK_STATE, 'utf8'))
   : fs.existsSync(path.join(__dirname, '..', 'live_state.json')) ? require('../live_state.json') : require('../seed.js');
 const state = JSON.parse(JSON.stringify(src));
@@ -264,7 +271,8 @@ http.createServer((req, res) => {
     let body = ''; req.on('data', c => body += c);
     return req.on('end', () => { const f = RPC[u.pathname.slice(13)]; f ? f(JSON.parse(body || '{}'), res) : send(res, 404, { message: 'no function' }); });
   }
-  if (u.pathname === '/config.js') return send(res, 200, "window.DDW_CONFIG = { url: 'http://localhost:" + PORT + "', anonKey: 'mock', realtime: false };", TYPES['.js']);
+  // 같은 와이파이의 휴대폰으로 PC 주소(http://192.168.x.x:PORT)로 열어도 되게, 접속한 주소를 그대로 씀
+  if (u.pathname === '/config.js') return send(res, 200, "window.DDW_CONFIG = { url: 'http://" + (req.headers.host || 'localhost:' + PORT) + "', anonKey: 'mock', realtime: false };", TYPES['.js']);
   const f = path.join(dist, u.pathname === '/' ? 'index.html' : path.normalize(u.pathname).replace(/^[\\/]+/, ''));
   if (!f.startsWith(dist) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) return send(res, 404, 'not found', 'text/plain');
   send(res, 200, fs.readFileSync(f), TYPES[path.extname(f)] || 'application/octet-stream');
