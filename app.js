@@ -623,7 +623,7 @@
 
   // ---- 웹 푸시 (2026-11-23): 내 경기가 코트에 들어갈 때 · 내가 예측한 경기가 시작할 때 ----
   // st: hidden(키 없음) / unsupported / ios(홈 화면 앱 아님) / default(아직 안 켬) / on / denied / unknown(확인 중)
-  var push = { st: 'unknown', sub: null, busy: false };
+  var push = { st: 'unknown', sub: null, busy: false, help: false, ios: /iPad|iPhone|iPod/.test(navigator.userAgent || '') || (/Macintosh/.test(navigator.userAgent || '') && navigator.maxTouchPoints > 1) };
   function vapidKey() { return (window.DDW_CONFIG && window.DDW_CONFIG.vapidKey) || ''; }
   function b64uBytes(s) {
     var t = s.replace(/-/g, '+').replace(/_/g, '/'), bin = atob(t + '==='.slice((t.length + 3) % 4)), out = new Uint8Array(bin.length);
@@ -677,13 +677,36 @@
       });
     }).then(function (sub) {
       return remote.pushSubscribe(me, sub.toJSON()).then(function () { push.sub = sub; push.st = 'on'; LS.set(KEY.pushFor, me); });
-    }).then(function () { push.busy = false; toast('알림을 켰어요. 내 경기·내 예측 경기가 코트에 들어가면 알려 드려요.'); render(); },
+    }).then(function () {
+      // 켜자마자 시험 알림 + 팝업 설정 안내 (웹은 '화면 위 팝업' 등급을 직접 못 정해서 회원이 한 번 켜야 함)
+      push.busy = false; push.help = true; render();
+      pushTest().then(function (ok) { toast(ok ? '알림을 켰어요. 방금 온 시험 알림으로 화면 위 팝업을 켜 주세요.' : '알림을 켰어요.'); });
+    },
       function (e) {
         push.busy = false;
         if (!(e && e.code === 'perm')) toast(PUSH_ERR[e && e.code] || '알림을 켜지 못했어요.');
         else if (push.st === 'denied') toast('알림이 차단돼 있어요. 브라우저 설정에서 이 사이트 알림을 허용해 주세요.');
         render();
       });
+  }
+  // 휴대폰 안에서 바로 띄우는 시험 알림 (서버를 거치지 않음). 안드로이드 Chrome은 new Notification을 막아서 서비스 워커로 띄움
+  function pushTest() {
+    if (!('serviceWorker' in navigator)) return Promise.resolve(false);
+    return navigator.serviceWorker.ready.then(function (reg) {
+      return reg.showNotification('시험 알림 · 다승왕전', {
+        body: push.ios ? '이렇게 와요. 설정 › 알림 › 다승왕전에서 배너로 바꾸면 화면 위에 떠요.' : '이렇게 와요. 이 알림을 길게 눌러 ⚙ › 팝업으로 표시를 켜면 화면 위에 떠요.',
+        tag: 'ddw-test', renotify: true, icon: 'icons/icon-192.png', data: { url: './' },
+      });
+    }).then(function () { return true; }, function () { return false; });
+  }
+  // 화면 위에 뜨게 하는 법. 안드로이드: 받은 알림을 길게 눌러 그 사이트 알림 설정으로 바로 감 / 아이폰: 설정 앱의 알림 스타일
+  function pushGuide() {
+    var steps = push.ios
+      ? ['홈 화면에서 <b>설정</b> 앱을 열어요', '<b>알림 › 다승왕전</b>으로 가요', '<b>알림 스타일</b>을 <b>배너</b>로 골라요 (소리도 켜면 좋아요)', '아래 <b>시험 알림 보내기</b>로 확인해요']
+      : ['알림창을 내려서 <b>시험 알림을 길게</b> 눌러요', '<b>⚙</b> 또는 <b>알림 설정</b>을 눌러요', '<b>팝업으로 표시</b>를 켜요 <span class="muted">(기종에 따라 "화면에 팝업", "소리 및 팝업")</span>', '아래 <b>시험 알림 보내기</b>로 확인해요'];
+    var pic = push.ios ? '' : '<div class="pg-pic" aria-hidden="true"><div class="pg-noti"><i></i><span><b>코트 5에서 내 경기 시작</b><small>김성곤·유성준 vs 이제영·박강호</small></span><u>👆 길게</u></div><div class="pg-row"><span class="pg-arrow">↳ ⚙ 알림 설정</span><div class="pg-set"><span>팝업으로 표시</span><em></em></div></div></div>';
+    return '<div class="push-guide"><b>카톡처럼 화면 위에 뜨게 하기 <span class="muted small">(처음 한 번만)</span></b>' + pic +
+      '<ol>' + steps.map(function (x) { return '<li>' + x + '</li>'; }).join('') + '</ol></div>';
   }
   function pushOff() {
     if (push.busy || !push.sub) return;
@@ -699,7 +722,9 @@
     var head = '<div class="push-head"><b>🔔 코트 알림</b>' + (push.st === 'on' ? '<span class="chip bal-even">켜짐</span>' : '') + '</div>';
     var what = '<p class="small muted">내 경기가 코트에 들어갈 때, 내가 예측한 경기가 시작할 때 몇 번 코트인지 알려 드려요.</p>';
     var body;
-    if (push.st === 'on') body = '<p class="small muted">이 기기로 받아요.</p><button class="btn sm" data-act="push-off"' + (push.busy ? ' disabled' : '') + '>알림 끄기</button>';
+    if (push.st === 'on') body = '<p class="small muted">이 기기로 받아요.</p>' +
+      (push.help ? pushGuide() : '<button class="link small" data-act="push-help">카톡처럼 화면 위에 뜨게 하려면?</button>') +
+      '<div class="push-btns"><button class="btn sm" data-act="push-test">시험 알림 보내기</button><button class="btn sm" data-act="push-off"' + (push.busy ? ' disabled' : '') + '>알림 끄기</button></div>';
     else if (push.st === 'default') body = (short ? '' : what) + '<button class="btn sm primary" data-act="push-on"' + (push.busy ? ' disabled' : '') + '>알림 받기</button>';
     else if (push.st === 'denied') body = what + '<p class="small">알림이 차단돼 있어요. 브라우저 설정 › 사이트 설정에서 이 사이트 알림을 허용한 뒤 다시 열어 주세요.</p>';
     else if (push.st === 'ios') body = what + '<p class="small">아이폰은 Safari 공유 버튼 › <b>홈 화면에 추가</b>로 앱을 설치한 뒤, 그 앱에서 켤 수 있어요 (iOS 16.4 이상).</p>';
@@ -1564,6 +1589,8 @@
       case 'my-avail': setAvail(false, ui.me, el.getAttribute('data-st'), null); break;
       case 'push-on': pushOn(); break;
       case 'push-off': pushOff(); break;
+      case 'push-help': push.help = true; render(); break;
+      case 'push-test': pushTest().then(function (ok) { toast(ok ? '시험 알림을 보냈어요. 화면 위에 떴는지 확인해 보세요.' : '시험 알림을 못 보냈어요. 알림 허용을 확인해 주세요.'); }); break;
       case 'wview': ui.wview = v === 'all' ? 'all' : 'mine'; LS.set(KEY.wview, ui.wview); render(); break;
       case 'tab': ui.tab = v; LS.set(KEY.tab, v); ui.notice = null; ui.pred.edit = false; ui.pred.full = false; ui.pred.confirm = false; render(); window.scrollTo(0, 0); break;
       case 'week': ui.week = v; SS.set(SKEY.week, v); ui.confirm = null; ui.notice = null; ui.ai.res = null; ui.ai.err = ''; ui.shiftSel = { p: '', dir: 'up' }; ui.pred.edit = false; ui.pred.more = false; ui.pred.adm = null; ui.pred.admDel = ''; render(); break;
