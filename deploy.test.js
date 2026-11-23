@@ -317,6 +317,15 @@ test('알림 받기 카드: 돼장·도우미로 로그인한 기기에서도 �
   assert.ok(g, 'pushCard 첫 줄 모양을 못 찾음');
   assert.ok(!/ui\.admin|ui\.op/.test(g[1]), '돼장·도우미 로그인이면 알림 카드를 숨김: ' + g[1]);
 });
+test('알림 켠 뒤 팝업 설정 안내: 시험 알림을 바로 보내고, 길게 눌러 팝업으로 표시 켜는 방법·다시 보내기 버튼 (2026-11-23)', () => {
+  const on = appSrc.match(/function pushOn\(\) \{[\s\S]*?\n  \}\n/);
+  assert.ok(on && /pushTest\(\)/.test(on[0]), '알림을 켜면 시험 알림을 바로 보내야 함');
+  const t = appSrc.match(/function pushTest\(\) \{[\s\S]*?\n  \}\n/);
+  assert.ok(t && /showNotification\(/.test(t[0]) && /tag: 'ddw-test'/.test(t[0]), 'pushTest가 서비스 워커로 시험 알림을 띄워야 함(안드로이드는 new Notification 불가)');
+  assert.ok(/data-act="push-test"/.test(appSrc) && /case 'push-test'/.test(appSrc), '시험 알림 다시 보내기 버튼 없음');
+  assert.ok(/data-act="push-help"/.test(appSrc) && /case 'push-help'/.test(appSrc), '안내 다시 보기 없음');
+  assert.ok(/길게/.test(appSrc) && /팝업으로 표시/.test(appSrc) && /알림 스타일/.test(appSrc), '안드로이드(길게 눌러 팝업으로 표시)·아이폰(알림 스타일) 안내 문구 없음');
+});
 test('Edge Function rematch: 조건 종류가 logic.js와 같고, 모델·폴백·키 처리가 맞음', () => {
   const src = fs.readFileSync(path.join(__dirname, 'supabase', 'functions', 'rematch', 'index.ts'), 'utf8');
   const types = JSON.parse(src.match(/const RULE_TYPES = (\[[^\]]*\])/)[1].replace(/'/g, '"'));
