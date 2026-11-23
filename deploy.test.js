@@ -414,6 +414,12 @@ test('코트에 진행 시간·남은 시간 짐작 (돼장·회원 둘 다), 1�
   assert.ok(/분 남음/.test(appSrc) && /곧 끝나요/.test(appSrc), '남은 시간 문구 없음');
   assert.ok(/live\.minute/.test(appSrc), '1분마다 다시 그리는 장치 없음');
 });
+test('경기 진행: 바로 가능·못 함·완료를 조 탭(전체·조별 얼굴 + 개수)으로 나눔 (사용자 요청 2026-11-23)', () => {
+  const live = appSrc.slice(appSrc.indexOf('function viewLive('), appSrc.indexOf('function courtsStrip('));
+  assert.ok(/data-act="lv-grp"/.test(live), '조 탭 없음');
+  assert.ok(/ui\.lvGroup/.test(live) && /var inGrp = /.test(live), '조 탭으로 목록을 거르지 않음');
+  assert.ok(/b\.ready\.filter\(inGrp\)/.test(live) && /b\.blocked\.filter\(inGrp\)/.test(live) && /b\.done\.filter\(inGrp\)/.test(live), '바로 가능·못 함·완료 셋 다 걸러야 함');
+});
 test('app.js: 기존 충돌 UI·저장 실패 배너·임시저장 유지', () => {
   for (const s of ['draftConflict', 'ui.saveError', 'KEY.draft', 'draft-load', 'draft-drop']) assert.ok(appSrc.includes(s), s + ' 없음');
 });
