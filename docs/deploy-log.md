@@ -1270,3 +1270,21 @@ $ (바꾼 뒤) node deploy.test.js | tail -1; node logic.test.js | tail -1
 화면(390px): 내 기록 탭 "🔔 코트 알림 · 알림 받기", 경기날 내 경기 화면 맨 아래 같은 카드(아직 안 켠 사람만), 차단 상태 안내. 헤드리스 Chromium은 권한을 줘도 Notification.permission이 'denied'라서 찍을 때만 'default'로 덮음.
 미리보기(preview.cmd): 띄울 때마다 새 VAPID 키를 메모리에 만들고 진짜 notify 코드를 씀 → Node 22 이상이면 PC Chrome에 진짜 알림이 옴. 휴대폰에서 http://PC주소로 열면 보안 연결이 아니라 알림은 안 됨(카드가 "지원 안 함").
 사진: docs/screenshots/push/push_card_390.jpg
+
+### 54-1. 실제 Supabase 반영 (2026-11-23, 머지 전)
+- 키: 사용자 PC에 Node가 없어 `npx`가 안 됨(오답 노트 23) → 사용자 요청으로 Claude in Chrome이 사이트 탭에서 WebCrypto로 키 한 쌍을 만들어 화면에만 띄움. Claude는 공개 키만 받음(87자, `config.js`에 넣음). 비밀 키는 화면에서 사용자가 복사해 넣음.
+- 사용자가 Edge Functions › Secrets에 `VAPID_PUBLIC_KEY`·`VAPID_PRIVATE_KEY`·`VAPID_SUBJECT` 입력. 대시보드의 SHA-256 다이제스트가 공개 키(`b1bb1f3e…cac5`)·사이트 주소(`603ce997…eb24`)를 직접 계산한 값과 같음. 비밀 키는 값을 몰라 확인 못 함.
+- `notify` 배포: 대시보드 편집기에 GitHub raw `feat/push`의 index.ts를 넣고 SHA-256(`0f0baa4f…9fdd`)이 커밋된 파일과 같은지 확인한 뒤 배포. 앱과 같은 헤더(apikey + Bearer 공개 키)로 불러 HTTP 200 → JWT 확인 설정이 켜져 있어도 막히지 않음.
+- `schema.sql` 실행: 같은 방법으로 SHA-256(`b824e781…a093`) 확인 → "파괴적 작업" 경고(예전 `drop table if exists admin_login_guard`, 함수 안 delete) 확인 후 실행 → "Success. No rows returned". 첫 시도는 확인 버튼을 누르기 전에 탭 묶음이 사라져 실행 안 됨(`push_targets` 404로 확인) → 사용자 "계속" 후 다시 실행.
+- 공개 키로 확인:
+```
+push_targets(가짜 토큰)      → 400 unauthorized
+push_gone(가짜 토큰)         → 400 unauthorized
+push_subscribe(없는 선수)    → 400 bad_player
+push_subscribe(http 주소)    → 400 bad_endpoint
+GET push_subs / push_log     → 401 permission denied
+live_check(가짜)             → 200 null
+notify(가짜 토큰)            → 200 {ok:false, code:unauthorized}   (실행 전: "Could not find the function public.push_targets")
+```
+- app_state rev 456 (11/23 오전 확인 때 453, 그 사이 저장분). schema.sql은 맨 위에서 app_state를 바꾸지 않음(update는 함수 안에만).
+- 아직 못 본 것: 실제 휴대폰에서 구독 → 코트 넣기 → 알림 도착.
