@@ -1151,3 +1151,11 @@ $ node deploy.test.js | tail -1; node logic.test.js | tail -1
 ```
 가짜 서버: 회원 [레슨] → "내 상태: 레슨 중 / 왔어요" → 왔어요 → 버튼. RPC `set_availability(away, 분 없음)` 200·until null, `away 5분` → bad_minutes.
 SQL이 또 바뀜 → 머지 전 schema.sql 다시 실행.
+
+## 48. 실제 DB에 schema.sql 실행 + PR #10 머지·배포 (2026-11-23, 사용자 요청 "이거 너가 안돼?")
+- 사용자가 PC Chrome에서 Supabase에 로그인한 뒤, Claude in Chrome으로 SQL Editor에 `feat/live-courts`의 schema.sql을 넣고 실행. 넣은 내용은 GitHub raw를 받아 SHA-256 `668fca5a…80b5`가 커밋된 파일과 같은지 확인한 뒤 실행.
+- "파괴적 작업" 경고(기존 `drop table if exists admin_login_guard`, 함수 안 delete) 확인 후 실행. 결과 화면은 Chrome 번역 기능 때문에 대시보드가 멈춰서 못 봄 → 아래 두 방법으로 따로 확인.
+- 공개 키로 RPC 확인: `live_check` 200 null, `operator_login` → no_op_pin, `availability` 200 [], `set_availability(2000-01-05)` → not_today, `admin_check(가짜)` false, `live_action(가짜)` → unauthorized, `set_operator_pin(가짜)` → unauthorized. app_state rev 453 그대로(데이터 안 바뀜).
+- SQL로 확인: 시간 없는 레슨 허용 true, admin_session.role 열 1, admin_check가 role='admin'만 true, Realtime 테이블 `app_state,availability,prediction_counts,prediction_events`, 새 함수 6개.
+- PR #10 머지(#8·#9 포함, 셋 다 merged 표시) → GitHub Actions 성공(0ae2828) → 실제 사이트 HTML에 `live_action`·`shortNames`·`--face-lb` 있음.
+- 아직 못 본 것: 실제 사이트에서 휴대폰 여러 대로 진행 PIN·코트·Realtime.
