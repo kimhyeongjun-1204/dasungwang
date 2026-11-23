@@ -1288,3 +1288,15 @@ notify(가짜 토큰)            → 200 {ok:false, code:unauthorized}   (실행
 ```
 - app_state rev 456 (11/23 오전 확인 때 453, 그 사이 저장분). schema.sql은 맨 위에서 app_state를 바꾸지 않음(update는 함수 안에만).
 - 아직 못 본 것: 실제 휴대폰에서 구독 → 코트 넣기 → 알림 도착.
+
+## 55. 알림 받기 카드: 돼장·도우미 기기에서도 보이게 (브랜치 fix/push-card-admin, 2026-11-23)
+#15는 돼장·도우미로 로그인한 기기에서 카드를 숨겼음(오답 노트 24). 둘 다 선수라 조건을 뺌.
+```
+$ node deploy.test.js   (테스트 먼저)
+  FAIL 알림 받기 카드: 돼장·도우미로 로그인한 기기에서도 보여야 함
+43 passed
+$ (고친 뒤) node deploy.test.js | tail -1; node logic.test.js | tail -1
+44 passed
+134 passed
+```
+가짜 서버(390px, 내 기록 탭, 이름 p001): 돼장 로그인 카드 1·알림 받기 버튼 1 / 도우미 로그인 1·1 / 회원 1·1.
