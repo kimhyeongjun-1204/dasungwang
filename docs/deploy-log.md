@@ -1202,3 +1202,15 @@ $ node logic.test.js | tail -1; node deploy.test.js | tail -1
 - 확인 쿼리: live_action에 extra_open·괄호 고친 선수 겹침 검사·추가 코트(0) 규칙 모두 있음 true, app_state rev 453 그대로.
 - PR #11 머지 → GitHub Actions 성공(05cebd2) → 실제 사이트 HTML에 `courtSlots`·"추가 코트 열기"·`court-form` 있음.
 - 오답 노트 22의 선수 겹침 검사 버그는 이 시점부터 실제 DB에서 고쳐짐(11/23 09:28~10:0x 사이에는 있었음, 그동안 코트 사용 없음 — 실제 경기는 11/25부터).
+
+## 51. 내 경기 보기 순서: 늦어요·레슨을 내 경기 아래로 (사용자 요청, 브랜치 feat/order-avail, 2026-11-23)
+- 내 경기 보기: 지금 코트 → **내 경기 → 늦어요·레슨** → 내 예측. 전체 보기는 지금 코트 → 늦어요·레슨 → 내 예측 → 전체 경기 그대로.
+```
+$ node deploy.test.js   (테스트 먼저)
+  FAIL 내 경기 보기 순서: 지금 코트 → 내 경기 → 늦어요·레슨 → 내 예측
+38 passed
+$ node deploy.test.js | tail -1; node logic.test.js | tail -1
+39 passed
+132 passed
+```
+가짜 서버(코트 5에 한 경기, 서민희, 360·390px): 내 경기 보기 `courts.mini → my-matches → my-live → my-pred`, 전체 `courts.mini → my-live → my-pred → group`. 넘침 없음.
