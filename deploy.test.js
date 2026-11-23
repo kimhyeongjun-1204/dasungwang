@@ -408,6 +408,12 @@ test('내 경기 보기 순서: 지금 코트 → 내 경기 → 늦어요·레�
   const wk = appSrc.slice(appSrc.indexOf('if (mine) {\n      var my = [];'), appSrc.indexOf('    out += legend();'));
   assert.ok(/my-matches[\s\S]*myLiveCard\([\s\S]*myPredCard\(/.test(wk), '내 경기 보기에서 내 경기 → 늦어요·레슨 → 내 예측 순서가 아님');
 });
+test('코트에 진행 시간·남은 시간 짐작 (돼장·회원 둘 다), 1분마다 다시 그림 (사용자 요청 2026-11-23)', () => {
+  assert.ok(/L\.typicalMinutes\(work\.weeks\)/.test(appSrc), '보통 경기 시간 계산 없음');
+  assert.ok((appSrc.match(/etaText\(/g) || []).length >= 3, '돼장 코트·회원 지금 코트에 남은 시간 표시 없음');
+  assert.ok(/분 남음/.test(appSrc) && /곧 끝나요/.test(appSrc), '남은 시간 문구 없음');
+  assert.ok(/live\.minute/.test(appSrc), '1분마다 다시 그리는 장치 없음');
+});
 test('app.js: 기존 충돌 UI·저장 실패 배너·임시저장 유지', () => {
   for (const s of ['draftConflict', 'ui.saveError', 'KEY.draft', 'draft-load', 'draft-drop']) assert.ok(appSrc.includes(s), s + ' 없음');
 });
