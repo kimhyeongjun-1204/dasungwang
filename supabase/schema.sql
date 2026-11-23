@@ -549,8 +549,8 @@ begin
   delete from public.admin_session s where s.role = 'operator';
 end $$;
 
--- 경기 진행 동작: 그 주의 경기 하나만 서버에서 바꿈 (돼장·도우미). logic.js startMatch/finishMatch/cancelMatch와 같은 규칙
--- start(p_court 1~3) / finish(p_side a|b) / cancel. 성공하면 새 rev
+-- 경기 진행 동작: 그 주의 경기 하나만 서버에서 바꿈 (돼장·도우미). logic.js startMatch/finishMatch/cancelMatch/setExtraCourt와 같은 규칙
+-- start(p_court: 설정의 고정 코트 번호, 기본 5·6 / 추가 코트를 열었으면 0) / finish(p_side a|b) / cancel / extra_open·extra_close(p_match 무시). 성공하면 새 rev
 create or replace function public.live_action(token uuid, p_week date, p_match text, p_action text, p_court int, p_side text) returns int
 language plpgsql security definer set search_path = public as $$
 declare
@@ -559,24 +559,34 @@ declare
   wi int;
   mi int;
   m jsonb;
+  fixed int[];
   ts text := to_char(now() at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"');
 begin
   if public.live_check(live_action.token) is null then raise exception 'unauthorized'; end if;
-  if p_action is null or p_action not in ('start', 'finish', 'cancel') then raise exception 'bad_action'; end if;
+  if p_action is null or p_action not in ('start', 'finish', 'cancel', 'extra_open', 'extra_close') then raise exception 'bad_action'; end if;
   select state, rev into st, cur from public.app_state where id = 1 for update;
   select (w.ord - 1)::int into wi from jsonb_array_elements(st->'weeks') with ordinality as w(val, ord) where w.val->>'date' = p_week::text limit 1;
   if wi is null then raise exception 'no_week'; end if;
+  -- 추가 코트 열기·닫기 (경기가 있으면 못 닫음)
+  if p_action in ('extra_open', 'extra_close') then
+    if p_action = 'extra_close' and exists (select 1 from jsonb_array_elements(st->'weeks'->wi->'matches') x(val)
+        where coalesce(x.val->>'win', '') = '' and x.val->>'court' = '0') then raise exception 'court_busy'; end if;
+    update public.app_state set state = jsonb_set(st, array['weeks', wi::text, 'extraCourt'], to_jsonb(p_action = 'extra_open')), rev = cur + 1, saved_at = now() where id = 1;
+    return cur + 1;
+  end if;
   select (x.ord - 1)::int, x.val into mi, m from jsonb_array_elements(st->'weeks'->wi->'matches') with ordinality as x(val, ord) where x.val->>'id' = p_match limit 1;
   if mi is null then raise exception 'no_match'; end if;
   if p_action = 'start' then
     if coalesce(m->>'win', '') <> '' then raise exception 'already_done'; end if;
     if coalesce(m->>'court', '') <> '' then raise exception 'court_busy'; end if;
-    if p_court is null or p_court < 1 or p_court > 3 then raise exception 'bad_court'; end if;
+    select array_agg(x::int) into fixed from jsonb_array_elements_text(coalesce(st->'settings'->'courts', '[]'::jsonb)) x where x ~ '^[1-9][0-9]?$';
+    if fixed is null then fixed := array[5, 6]; end if;
+    if p_court is null or not (p_court = any(fixed) or (p_court = 0 and coalesce((st->'weeks'->wi->>'extraCourt')::boolean, false))) then raise exception 'bad_court'; end if;
     if exists (select 1 from jsonb_array_elements(st->'weeks'->wi->'matches') x(val)
                 where coalesce(x.val->>'win', '') = '' and (x.val->>'court')::int = p_court) then raise exception 'court_busy'; end if;
-    if exists (select 1 from jsonb_array_elements(st->'weeks'->wi->'matches') x(val), jsonb_array_elements_text(x.val->'a' || x.val->'b') p(pid)
+    if exists (select 1 from jsonb_array_elements(st->'weeks'->wi->'matches') x(val), jsonb_array_elements_text((x.val->'a') || (x.val->'b')) p(pid)
                 where coalesce(x.val->>'win', '') = '' and coalesce(x.val->>'court', '') <> ''
-                  and p.pid in (select jsonb_array_elements_text(m->'a' || m->'b'))) then raise exception 'player_busy'; end if;
+                  and p.pid in (select jsonb_array_elements_text((m->'a') || (m->'b')))) then raise exception 'player_busy'; end if;
     m := m || jsonb_build_object('court', p_court, 'startedAt', ts);
   elsif p_action = 'finish' then
     if coalesce(m->>'win', '') <> '' then raise exception 'already_done'; end if;

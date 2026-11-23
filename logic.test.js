@@ -197,7 +197,7 @@ test('matchStarted: 경기날 17:30 KST 경계', () => {
 });
 
 console.log('경기 진행(코트)');
-// 11/25(수) 저녁. 시작 기준 17:30 KST
+// 11/25(수) 저녁. 시작 기준 17:30 KST. 코트는 고정 5·6번 + 그날 여는 '추가 코트'(번호 없음, court 0) (사용자 결정 2026-11-23)
 const LT = (hm) => Date.parse('2026-11-25T' + hm + ':00+09:00');
 const LISO = (hm) => new Date(LT(hm)).toISOString();
 function liveWeek() {
@@ -210,22 +210,31 @@ function liveWeek() {
   ] };
 }
 const ids = (arr) => arr.map(r => (r.m || r).id);
-test('liveBoard: 코트 3칸, 진행 중 선수가 낀 경기는 못 함, 끝난 경기는 완료로', () => {
-  const w = liveWeek();
-  w.matches[0].court = 2; w.matches[0].startedAt = LISO('18:00');        // k1 진행 중 (a,b,c,d)
+test('courtSlots / courtLabel: 기본 고정 5·6번, 설정으로 바꿈, 추가 코트는 번호 없이 맨 끝', () => {
+  assert.deepStrictEqual(L.courtSlots(null, liveWeek()), [5, 6]);
+  assert.deepStrictEqual(L.courtSlots({ courts: [3, 4] }, liveWeek()), [3, 4]);
+  assert.deepStrictEqual(L.courtSlots({ courts: [] }, liveWeek()), [5, 6], '비어 있으면 기본');
+  const w = liveWeek(); w.extraCourt = true;
+  assert.deepStrictEqual(L.courtSlots({ courts: [5, 6] }, w), [5, 6, 0]);
+  assert.strictEqual(L.courtLabel(5), '코트 5');
+  assert.strictEqual(L.courtLabel(0), '추가 코트');
+});
+test('liveBoard: 코트 칸은 고정 코트(+추가), 진행 중 선수가 낀 경기는 못 함, 끝난 경기는 완료로', () => {
+  const w = liveWeek(); w.extraCourt = true;
+  w.matches[0].court = 6; w.matches[0].startedAt = LISO('18:00');        // k1 진행 중 (a,b,c,d)
   w.matches[3].win = 'a'; w.matches[3].endedAt = LISO('18:10');          // k4 완료
-  const b = L.liveBoard(w, [], LT('18:20'));
-  assert.deepStrictEqual(b.courts.map(m => m && m.id), [null, 'k1', null]);
-  assert.deepStrictEqual(b.freeCourts, [1, 3]);
+  const b = L.liveBoard(w, [], LT('18:20'), { slots: [5, 6, 0] });
+  assert.deepStrictEqual(b.courts.map(c => [c.no, c.m && c.m.id]), [[5, null], [6, 'k1'], [0, null]]);
+  assert.deepStrictEqual(b.freeCourts, [5, 0]);
   assert.deepStrictEqual(ids(b.done), ['k4']);
   assert.deepStrictEqual(ids(b.ready).sort(), ['k2', 'k5']);
   assert.deepStrictEqual(ids(b.blocked), ['k3']);                            // a가 k1에서 경기 중
-  assert.deepStrictEqual(b.blocked[0].why, [{ pid: 'a', kind: 'playing', court: 2 }]);
+  assert.deepStrictEqual(b.blocked[0].why, [{ pid: 'a', kind: 'playing', court: 6 }]);
 });
-test('liveBoard: 늦음·오늘 못 함은 풀 때까지, 레슨(잠시 빠짐)은 복귀 시각이 지나면 자동으로 가능', () => {
+test('liveBoard: 늦음·오늘 못 함·레슨은 풀 때까지, 시간이 있는 예전 레슨 행은 시각이 지나면 풀림', () => {
   const w = liveWeek();
   const av = [
-    { player_id: 'e', status: 'away', until: LISO('19:00') },   // 레슨
+    { player_id: 'e', status: 'away', until: LISO('19:00') },
     { player_id: 'k', status: 'late', until: null },
     { player_id: 'z', status: 'out', until: null },
   ];
@@ -233,53 +242,63 @@ test('liveBoard: 늦음·오늘 못 함은 풀 때까지, 레슨(잠시 빠짐)�
   assert.deepStrictEqual(ids(b.ready), ['k1']);
   assert.deepStrictEqual(b.blocked.map(x => [x.m.id, x.why.map(y => y.pid + ':' + y.kind).join(',')]),
     [['k2', 'e:away'], ['k3', 'e:away'], ['k4', 'z:out'], ['k5', 'k:late']]);
-  assert.strictEqual(b.away.e.until, LISO('19:00'));
-  b = L.liveBoard(w, av, LT('19:00'));                           // 레슨 끝
+  b = L.liveBoard(w, av, LT('19:00'));
   assert.deepStrictEqual(ids(b.ready).sort(), ['k1', 'k2', 'k3']);
-  assert.ok(!b.away.e, '복귀 시각이 지난 자리 비움은 목록에서 빠짐');
+  assert.ok(!b.away.e);
+  b = L.liveBoard(w, [{ player_id: 'e', status: 'away', until: null }], LT('23:00'));
+  assert.ok(b.away.e, '시간 없는 레슨은 왔어요 전까지 유지');
 });
 test('liveBoard: 바로 가능한 경기는 오래 기다린 사람 순 (4명 기다린 시간 합), 같으면 편성 순서', () => {
   const w = liveWeek();
-  // a,b,c,d는 18:00에 끝남, e,f,g,h는 18:30에 끝남 → 19:00 기준 k1 쪽이 더 오래 기다림
   w.matches.push({ id: 'p1', pool: 'A', a: ['a', 'b'], b: ['c', 'd'], off: [], win: 'a', endedAt: LISO('18:00') });
   w.matches.push({ id: 'p2', pool: 'A', a: ['e', 'f'], b: ['g', 'h'], off: [], win: 'b', endedAt: LISO('18:30') });
   w.matches = w.matches.filter(m => m.id !== 'k3' && m.id !== 'k5');
   const b = L.liveBoard(w, [], LT('19:00'));
-  assert.deepStrictEqual(ids(b.ready), ['k4', 'k1', 'k2']);         // x,y,z,w는 아직 안 함 → 17:30부터 기다림
-  assert.deepStrictEqual(b.ready.map(r => r.wait), [360, 240, 120]); // 분 합계
-  assert.deepStrictEqual(b.ready.map(r => r.longest), [90, 60, 30]); // 화면에 보이는 '가장 오래 기다린 사람' 분
-  assert.deepStrictEqual(ids(b.done), ['p2', 'p1']);                // 최근 끝난 것부터
+  assert.deepStrictEqual(ids(b.ready), ['k4', 'k1', 'k2']);
+  assert.deepStrictEqual(b.ready.map(r => r.wait), [360, 240, 120]);
+  assert.deepStrictEqual(b.ready.map(r => r.longest), [90, 60, 30]);
+  assert.deepStrictEqual(ids(b.done), ['p2', 'p1']);
 });
-test('startMatch / finishMatch / cancelMatch: 코트 넣기·결과·빼기', () => {
-  const w = liveWeek();
-  assert.strictEqual(L.startMatch(w, 'k1', 1, LISO('18:00')), true);
-  assert.deepStrictEqual([w.matches[0].court, w.matches[0].startedAt], [1, LISO('18:00')]);
-  assert.strictEqual(L.startMatch(w, 'k2', 1, LISO('18:01')), false, '이미 찬 코트');
-  assert.strictEqual(L.startMatch(w, 'k3', 2, LISO('18:01')), false, 'a가 경기 중');
-  assert.strictEqual(L.startMatch(w, 'k2', 4, LISO('18:01')), false, '없는 코트');
+test('startMatch / finishMatch / cancelMatch: 열린 코트에만 넣기·결과·빼기', () => {
+  const w = liveWeek(), slots = [5, 6];
+  assert.strictEqual(L.startMatch(w, 'k1', 5, LISO('18:00'), slots), true);
+  assert.deepStrictEqual([w.matches[0].court, w.matches[0].startedAt], [5, LISO('18:00')]);
+  assert.strictEqual(L.startMatch(w, 'k2', 5, LISO('18:01'), slots), false, '이미 찬 코트');
+  assert.strictEqual(L.startMatch(w, 'k3', 6, LISO('18:01'), slots), false, 'a가 경기 중');
+  assert.strictEqual(L.startMatch(w, 'k2', 1, LISO('18:01'), slots), false, '고정 코트가 아님');
+  assert.strictEqual(L.startMatch(w, 'k2', 0, LISO('18:01'), slots), false, '추가 코트를 안 열었음');
+  assert.strictEqual(L.startMatch(w, 'k2', 0, LISO('18:01'), [5, 6, 0]), true, '추가 코트');
   assert.strictEqual(L.finishMatch(w, 'k1', 'b', LISO('18:20')), true);
   assert.deepStrictEqual([w.matches[0].win, w.matches[0].court, w.matches[0].endedAt], ['b', null, LISO('18:20')]);
-  assert.strictEqual(L.startMatch(w, 'k2', 3, LISO('18:21')), true);
   assert.strictEqual(L.cancelMatch(w, 'k2'), true);
   assert.deepStrictEqual([w.matches[1].court, w.matches[1].startedAt], [null, null]);
   assert.strictEqual(L.finishMatch(w, 'k2', 'a', LISO('18:30')), false, '코트에 없는 경기는 결과 안 넣음');
 });
+test('setExtraCourt: 추가 코트 열기·닫기, 경기가 있으면 못 닫음', () => {
+  const w = liveWeek();
+  assert.strictEqual(L.setExtraCourt(w, true), true);
+  assert.strictEqual(w.extraCourt, true);
+  L.startMatch(w, 'k1', 0, LISO('18:00'), [5, 6, 0]);
+  assert.strictEqual(L.setExtraCourt(w, false), false, '추가 코트에 경기 중');
+  L.finishMatch(w, 'k1', 'a', LISO('18:10'));
+  assert.strictEqual(L.setExtraCourt(w, false), true);
+  assert.strictEqual(w.extraCourt, false);
+});
 test('liveBoard: 결과 표에서 결과를 지우면 다시 남은 경기로', () => {
   const w = liveWeek();
-  L.startMatch(w, 'k1', 1, LISO('18:00')); L.finishMatch(w, 'k1', 'a', LISO('18:20'));
-  w.matches[0].win = null;  // 돼장이 결과 표에서 취소
+  L.startMatch(w, 'k1', 5, LISO('18:00'), [5, 6]); L.finishMatch(w, 'k1', 'a', LISO('18:20'));
+  w.matches[0].win = null;
   const b = L.liveBoard(w, [], LT('18:30'));
   assert.ok(ids(b.ready).includes('k1'));
   assert.ok(!ids(b.done).includes('k1'));
 });
-test('nextUp: 내 경기가 바로 가능 목록에서 빈 코트 수 + 진행 중 코트 수 안에 들면 다음 차례', () => {
+test('myLive: 진행 중이면 실제 코트 번호', () => {
   const w = liveWeek();
-  L.startMatch(w, 'k4', 1, LISO('18:00'));
+  L.startMatch(w, 'k4', 6, LISO('18:00'), [5, 6]);
   const b = L.liveBoard(w, [], LT('18:10'));
+  assert.deepStrictEqual(L.myLive(b, 'x'), { state: 'playing', match: 'k4', court: 6 });
   assert.deepStrictEqual(L.myLive(b, 'a'), { state: 'next', match: 'k1', rank: 1 });
-  assert.deepStrictEqual(L.myLive(b, 'x'), { state: 'playing', match: 'k4', court: 1 });
-  assert.deepStrictEqual(L.myLive(liveBoard2(), 'q'), { state: 'none' });
-  function liveBoard2() { return L.liveBoard(liveWeek(), [], LT('18:10')); }
+  assert.deepStrictEqual(L.myLive(L.liveBoard(liveWeek(), [], LT('18:10')), 'q'), { state: 'none' });
 });
 
 test('shortNames: 경기·예측 화면은 성 빼고 이름만, 겹치면 성까지 (사용자 요청 2026-11-22)', () => {
