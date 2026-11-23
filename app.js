@@ -695,7 +695,7 @@
   }
   // short: 경기날 '내 경기' 화면에 띄우는 짧은 권유(아직 안 켠 사람만)
   function pushCard(short) {
-    if (!ui.me || ui.admin || ui.op || push.st === 'hidden' || push.st === 'unknown') return '';
+    if (!ui.me || push.st === 'hidden' || push.st === 'unknown') return '';
     var head = '<div class="push-head"><b>🔔 코트 알림</b>' + (push.st === 'on' ? '<span class="chip bal-even">켜짐</span>' : '') + '</div>';
     var what = '<p class="small muted">내 경기가 코트에 들어갈 때, 내가 예측한 경기가 시작할 때 몇 번 코트인지 알려 드려요.</p>';
     var body;

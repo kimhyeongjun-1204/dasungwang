@@ -312,6 +312,11 @@ test('웹 푸시 화면·API: 알림 받기(내 이름으로 구독), 서비스 
   const wf = fs.readFileSync(path.join(__dirname, '.github', 'workflows', fs.readdirSync(path.join(__dirname, '.github', 'workflows'))[0]), 'utf8');
   assert.ok(/node --experimental-strip-types push\.test\.mjs/.test(wf), 'CI에서 push.test.mjs를 안 돌림');
 });
+test('알림 받기 카드: 돼장·도우미로 로그인한 기기에서도 보여야 함 (그 사람도 선수, 2026-11-23)', () => {
+  const g = appSrc.match(/function pushCard\(short\) \{\n\s*if \(([^)]*)\) return '';/);
+  assert.ok(g, 'pushCard 첫 줄 모양을 못 찾음');
+  assert.ok(!/ui\.admin|ui\.op/.test(g[1]), '돼장·도우미 로그인이면 알림 카드를 숨김: ' + g[1]);
+});
 test('Edge Function rematch: 조건 종류가 logic.js와 같고, 모델·폴백·키 처리가 맞음', () => {
   const src = fs.readFileSync(path.join(__dirname, 'supabase', 'functions', 'rematch', 'index.ts'), 'utf8');
   const types = JSON.parse(src.match(/const RULE_TYPES = (\[[^\]]*\])/)[1].replace(/'/g, '"'));
