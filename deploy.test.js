@@ -281,6 +281,37 @@ test('api 진행 PIN: 로그인·역할 확인·진행 동작·PIN 설정, 토�
   r.saveToken(ls, 'atok', now);
   assert.deepStrictEqual(r.loadSession(ls, now), { token: 'atok', role: 'admin' }, '예전처럼 저장하면 돼장');
 });
+test('schema.sql 웹 푸시: 구독은 아무도 못 읽고, 보낼 대상은 돼장·도우미 토큰으로만·코트에 있는 경기만·한 번만 (2026-11-23)', () => {
+  const sql = fs.readFileSync(path.join(__dirname, 'supabase', 'schema.sql'), 'utf8');
+  assert.ok(/create table if not exists public\.push_subs \(/.test(sql) && /alter table public\.push_subs enable row level security/.test(sql), 'push_subs 테이블·RLS 없음');
+  assert.ok(/revoke all on public\.push_subs from anon, authenticated/.test(sql) && !/grant select on public\.push_subs/.test(sql), '구독(기기 주소)이 공개 읽기 가능');
+  assert.ok(/create table if not exists public\.push_log \(/.test(sql), '중복 전송 막는 기록 없음');
+  const sub = sql.match(/function public\.push_subscribe\([\s\S]*?end \$\$;/);
+  assert.ok(sub && /'bad_player'/.test(sub[0]) && /'bad_endpoint'/.test(sub[0]) && /\^https:\/\//.test(sub[0]), 'push_subscribe가 이름·주소를 확인하지 않음');
+  const tg = sql.match(/function public\.push_targets\([\s\S]*?end \$\$;/);
+  assert.ok(tg, 'push_targets 없음');
+  assert.ok(/live_check\(/.test(tg[0]) && /'unauthorized'/.test(tg[0]) && /'not_on_court'/.test(tg[0]), 'push_targets가 토큰·코트 확인을 안 함');
+  assert.ok(/insert into public\.push_log[\s\S]*on conflict do nothing/.test(tg[0]), '같은 시작에 두 번 보내는 걸 안 막음');
+  assert.ok(/'player'/.test(tg[0]) && /'predictor'/.test(tg[0]) && /public\.predictions/.test(tg[0]), '경기 4명·예측한 사람 둘 다 대상이어야 함');
+  assert.ok(/function public\.push_gone\([\s\S]*?live_check\(/.test(sql), '죽은 구독 지우기에 토큰 확인 없음');
+  for (const f of ['push_subscribe(text, text, text, text)', 'push_unsubscribe(text)', 'push_targets(uuid, date, text)', 'push_gone(uuid, text[])'])
+    assert.ok(new RegExp('grant execute on function[^;]*public\\.' + f.replace(/[()[\]]/g, '\\$&')).test(sql), f + ' 실행 권한 없음');
+});
+test('웹 푸시 화면·API: 알림 받기(내 이름으로 구독), 서비스 워커 push·클릭, 코트에 넣으면 notify 호출', async () => {
+  assert.ok(/data-act="push-on"/.test(appSrc) && /data-act="push-off"/.test(appSrc), '알림 켜기·끄기 버튼 없음');
+  assert.ok(/pushManager\.subscribe\(/.test(appSrc) && /applicationServerKey/.test(appSrc) && /userVisibleOnly: true/.test(appSrc), '구독 코드 없음');
+  assert.ok(/action === 'start'[\s\S]{0,200}remote\.notifyCourt\(/.test(appSrc), '코트에 넣은 뒤 알림 보내기 없음');
+  const sw = fs.readFileSync(path.join(__dirname, 'sw.js'), 'utf8');
+  assert.ok(/addEventListener\('push'/.test(sw) && /showNotification\(/.test(sw) && /addEventListener\('notificationclick'/.test(sw), '서비스 워커에 push·notificationclick 없음');
+  const c = tableClient({}, { push_subscribe: () => ({ data: null, error: null }), push_unsubscribe: () => ({ data: null, error: null }) });
+  const a = need().api(c);
+  await a.pushSubscribe('p1', { endpoint: 'https://e', keys: { p256dh: 'k', auth: 'a' } });
+  await a.pushUnsubscribe('https://e');
+  assert.deepStrictEqual(c.calls[0], ['rpc', 'push_subscribe', { p_player: 'p1', p_endpoint: 'https://e', p_p256dh: 'k', p_auth: 'a' }]);
+  assert.deepStrictEqual(c.calls[1], ['rpc', 'push_unsubscribe', { p_endpoint: 'https://e' }]);
+  const wf = fs.readFileSync(path.join(__dirname, '.github', 'workflows', fs.readdirSync(path.join(__dirname, '.github', 'workflows'))[0]), 'utf8');
+  assert.ok(/node --experimental-strip-types push\.test\.mjs/.test(wf), 'CI에서 push.test.mjs를 안 돌림');
+});
 test('Edge Function rematch: 조건 종류가 logic.js와 같고, 모델·폴백·키 처리가 맞음', () => {
   const src = fs.readFileSync(path.join(__dirname, 'supabase', 'functions', 'rematch', 'index.ts'), 'utf8');
   const types = JSON.parse(src.match(/const RULE_TYPES = (\[[^\]]*\])/)[1].replace(/'/g, '"'));

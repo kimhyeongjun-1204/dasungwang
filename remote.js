@@ -93,6 +93,11 @@ var Remote = (function () {
       adminUpsertPrediction: function (token, d, pid, mode, picks) { return rpc('admin_upsert_prediction', { token: token, week_date: d, player_id: pid, mode: mode, picks: picks }); },
       adminDeletePrediction: function (token, d, pid) { return rpc('admin_delete_prediction', { token: token, week_date: d, player_id: pid }); },
       // ---- 경기 진행 ----
+      // 웹 푸시: 이 기기를 내 이름으로 구독 / 해제 (기기 주소는 DB에서 아무도 못 읽음)
+      pushSubscribe: function (pid, sub) { var k = (sub && sub.keys) || {}; return rpc('push_subscribe', { p_player: pid, p_endpoint: sub && sub.endpoint, p_p256dh: k.p256dh, p_auth: k.auth }); },
+      pushUnsubscribe: function (endpoint) { return rpc('push_unsubscribe', { p_endpoint: endpoint }); },
+      // 코트에 넣은 뒤 Edge Function notify가 그 경기 4명·예측한 사람에게 보냄. 결과 {ok, sent, gone, failed} 또는 {ok:false, code}
+      notifyCourt: function (token, d, matchId) { return call(client.functions.invoke('notify', { body: { token: token, week: d, match: matchId } })); },
       availability: function (d) { return call(client.from('availability').select('player_id,status,until,by_admin,updated_at').eq('week_date', d)); },
       setAvailability: function (d, pid, status, minutes) { return rpc('set_availability', { p_week: d, p_player: pid, p_status: status, p_minutes: minutes }); },
       adminSetAvailability: function (token, d, pid, status, minutes) { return rpc('admin_set_availability', { token: token, p_week: d, p_player: pid, p_status: status, p_minutes: minutes }); },

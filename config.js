@@ -3,4 +3,6 @@
 window.DDW_CONFIG = {
   url: 'https://ovnagheqsygclposiemh.supabase.co',
   anonKey: 'sb_publishable_TJJdQnu5xm-W-AowBFgTwQ_4Kd18OSo',
+  // 웹 푸시 공개 키(VAPID public key). 비워 두면 알림 받기 카드가 안 보임. 개인 키는 여기 말고 Supabase Edge Function 비밀값에만
+  vapidKey: '',
 };

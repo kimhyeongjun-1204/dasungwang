@@ -12,5 +12,8 @@ echo  Phone on same Wi-Fi: http://[this PC IPv4 from ipconfig]:8791
 echo  Close this window to stop. Data resets on next start.
 echo.
 start "" http://localhost:8791/
-node tools\mock_supabase.js
+rem Node 22+: let the mock load the real notify code (.ts) so push works in the preview
+set NF=
+node -e "process.exit(+process.versions.node.split('.')[0]>=22?0:1)" && set NF=--experimental-strip-types
+node %NF% tools\mock_supabase.js
 pause

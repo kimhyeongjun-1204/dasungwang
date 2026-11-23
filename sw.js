@@ -20,3 +20,20 @@ self.addEventListener('fetch', function (e) {
     return caches.match(req).then(function (r) { return r || Promise.reject(new Error('offline')); });
   }));
 });
+
+// 웹 푸시 (2026-11-23): Edge Function notify가 보낸 {title, body, tag, url}을 알림으로. 누르면 열린 앱 창으로, 없으면 새로 열기
+self.addEventListener('push', function (e) {
+  var d = {};
+  try { d = e.data ? e.data.json() : {}; } catch (x) { d = { body: e.data ? e.data.text() : '' }; }
+  e.waitUntil(self.registration.showNotification(d.title || '다승왕전', {
+    body: d.body || '', tag: d.tag || 'ddw', renotify: true, icon: 'icons/icon-192.png', data: { url: d.url || './' },
+  }));
+});
+self.addEventListener('notificationclick', function (e) {
+  e.notification.close();
+  var url = new URL((e.notification.data && e.notification.data.url) || './', self.registration.scope).href;
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (cs) {
+    for (var i = 0; i < cs.length; i++) if (cs[i].url.indexOf(self.registration.scope) === 0 && 'focus' in cs[i]) return cs[i].focus();
+    return self.clients.openWindow(url);
+  }));
+});

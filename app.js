@@ -1,7 +1,7 @@
 (function () {
   'use strict';
   var L = window.Logic, R = window.Remote;
-  var KEY = { me: 'ddw-me', draft: 'ddw-draft', tab: 'ddw-tab', wview: 'ddw-wview' };
+  var KEY = { me: 'ddw-me', draft: 'ddw-draft', tab: 'ddw-tab', wview: 'ddw-wview', pushFor: 'ddw-push-for' };
   var SKEY = { week: 'ddw-week', sec: 'ddw-sec' };
 
   function store(kind) {
@@ -265,7 +265,7 @@
       });
       out += my.length ? '<section class="my-matches"><h3>' + esc((P[ui.me] || {}).name || '') + ' · 내 경기 ' + my.length + '</h3><div class="match-list">' + my.join('') + '</div></section>'
         : '<div class="card empty"><b>' + md(w.date) + '(수)엔 내 경기가 없어요</b><p class="muted">전체를 누르면 모든 경기를 볼 수 있어요.</p></div>';
-      return out + (board ? myLiveCard(w, board, P) : '') + myPredCard(w, myp, lvp, P);
+      return out + (board ? myLiveCard(w, board, P) : '') + myPredCard(w, myp, lvp, P) + (today && push.st === 'default' ? pushCard(true) : '');
     }
     out += legend();
     groups().forEach(function (g) {
@@ -375,6 +375,7 @@
       (row && row.pending ? '<p class="small muted num">결과 대기 ' + row.pending + '경기</p>' : '') +
       (row && row.lottery ? '<p class="small">' + crown('동률 추첨') + ' 지금 끝나면 다승왕 ' + gw + '자리를 두고 추첨 대상이에요.</p>' : row && row.contender ? '<p class="small">' + crown('다승왕권') + ' 지금 순위면 다승왕이에요!</p>' : '') +
       '</div>';
+    out += pushCard(false);
     var fk = tier.tier === 'hell' || tier.tier === 'heaven' ? tier.tier : 'mid';
     var fch = (TEAM_CHARS[me.group] || [])[1];
     out += '<section class="fate fate-' + fk + '" aria-label="다음 경기 배정">' +
@@ -618,6 +619,92 @@
         (a.status === 'out' && row.by_admin ? '' : '<button class="btn sm primary" data-act="my-avail" data-st="here">왔어요 · 다시 가능</button>')
       : '<p class="small muted">늦거나 레슨으로 잠시 빠지면 눌러 주세요.</p><div class="row"><button class="btn sm" data-act="my-avail" data-st="late">늦어요</button><button class="btn sm" data-act="my-avail" data-st="away">레슨</button></div>';
     return '<div class="card my-live' + (a ? ' away' : '') + '">' + body + '</div>';
+  }
+
+  // ---- 웹 푸시 (2026-11-23): 내 경기가 코트에 들어갈 때 · 내가 예측한 경기가 시작할 때 ----
+  // st: hidden(키 없음) / unsupported / ios(홈 화면 앱 아님) / default(아직 안 켬) / on / denied / unknown(확인 중)
+  var push = { st: 'unknown', sub: null, busy: false };
+  function vapidKey() { return (window.DDW_CONFIG && window.DDW_CONFIG.vapidKey) || ''; }
+  function b64uBytes(s) {
+    var t = s.replace(/-/g, '+').replace(/_/g, '/'), bin = atob(t + '==='.slice((t.length + 3) % 4)), out = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+  // 구독이 지금 키(config.js vapidKey)로 만든 것인지. 키를 바꾸면 옛 구독으로는 못 보내므로 새로 구독
+  function sameKey(sub) {
+    var k = sub && sub.options && sub.options.applicationServerKey;
+    if (!k) return true;
+    var a = new Uint8Array(k), b = b64uBytes(vapidKey());
+    if (a.length !== b.length) return false;
+    for (var i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+    return true;
+  }
+  function pushReg() {
+    return navigator.serviceWorker.getRegistration().then(function (r) { return r || navigator.serviceWorker.register('sw.js'); })
+      .then(function () { return navigator.serviceWorker.ready; });
+  }
+  function pushInit() {
+    var ua = navigator.userAgent || '', ios = /iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+    var standalone = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+    if (!vapidKey()) { push.st = 'hidden'; return; }
+    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) { push.st = ios && !standalone ? 'ios' : 'unsupported'; return; }
+    navigator.serviceWorker.getRegistration().then(function (r) { return r ? r.pushManager.getSubscription() : null; }).then(function (sub) {
+      if (sub && !sameKey(sub)) { sub.unsubscribe().catch(function () { }); sub = null; }
+      push.sub = sub;
+      push.st = Notification.permission === 'denied' ? 'denied' : sub ? 'on' : 'default';
+      // 이 기기가 다른 이름으로 구독돼 있으면 지금 고른 이름으로 바꿈
+      if (sub && ui.me && LS.get(KEY.pushFor) !== ui.me) pushRebind();
+      render();
+    }, function () { push.st = 'unsupported'; render(); });
+  }
+  function pushRebind() {
+    if (!push.sub || !ui.me) return;
+    var me = ui.me;
+    remote.pushSubscribe(me, push.sub.toJSON()).then(function () { LS.set(KEY.pushFor, me); }, function () { });
+  }
+  var PUSH_ERR = { bad_player: '이름을 다시 골라 주세요.', bad_endpoint: '이 브라우저는 알림을 받을 수 없어요.', network: '인터넷 연결을 확인해 주세요.' };
+  function pushOn() {
+    if (push.busy || !ui.me) return;
+    push.busy = true; render();
+    var me = ui.me;
+    Notification.requestPermission().then(function (perm) {
+      if (perm !== 'granted') { push.st = perm === 'denied' ? 'denied' : 'default'; throw { code: 'perm' }; }
+      return pushReg();
+    }).then(function (reg) {
+      return reg.pushManager.getSubscription().then(function (old) {
+        if (old && sameKey(old)) return old;
+        return (old ? old.unsubscribe().catch(function () { }) : Promise.resolve()).then(function () { return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uBytes(vapidKey()) }); });
+      });
+    }).then(function (sub) {
+      return remote.pushSubscribe(me, sub.toJSON()).then(function () { push.sub = sub; push.st = 'on'; LS.set(KEY.pushFor, me); });
+    }).then(function () { push.busy = false; toast('알림을 켰어요. 내 경기·내 예측 경기가 코트에 들어가면 알려 드려요.'); render(); },
+      function (e) {
+        push.busy = false;
+        if (!(e && e.code === 'perm')) toast(PUSH_ERR[e && e.code] || '알림을 켜지 못했어요.');
+        else if (push.st === 'denied') toast('알림이 차단돼 있어요. 브라우저 설정에서 이 사이트 알림을 허용해 주세요.');
+        render();
+      });
+  }
+  function pushOff() {
+    if (push.busy || !push.sub) return;
+    push.busy = true; render();
+    var sub = push.sub, ep = sub.endpoint;
+    sub.unsubscribe().catch(function () { }).then(function () { return remote.pushUnsubscribe(ep).catch(function () { }); }).then(function () {
+      push.busy = false; push.sub = null; push.st = 'default'; LS.del(KEY.pushFor); toast('알림을 껐어요.'); render();
+    });
+  }
+  // short: 경기날 '내 경기' 화면에 띄우는 짧은 권유(아직 안 켠 사람만)
+  function pushCard(short) {
+    if (!ui.me || ui.admin || ui.op || push.st === 'hidden' || push.st === 'unknown') return '';
+    var head = '<div class="push-head"><b>🔔 코트 알림</b>' + (push.st === 'on' ? '<span class="chip bal-even">켜짐</span>' : '') + '</div>';
+    var what = '<p class="small muted">내 경기가 코트에 들어갈 때, 내가 예측한 경기가 시작할 때 몇 번 코트인지 알려 드려요.</p>';
+    var body;
+    if (push.st === 'on') body = '<p class="small muted">이 기기로 받아요.</p><button class="btn sm" data-act="push-off"' + (push.busy ? ' disabled' : '') + '>알림 끄기</button>';
+    else if (push.st === 'default') body = (short ? '' : what) + '<button class="btn sm primary" data-act="push-on"' + (push.busy ? ' disabled' : '') + '>알림 받기</button>';
+    else if (push.st === 'denied') body = what + '<p class="small">알림이 차단돼 있어요. 브라우저 설정 › 사이트 설정에서 이 사이트 알림을 허용한 뒤 다시 열어 주세요.</p>';
+    else if (push.st === 'ios') body = what + '<p class="small">아이폰은 Safari 공유 버튼 › <b>홈 화면에 추가</b>로 앱을 설치한 뒤, 그 앱에서 켤 수 있어요 (iOS 16.4 이상).</p>';
+    else body = what + '<p class="small">이 브라우저는 알림을 지원하지 않아요. 안드로이드는 Chrome, 아이폰은 홈 화면 앱에서 돼요.</p>';
+    return '<div class="card push-card' + (short ? ' short' : '') + '">' + head + (short && push.st === 'default' ? what : '') + body + '</div>';
   }
 
   // ---- 서버에서 읽기 ----
@@ -1364,6 +1451,8 @@
         if (!wasDirty) work = clone(s);
         else { var mw = getWeek(d); if (mw) fn(mw, new Date().toISOString()); }
         live.stateAt = Date.now(); ui.liveBusy = false; toast(msg);
+        // 코트에 넣었으면 그 경기 4명·예측한 사람에게 알림 (실패해도 진행에는 영향 없음, 같은 시작엔 서버가 한 번만 보냄)
+        if (action === 'start' && vapidKey()) remote.notifyCourt(token, d, mid).catch(function () { });
       });
     }).catch(function (e) {
       ui.liveBusy = false;
@@ -1473,6 +1562,8 @@
       case 'lv-done': ev.preventDefault(); ui.lvDone = !ui.lvDone; render(); break;
       case 'lv-set': setAvail(true, el.getAttribute('data-p'), el.getAttribute('data-st'), null); break;
       case 'my-avail': setAvail(false, ui.me, el.getAttribute('data-st'), null); break;
+      case 'push-on': pushOn(); break;
+      case 'push-off': pushOff(); break;
       case 'wview': ui.wview = v === 'all' ? 'all' : 'mine'; LS.set(KEY.wview, ui.wview); render(); break;
       case 'tab': ui.tab = v; LS.set(KEY.tab, v); ui.notice = null; ui.pred.edit = false; ui.pred.full = false; ui.pred.confirm = false; render(); window.scrollTo(0, 0); break;
       case 'week': ui.week = v; SS.set(SKEY.week, v); ui.confirm = null; ui.notice = null; ui.ai.res = null; ui.ai.err = ''; ui.shiftSel = { p: '', dir: 'up' }; ui.pred.edit = false; ui.pred.more = false; ui.pred.adm = null; ui.pred.admDel = ''; render(); break;
@@ -1617,7 +1708,7 @@
     if (!act || !work) return;
     var m, P = pm();
     switch (act) {
-      case 'me': ui.pred.confirm = false; ui.me = el.value; if (el.value) LS.set(KEY.me, el.value); else LS.del(KEY.me); ui.rankGroup = null; if (ui.pred.edit && localPred(ui.week, ui.me)) openPredEdit(); render(); break;
+      case 'me': ui.pred.confirm = false; ui.me = el.value; if (el.value) LS.set(KEY.me, el.value); else LS.del(KEY.me); if (push.sub && ui.me) pushRebind(); ui.rankGroup = null; if (ui.pred.edit && localPred(ui.week, ui.me)) openPredEdit(); render(); break;
       case 'pa-player': if (ui.pred.adm) ui.pred.adm.player = el.value; break;
       case 'pa-mode': if (ui.pred.adm) ui.pred.adm.mode = el.value; break;
       case 'pa-pick': if (ui.pred.adm) ui.pred.adm.picks[+el.getAttribute('data-i')] = el.value; break;
@@ -1727,5 +1818,6 @@
   }
   try { remote = R.connect(window.DDW_CONFIG, window.supabase); }
   catch (e) { bootView(e.code === 'config' ? 'config.js에 Supabase 주소와 키를 넣어 주세요.' : '데이터를 불러오지 못했어요.', e.code !== 'config'); return; }
+  pushInit();
   remote.load().then(start, function (e) { if (window.console) console.error(e); bootView('데이터를 불러오지 못했어요.', true); });
 })();
