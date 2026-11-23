@@ -326,6 +326,15 @@ test('알림 켠 뒤 팝업 설정 안내: 시험 알림을 바로 보내고, �
   assert.ok(/data-act="push-help"/.test(appSrc) && /case 'push-help'/.test(appSrc), '안내 다시 보기 없음');
   assert.ok(/길게/.test(appSrc) && /팝업으로 표시/.test(appSrc) && /알림 스타일/.test(appSrc), '안드로이드(길게 눌러 팝업으로 표시)·아이폰(알림 스타일) 안내 문구 없음');
 });
+test('이번 주 · 내 경기 보기 맨 위에 알림 카드 (안 켠 사람만, 경기날 아니어도) (2026-11-23)', () => {
+  const i = appSrc.indexOf("var mine = ui.me && !ui.admin");
+  const j = appSrc.indexOf('courtsStrip(w, board, P, pickOf)', i);
+  assert.ok(i > 0 && j > i, '이번 주 화면 구조를 못 찾음');
+  const top = appSrc.slice(i, j);
+  assert.ok(/if \(mine && pushNeeded\(\)\) out \+= pushCard\(true\);/.test(top), '내 경기 보기에서 지금 코트보다 위에 알림 카드가 없음');
+  assert.ok(/function pushNeeded\(\) \{ return push\.st === 'default' \|\| push\.st === 'ios' \|\| push\.st === 'denied'; \}/.test(appSrc), '켜짐·지원 안 함·키 없음일 때는 안 보여야 함');
+  assert.ok(!/today && push\.st === 'default' \? pushCard\(true\)/.test(appSrc), '맨 아래 카드가 남아 있으면 두 번 보임');
+});
 test('Edge Function rematch: 조건 종류가 logic.js와 같고, 모델·폴백·키 처리가 맞음', () => {
   const src = fs.readFileSync(path.join(__dirname, 'supabase', 'functions', 'rematch', 'index.ts'), 'utf8');
   const types = JSON.parse(src.match(/const RULE_TYPES = (\[[^\]]*\])/)[1].replace(/'/g, '"'));

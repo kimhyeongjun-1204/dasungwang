@@ -253,6 +253,8 @@
     var mine = ui.me && !ui.admin && ui.wview !== 'all';
     if (!ui.admin) out += ui.me ? '<div class="seg wview" role="group" aria-label="보기"><button data-act="wview" data-v="mine" aria-pressed="' + (ui.wview !== 'all') + '">내 경기</button><button data-act="wview" data-v="all" aria-pressed="' + (ui.wview === 'all') + '">전체</button></div>'
       : '<p class="small muted">내 기록 탭에서 이름을 고르면 <b>내 경기만</b> 모아 볼 수 있어요.</p>';
+    // 알림을 아직 안 켠 사람: 내 경기 보기 맨 위에 알림 카드 (사용자 요청 2026-11-23)
+    if (mine && pushNeeded()) out += pushCard(true);
     if (board && !ui.admin) out += courtsStrip(w, board, P, pickOf) + (ui.me && !mine ? myLiveCard(w, board, P) : '');
     // 내 경기 보기: 지금 코트 → 내 경기 → 늦어요·레슨 → 내 예측 (사용자 요청 2026-11-22·23), 전체 보기: 늦어요·레슨 → 내 예측 → 전체 경기
     if (ui.me && !ui.admin && !mine) out += myPredCard(w, myp, lvp, P);
@@ -265,7 +267,7 @@
       });
       out += my.length ? '<section class="my-matches"><h3>' + esc((P[ui.me] || {}).name || '') + ' · 내 경기 ' + my.length + '</h3><div class="match-list">' + my.join('') + '</div></section>'
         : '<div class="card empty"><b>' + md(w.date) + '(수)엔 내 경기가 없어요</b><p class="muted">전체를 누르면 모든 경기를 볼 수 있어요.</p></div>';
-      return out + (board ? myLiveCard(w, board, P) : '') + myPredCard(w, myp, lvp, P) + (today && push.st === 'default' ? pushCard(true) : '');
+      return out + (board ? myLiveCard(w, board, P) : '') + myPredCard(w, myp, lvp, P);
     }
     out += legend();
     groups().forEach(function (g) {
@@ -716,7 +718,8 @@
       push.busy = false; push.sub = null; push.st = 'default'; LS.del(KEY.pushFor); toast('알림을 껐어요.'); render();
     });
   }
-  // short: 경기날 '내 경기' 화면에 띄우는 짧은 권유(아직 안 켠 사람만)
+  // short: '내 경기' 화면 맨 위에 띄우는 짧은 권유(아직 안 켠 사람만)
+  function pushNeeded() { return push.st === 'default' || push.st === 'ios' || push.st === 'denied'; }
   function pushCard(short) {
     if (!ui.me || push.st === 'hidden' || push.st === 'unknown') return '';
     var head = '<div class="push-head"><b>🔔 코트 알림</b>' + (push.st === 'on' ? '<span class="chip bal-even">켜짐</span>' : '') + '</div>';
