@@ -391,6 +391,19 @@ test('회원 내 차례 문구는 빼고 늦어요·레슨·왔어요 버튼만 
   const sql = fs.readFileSync(path.join(__dirname, 'supabase', 'schema.sql'), 'utf8');
   assert.ok(/if p_status = 'away' and p_minutes is not null and \(p_minutes < 10 or p_minutes > 90\)/.test(sql), '서버가 시간 없는 레슨(away)을 거절함');
 });
+test('코트: 고정 5·6번(설정) + 번호 없는 추가 코트, 실제 번호로 표시 (사용자 결정 2026-11-23)', () => {
+  const calls = appSrc.match(/L\.liveBoard\(w, liveRows\(\), Date\.now\(\)[^;]*/g) || [];
+  assert.ok(calls.length >= 2 && calls.every(c => /slots: L\.courtSlots\(work\.settings, w\)/.test(c)), 'liveBoard에 설정 코트(slots)를 안 넘김: ' + calls.join(' / '));
+  assert.ok(/L\.courtLabel\(/.test(appSrc) && !/'코트 ' \+ \(k \+ 1\)/.test(appSrc), '코트 이름을 1·2·3 순번으로 씀');
+  assert.ok(/'extra_open'/.test(appSrc) && /'extra_close'/.test(appSrc) && /L\.setExtraCourt\(/.test(appSrc), '추가 코트 열기·닫기 없음');
+  assert.ok(!/m\.court \?/.test(appSrc), '추가 코트(0)를 m.court 참/거짓으로 판단함');
+  assert.ok(/id="court-form"/.test(appSrc) && /work\.settings\.courts = /.test(appSrc), '설정에 고정 코트 번호 칸 없음');
+  const sql = fs.readFileSync(path.join(__dirname, 'supabase', 'schema.sql'), 'utf8');
+  const act = sql.match(/function public\.live_action\([\s\S]*?end \$\$;/)[0];
+  assert.ok(/'extra_open', 'extra_close'/.test(act) && /settings'->'courts'/.test(act) && /p_court = 0 and/.test(act), 'live_action이 설정 코트·추가 코트를 모름');
+  // jsonb의 -> 와 || 는 우선순위가 같아서 괄호가 없으면 (x->'a' || x)->'b'가 됨 → 선수 겹침 검사가 늘 비어 있었음(오답 노트 22)
+  assert.ok(!/->'a' \|\| [a-z.]+->'b'/.test(sql), "jsonb ->'a' || ->'b'에 괄호 없음");
+});
 test('app.js: 기존 충돌 UI·저장 실패 배너·임시저장 유지', () => {
   for (const s of ['draftConflict', 'ui.saveError', 'KEY.draft', 'draft-load', 'draft-drop']) assert.ok(appSrc.includes(s), s + ' 없음');
 });

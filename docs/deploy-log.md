@@ -1159,3 +1159,40 @@ SQL이 또 바뀜 → 머지 전 schema.sql 다시 실행.
 - SQL로 확인: 시간 없는 레슨 허용 true, admin_session.role 열 1, admin_check가 role='admin'만 true, Realtime 테이블 `app_state,availability,prediction_counts,prediction_events`, 새 함수 6개.
 - PR #10 머지(#8·#9 포함, 셋 다 merged 표시) → GitHub Actions 성공(0ae2828) → 실제 사이트 HTML에 `live_action`·`shortNames`·`--face-lb` 있음.
 - 아직 못 본 것: 실제 사이트에서 휴대폰 여러 대로 진행 PIN·코트·Realtime.
+
+## 49. 코트 번호: 고정 5·6번 + 번호 없는 '추가 코트' (사용자 결정, 브랜치 feat/court-numbers, 2026-11-23)
+"5·6번 코트는 고정, 한 코트를 더 쓸 수도 안 쓸 수도" → 처음 만든 코트 1·2·3 순번을 실제 번호로. 추가 코트는 고정이 아니라서 번호 없이 "추가 코트".
+- 설정 > **고정 코트 번호**(기본 `5, 6`, 1~99 쉼표, 겹치면 거절) → `settings.courts`.
+- 경기 진행: `코트 5`·`코트 6` 늘 보임 + `+ 추가 코트 열기` → `추가 코트` 칸(비어 있으면 `닫기`, 경기 중이면 닫기 없음). 넣기 버튼 "코트 5에 넣기"/"추가 코트에 넣기". 못 함 이유 "이제영 코트 5 경기 중". 회원 지금 코트·경기 카드("진행 중 · 코트 5")도 같은 이름.
+- 데이터: `m.court` = 실제 번호, 추가 코트는 0. 그 주에 추가 코트를 열었는지 `week.extraCourt`(돼장·도우미 둘 다 `live_action` extra_open/extra_close로).
+- logic.js: `courtSlots(settings, week)`, `courtLabel(no)`, `setExtraCourt(week, on)`, `liveBoard`의 `courts`가 `[{no, m}]`로, `startMatch`는 열린 코트(slots)만. 0을 참/거짓으로 보던 곳(`m.court ?`) 고침.
+- schema.sql `live_action`: 설정 코트(없으면 5·6) 또는 추가 코트가 열렸을 때 0만 받음, `extra_open`/`extra_close`(경기 있으면 court_busy).
+- **같이 고친 버그(오답 노트 22)**: 선수 겹침 검사 SQL의 `->`/`||` 우선순위 — 실제 DB에 오늘 들어간 #10 버전에서 이 검사가 늘 통과였음.
+```
+$ node logic.test.js   (테스트 먼저: 코트 테스트를 5·6·추가 코트로 다시 씀)
+  FAIL courtSlots … / liveBoard 코트 칸 … / startMatch … / setExtraCourt … / myLive …   (5 FAIL)
+127 passed
+$ node deploy.test.js   (테스트 먼저)
+  FAIL 코트: 고정 5·6번(설정) + 번호 없는 추가 코트 …
+37 passed
+$ node logic.test.js | tail -1; node deploy.test.js | tail -1
+132 passed
+38 passed
+```
+(deploy 테스트의 liveBoard 호출 찾는 정규식이 첫 `)`에서 멈춰 처음에 잘못 FAIL → 정규식 고침)
+**로컬 Postgres 16에서 SQL 확인**(처음): main의 schema.sql → 새 schema.sql 차례로 적용 오류 없음, Realtime 테이블 4개. `supabase/tests/live_action.sql`:
+| 동작 | 결과 |
+|---|---|
+| k1 코트 1(고정 아님) | bad_court |
+| k1 코트 5 | rev 2 |
+| k2 코트 5(찼음) | court_busy |
+| k3 코트 6(a가 코트 5에서 경기 중) | **고치기 전 rev 3(통과 = 버그)** → 고친 뒤 player_busy |
+| k2 추가 코트(안 열림) | bad_court |
+| 추가 코트 열기 → k2 추가 코트 | rev → rev |
+| 추가 코트 닫기(경기 중) | court_busy |
+| k2 결과 → 추가 코트 닫기 | rev → rev |
+| k1 빼기 / 코트 없는 k1 결과 / 없는 동작 | rev / not_on_court / bad_action |
+| 설정 3·4번에서 코트 5 / 코트 3 | bad_court / rev |
+| admin_check(도우미 토큰 / 돼장 토큰) | false / true |
+가짜 서버 화면(360px): 처음 `코트 5 비어 있음 · 코트 6 비어 있음 · + 추가 코트 열기`, 넣기 버튼 "코트 5에 넣기" → 둘 넣으면 "빈 코트 없음" → 추가 코트 열기 → "추가 코트에 넣기" → 빈 추가 코트 닫기 → 다시 열고 넣으면 닫기 버튼 0. 설정 칸 "5, 6", "5, 5" 입력 → 거절 안내. 회원 지금 코트 "코트 5 / 코트 6 / 추가 코트". 넘침 없음.
+사진: docs/screenshots/live-courts/court_numbers_360.jpg

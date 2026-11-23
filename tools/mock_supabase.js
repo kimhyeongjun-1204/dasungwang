@@ -139,19 +139,24 @@ const RPC = {
   },
   live_action: (a, res) => {
     if (!db.sessions.has(a.token) && !db.ops.has(a.token)) return fail(res, 'unauthorized');
-    if (!['start', 'finish', 'cancel'].includes(a.p_action)) return fail(res, 'bad_action');
+    if (!['start', 'finish', 'cancel', 'extra_open', 'extra_close'].includes(a.p_action)) return fail(res, 'bad_action');
     const w = db.state.weeks.find(x => x.date === a.p_week); if (!w) return fail(res, 'no_week');
-    const m = w.matches.find(x => x.id === a.p_match); if (!m) return fail(res, 'no_match');
     const LG = require('../logic.js'), iso = new Date(now()).toISOString();
+    if (a.p_action === 'extra_open' || a.p_action === 'extra_close') {
+      if (!LG.setExtraCourt(w, a.p_action === 'extra_open')) return fail(res, 'court_busy');
+      db.rev++; db.saved_at = new Date().toISOString(); return send(res, 200, String(db.rev));
+    }
+    const m = w.matches.find(x => x.id === a.p_match); if (!m) return fail(res, 'no_match');
     if (a.p_action === 'start') {
       if (m.win) return fail(res, 'already_done');
-      if (m.court) return fail(res, 'court_busy');
-      if (!(a.p_court >= 1 && a.p_court <= 3)) return fail(res, 'bad_court');
+      const slots = LG.courtSlots(db.state.settings, w);
+      if (m.court != null) return fail(res, 'court_busy');
+      if (!slots.includes(a.p_court)) return fail(res, 'bad_court');
       if (w.matches.some(x => !x.win && x.court === a.p_court)) return fail(res, 'court_busy');
-      if (!LG.startMatch(w, m.id, a.p_court, iso)) return fail(res, 'player_busy');
+      if (!LG.startMatch(w, m.id, a.p_court, iso, slots)) return fail(res, 'player_busy');
     } else if (a.p_action === 'finish') {
       if (m.win) return fail(res, 'already_done');
-      if (!m.court) return fail(res, 'not_on_court');
+      if (m.court == null) return fail(res, 'not_on_court');
       if (a.p_side !== 'a' && a.p_side !== 'b') return fail(res, 'bad_side');
       LG.finishMatch(w, m.id, a.p_side, iso);
     } else if (!LG.cancelMatch(w, m.id)) return fail(res, 'not_on_court');
