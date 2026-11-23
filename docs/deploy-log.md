@@ -1329,3 +1329,18 @@ $ (바꾼 뒤) node deploy.test.js | tail -1; node logic.test.js | tail -1
 ```
 가짜 서버(360px, 이번 주 탭·내 경기): 아직 안 켬 → 카드 1, 순서 `내 경기|전체 → 알림 카드 → 내 경기` / 켜짐 → 카드 0 / 아이폰 Safari(PushManager 없음) → 카드 1(홈 화면에 추가 안내). 셋 다 가로 넘침 없음.
 사진: docs/screenshots/push/card_top_360.jpg
+
+## 58. 내 경기 화면에서 알림을 켜도 팝업 안내가 남게 (사용자 질문 "알림 받기 뒤의 그 안내는?", 브랜치 fix/push-guide-in-mine, 2026-11-23)
+#57에서 내 경기 맨 위 카드는 "안 켠 사람만"이라, 거기서 알림 받기를 누르면 카드가 바로 사라져 #56의 팝업 설정 안내를 볼 수 없었음(내 기록 탭에서만 보임). → 켠 직후에는 안내가 펼쳐진 채 그 자리에 남고, **다 했어요**를 누르면 사라짐. 내 기록 탭에도 같은 버튼.
+```
+$ node deploy.test.js   (테스트 먼저)
+  FAIL 내 경기 화면에서 알림 받기를 눌러도 팝업 안내가 그 자리에 남고 …
+46 passed
+$ (바꾼 뒤)
+  FAIL 이번 주 · 내 경기 보기 맨 위에 알림 카드 …   ← #57 테스트가 예전 한 줄(`if (mine && pushNeeded())`)을 글자 그대로 찾음
+$ (#57 테스트를 `if (mine && (pushNeeded()…`로 넓힘, 위치 검사는 그대로) node deploy.test.js | tail -1; node logic.test.js | tail -1
+47 passed
+134 passed
+```
+가짜 서버(390px, 안드로이드 UA, 권한 요청·구독·showNotification 흉내): 알림 받기 → 서버 구독 1건(p001) + 시험 알림 1건 + 카드 1·안내 1 남음, 토스트 "방금 온 시험 알림으로 화면 위 팝업을 켜 주세요" → 다 했어요 → 카드 0.
+사진: docs/screenshots/push/mine_flow_390.jpg

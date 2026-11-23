@@ -331,9 +331,13 @@ test('이번 주 · 내 경기 보기 맨 위에 알림 카드 (안 켠 사람�
   const j = appSrc.indexOf('courtsStrip(w, board, P, pickOf)', i);
   assert.ok(i > 0 && j > i, '이번 주 화면 구조를 못 찾음');
   const top = appSrc.slice(i, j);
-  assert.ok(/if \(mine && pushNeeded\(\)\) out \+= pushCard\(true\);/.test(top), '내 경기 보기에서 지금 코트보다 위에 알림 카드가 없음');
+  assert.ok(/if \(mine && \(pushNeeded\(\)[^\n]*\) out \+= pushCard\(true\);/.test(top), '내 경기 보기에서 지금 코트보다 위에 알림 카드가 없음');
   assert.ok(/function pushNeeded\(\) \{ return push\.st === 'default' \|\| push\.st === 'ios' \|\| push\.st === 'denied'; \}/.test(appSrc), '켜짐·지원 안 함·키 없음일 때는 안 보여야 함');
   assert.ok(!/today && push\.st === 'default' \? pushCard\(true\)/.test(appSrc), '맨 아래 카드가 남아 있으면 두 번 보임');
+});
+test('내 경기 화면에서 알림 받기를 눌러도 팝업 안내가 그 자리에 남고, "다 했어요"로 닫음 (2026-11-23)', () => {
+  assert.ok(/if \(mine && \(pushNeeded\(\) \|\| \(push\.st === 'on' && push\.help\)\)\) out \+= pushCard\(true\);/.test(appSrc), '켜자마자 카드가 사라져 안내를 못 봄');
+  assert.ok(/data-act="push-done"/.test(appSrc) && /case 'push-done': push\.help = false;/.test(appSrc), '안내 닫기(다 했어요) 없음');
 });
 test('Edge Function rematch: 조건 종류가 logic.js와 같고, 모델·폴백·키 처리가 맞음', () => {
   const src = fs.readFileSync(path.join(__dirname, 'supabase', 'functions', 'rematch', 'index.ts'), 'utf8');
