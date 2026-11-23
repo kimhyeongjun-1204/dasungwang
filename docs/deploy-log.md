@@ -1196,3 +1196,9 @@ $ node logic.test.js | tail -1; node deploy.test.js | tail -1
 | admin_check(도우미 토큰 / 돼장 토큰) | false / true |
 가짜 서버 화면(360px): 처음 `코트 5 비어 있음 · 코트 6 비어 있음 · + 추가 코트 열기`, 넣기 버튼 "코트 5에 넣기" → 둘 넣으면 "빈 코트 없음" → 추가 코트 열기 → "추가 코트에 넣기" → 빈 추가 코트 닫기 → 다시 열고 넣으면 닫기 버튼 0. 설정 칸 "5, 6", "5, 5" 입력 → 거절 안내. 회원 지금 코트 "코트 5 / 코트 6 / 추가 코트". 넘침 없음.
 사진: docs/screenshots/live-courts/court_numbers_360.jpg
+
+## 50. 실제 DB에 코트 번호 SQL 실행 + PR #11 머지·배포 (2026-11-23, 사용자 "진행")
+- Claude in Chrome으로 SQL Editor에 `feat/court-numbers`의 schema.sql(SHA-256 `7ed0aef7…660e`, 커밋된 파일과 같음 확인) 실행 → "Success. No rows returned". (이번엔 번역 기능을 끄고 실행해서 결과 화면이 보였음)
+- 확인 쿼리: live_action에 extra_open·괄호 고친 선수 겹침 검사·추가 코트(0) 규칙 모두 있음 true, app_state rev 453 그대로.
+- PR #11 머지 → GitHub Actions 성공(05cebd2) → 실제 사이트 HTML에 `courtSlots`·"추가 코트 열기"·`court-form` 있음.
+- 오답 노트 22의 선수 겹침 검사 버그는 이 시점부터 실제 DB에서 고쳐짐(11/23 09:28~10:0x 사이에는 있었음, 그동안 코트 사용 없음 — 실제 경기는 11/25부터).
