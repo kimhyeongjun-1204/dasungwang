@@ -572,19 +572,28 @@
         : '<div class="chips ab-att">' + att.map(function (pid) { return '<button data-act="lv-pick" data-p="' + pid + '"><span class="gdot g' + w.attendees[pid] + '">' + esc(pname(P, pid)) + '</span></button>'; }).join('') + '</div>';
     }
     out += '</section>';
+    // 조 탭: 전체 / 조마다(얼굴 + 바로 가능 개수). 바로 가능·못 함·완료를 같이 거름 (사용자 요청 2026-11-23)
+    var pools = groups().map(function (g) { return g.id; }).filter(function (id) { return w.matches.some(function (m) { return m.pool === id; }); });
+    if (ui.lvGroup && pools.indexOf(ui.lvGroup) < 0) ui.lvGroup = null;
+    var inGrp = function (x) { var m = x.m || x; return !ui.lvGroup || m.pool === ui.lvGroup; };
+    var cnt = function (id) { return b.ready.filter(function (r) { return r.m.pool === id; }).length; };
+    out += '<div class="seg lv-grp" role="tablist" aria-label="조">' +
+      '<button role="tab" data-act="lv-grp" data-v="" aria-selected="' + !ui.lvGroup + '">전체 <span class="num">' + b.ready.length + '</span></button>' +
+      pools.map(function (id) { return '<button role="tab" data-act="lv-grp" data-v="' + id + '" aria-selected="' + (ui.lvGroup === id) + '" aria-label="' + esc(gname(id)) + ' 바로 가능 ' + cnt(id) + '">' + gface(id) + '<span class="num">' + cnt(id) + '</span></button>'; }).join('') + '</div>';
+    var ready = b.ready.filter(inGrp), blocked = b.blocked.filter(inGrp), done = b.done.filter(inGrp);
     // 바로 가능
     var free = b.freeCourts[0];
-    out += '<section class="lv-sec"><h3>바로 가능 <span class="num muted">' + b.ready.length + '</span><small class="muted">오래 기다린 순</small></h3>' +
-      (b.ready.length ? b.ready.map(function (r) {
+    out += '<section class="lv-sec"><h3>바로 가능 <span class="num muted">' + ready.length + '</span><small class="muted">오래 기다린 순</small></h3>' +
+      (ready.length ? ready.map(function (r) {
         var m = r.m;
         return '<div class="lv-row g' + m.pool + '"><div class="lv-main">' + gface(m.pool) + '<span class="lv-teams">' + teamNames(m, 'a', P) + ' <i>vs</i> ' + teamNames(m, 'b', P) + '</span><small class="num muted">최대 ' + r.longest + '분 기다림</small></div>' +
           (free != null ? '<button class="btn sm primary" data-act="lv-start" data-m="' + m.id + '" data-c="' + free + '">' + L.courtLabel(free) + '에 넣기</button>' : '<span class="small muted">빈 코트 없음</span>') + '</div>';
-      }).join('') : '<p class="small muted">지금 바로 할 수 있는 경기가 없어요.</p>') + '</section>';
-    if (b.blocked.length) out += '<section class="lv-sec"><h3>지금 못 함 <span class="num muted">' + b.blocked.length + '</span></h3>' + b.blocked.map(function (x) {
+      }).join('') : '<p class="small muted">' + (ui.lvGroup ? '이 조는 ' : '') + '지금 바로 할 수 있는 경기가 없어요.</p>') + '</section>';
+    if (blocked.length) out += '<section class="lv-sec"><h3>지금 못 함 <span class="num muted">' + blocked.length + '</span></h3>' + blocked.map(function (x) {
       var m = x.m;
       return '<div class="lv-row blocked"><div class="lv-main">' + gface(m.pool) + '<span class="lv-teams">' + teamNames(m, 'a', P) + ' <i>vs</i> ' + teamNames(m, 'b', P) + '</span><small>' + whyText(x, P) + '</small></div></div>';
     }).join('') + '</section>';
-    if (b.done.length) out += '<details class="lv-sec lv-done"' + (ui.lvDone ? ' open' : '') + '><summary data-act="lv-done"><h3>완료 <span class="num muted">' + b.done.length + '</span></h3></summary>' + b.done.map(function (m) {
+    if (done.length) out += '<details class="lv-sec lv-done"' + (ui.lvDone ? ' open' : '') + '><summary data-act="lv-done"><h3>완료 <span class="num muted">' + done.length + '</span></h3></summary>' + done.map(function (m) {
       return '<div class="lv-row done"><div class="lv-main">' + gface(m.pool) + '<span class="lv-teams"><b>' + teamNames(m, m.win, P) + '</b> 승 · ' + teamNames(m, m.win === 'a' ? 'b' : 'a', P) + '</span></div></div>';
     }).join('') + '<p class="small muted">' + (ui.op ? '결과를 고치려면 돼장에게 말해 주세요.' : '결과를 고치려면 위에서 <b>결과 표</b>로 바꿔 주세요.') + '</p></details>';
     return out;
@@ -1458,6 +1467,7 @@
       case 'lv-win': liveEdit(function (w, t) { return L.finishMatch(w, el.getAttribute('data-m'), el.getAttribute('data-side'), t); }, 'finish', el.getAttribute('data-m'), null, el.getAttribute('data-side'), '결과를 저장했어요.'); break;
       case 'lv-cancel': liveEdit(function (w) { return L.cancelMatch(w, el.getAttribute('data-m')); }, 'cancel', el.getAttribute('data-m'), null, null, '코트에서 뺐어요.'); break;
       case 'op-pin-off': remote.setOperatorPin(token, null).then(function () { toast('진행 PIN을 껐어요. 도우미 로그인도 모두 끊겼어요.'); }, function (e) { toast('진행 PIN을 끄지 못했어요 (' + e.code + ').'); }); break;
+      case 'lv-grp': ui.lvGroup = v || null; render(); break;
       case 'lv-add': ui.lvAdd = !ui.lvAdd; ui.lvPick = ''; render(); break;
       case 'lv-pick': ui.lvPick = el.getAttribute('data-p') || ''; render(); break;
       case 'lv-done': ev.preventDefault(); ui.lvDone = !ui.lvDone; render(); break;
