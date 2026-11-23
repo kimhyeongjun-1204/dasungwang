@@ -622,3 +622,96 @@ begin
     end if;
   end if;
 end $$;
+
+-- 웹 푸시 (2026-11-23): 경기가 코트에 들어가면 그 경기 4명과 그 경기를 예측한 사람에게 알림
+-- push_subs: 기기마다 하나(endpoint). 기기 주소·키는 아무도 못 읽음(RLS, 권한 없음) → 보낼 때만 push_targets가 돼장·도우미 토큰으로 꺼냄
+create table if not exists public.push_subs (
+  endpoint text primary key,
+  player_id text not null,
+  p256dh text not null,
+  auth text not null,
+  created_at timestamptz not null default now()
+);
+alter table public.push_subs enable row level security;
+revoke all on public.push_subs from anon, authenticated;
+create index if not exists push_subs_player on public.push_subs (player_id);
+-- 같은 경기 같은 시작(startedAt)에는 한 번만 보냄 (두 사람이 동시에 눌러도, 다시 불러도)
+create table if not exists public.push_log (
+  match_id text not null,
+  started_at text not null,
+  sent_at timestamptz not null default now(),
+  primary key (match_id, started_at)
+);
+alter table public.push_log enable row level security;
+revoke all on public.push_log from anon, authenticated;
+
+-- 회원: 내 이름으로 이 기기 구독(같은 기기면 이름만 바뀜)
+create or replace function public.push_subscribe(p_player text, p_endpoint text, p_p256dh text, p_auth text) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if p_player is null or not public.prediction_player_ok(p_player) then raise exception 'bad_player'; end if;
+  if p_endpoint is null or p_endpoint !~ '^https://' or length(p_endpoint) > 1000 then raise exception 'bad_endpoint'; end if;
+  if p_p256dh is null or p_auth is null or length(p_p256dh) > 200 or length(p_auth) > 100 then raise exception 'bad_key'; end if;
+  insert into public.push_subs as s (endpoint, player_id, p256dh, auth) values (p_endpoint, p_player, p_p256dh, p_auth)
+    on conflict (endpoint) do update set player_id = excluded.player_id, p256dh = excluded.p256dh, auth = excluded.auth, created_at = now();
+end $$;
+
+create or replace function public.push_unsubscribe(p_endpoint text) returns void
+language sql security definer set search_path = public as $$
+  delete from public.push_subs s where s.endpoint = p_endpoint;
+$$;
+
+-- Edge Function notify 전용: 이번 시작에 보낼 기기 목록. kind는 player(경기 4명) / predictor(그 경기를 예측한 사람, 선수 본인 제외)
+create or replace function public.push_targets(token uuid, p_week date, p_match text)
+returns table (endpoint text, p256dh text, auth text, kind text, court int, team_a text, team_b text)
+language plpgsql security definer set search_path = public as $$
+declare
+  st jsonb;
+  m jsonb;
+  ps text[];
+  nm jsonb;
+  ta text;
+  tb text;
+  k int;
+begin
+  if public.live_check(push_targets.token) is null then raise exception 'unauthorized'; end if;
+  select s.state into st from public.app_state s where s.id = 1;
+  select x.val into m from jsonb_array_elements(st->'weeks') w(val), jsonb_array_elements(w.val->'matches') x(val)
+   where w.val->>'date' = p_week::text and x.val->>'id' = p_match limit 1;
+  if m is null then raise exception 'no_match'; end if;
+  if coalesce(m->>'win', '') <> '' or coalesce(m->>'court', '') = '' or coalesce(m->>'startedAt', '') = '' then raise exception 'not_on_court'; end if;
+  delete from public.push_log l where l.sent_at < now() - interval '30 days';
+  insert into public.push_log (match_id, started_at) values (p_week::text || '/' || p_match, m->>'startedAt') on conflict do nothing;
+  get diagnostics k = row_count;
+  if k = 0 then return; end if;
+  select coalesce(jsonb_object_agg(p->>'id', p->>'name'), '{}'::jsonb) into nm from jsonb_array_elements(st->'players') p;
+  select array_agg(x) into ps from jsonb_array_elements_text((m->'a') || (m->'b')) x;
+  select string_agg(coalesce(nm->>x, '?'), '·' order by o) into ta from jsonb_array_elements_text(m->'a') with ordinality t(x, o);
+  select string_agg(coalesce(nm->>x, '?'), '·' order by o) into tb from jsonb_array_elements_text(m->'b') with ordinality t(x, o);
+  return query
+    select s.endpoint, s.p256dh, s.auth, 'player'::text, (m->>'court')::int, ta, tb
+      from public.push_subs s where s.player_id = any(ps)
+    union all
+    select s.endpoint, s.p256dh, s.auth, 'predictor'::text, (m->>'court')::int, ta, tb
+      from public.push_subs s
+     where not (s.player_id = any(ps))
+       and exists (select 1 from public.predictions p, jsonb_array_elements(p.picks) e
+                    where p.week_date = p_week and p.player_id = s.player_id and e->>'match' = p_match);
+end $$;
+
+-- Edge Function notify 전용: 푸시 서버가 없다고 한(404·410) 기기 지우기
+create or replace function public.push_gone(token uuid, p_endpoints text[]) returns int
+language plpgsql security definer set search_path = public as $$
+declare
+  k int;
+begin
+  if public.live_check(push_gone.token) is null then raise exception 'unauthorized'; end if;
+  delete from public.push_subs s where s.endpoint = any(p_endpoints);
+  get diagnostics k = row_count;
+  return k;
+end $$;
+
+revoke all on function public.push_subscribe(text, text, text, text), public.push_unsubscribe(text),
+  public.push_targets(uuid, date, text), public.push_gone(uuid, text[]) from public;
+grant execute on function public.push_subscribe(text, text, text, text), public.push_unsubscribe(text),
+  public.push_targets(uuid, date, text), public.push_gone(uuid, text[]) to anon, authenticated;

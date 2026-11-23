@@ -1245,3 +1245,46 @@ $ node deploy.test.js | tail -1; node logic.test.js | tail -1
 (테스트가 `inGrp(` 호출 모양만 찾아서 `filter(inGrp)`를 못 잡음 → `var inGrp =`로 고침)
 가짜 서버(코트 5·6 찬 상태, 360·390px): 전체 바로 가능 8·못 함 7 / 랍스터 0·3 / 소 3·4 / 돼지 5·0, 각 탭에서 다른 조 얼굴 0, 넘침 없음. 360×700에서 800px 내려도 탭이 화면 맨 위(0px)에 붙음.
 사진: docs/screenshots/live-courts/group_tabs_360.jpg
+
+## 54. 웹 푸시: 내 경기가 코트에 들어갈 때 · 내 예측 경기가 시작할 때 (사용자 요청, 브랜치 feat/push, 2026-11-23)
+"돼장이 새 경기를 채우면 해당하는 사람에게 푸시 알림" → (가) 선택: 그 경기 4명에게 "코트 5에서 내 경기 시작", 그 경기를 예측한 사람(선수 본인 빼고)에게 "내 예측 경기가 코트 5에서 시작". 본문은 "김성곤·유성준 vs 이제영·박강호", 추가 코트는 "추가 코트".
+- 흐름: 회원이 내 기록 탭(또는 경기날 내 경기 화면)에서 "알림 받기" → 이 기기를 내 이름으로 구독(`push_subscribe`). 돼장·도우미가 코트에 넣으면(`live_action start` 성공 뒤) 앱이 Edge Function `notify`를 부르고, 함수가 `push_targets`로 받을 기기를 받아 보냄.
+- DB: `push_subs`(기기 주소·키, anon 읽기 권한 없음), `push_log`(같은 경기·같은 시작은 한 번만, 30일 지난 기록 지움). `push_targets`/`push_gone`은 돼장·도우미 토큰(`live_check`)만. 푸시 서버가 404·410을 주면 그 기기 구독을 지움.
+- Edge Function `supabase/functions/notify/index.ts`: 라이브러리 없이 WebCrypto로 RFC 8291(aes128gcm)·RFC 8292(VAPID ES256). 서비스 키를 쓰지 않고 요청의 공개 키로 RPC만 부름.
+- `config.js`에 `vapidKey`(공개 키)가 비어 있으면 알림 카드가 안 보이고 notify도 안 부름 → 키 넣기 전에 머지해도 지금 앱은 그대로.
+- 아이폰: 홈 화면에 추가한 앱(iOS 16.4+)에서만. 안 된 상태면 카드에 안내. 차단한 경우도 안내.
+```
+$ node --experimental-strip-types push.test.mjs
+  ok RFC 8291 부록 A 값과 같게 암호화 (http_ece@1.2.0으로도 같은 값 확인)
+  ok Node crypto로 풀면 원문 / VAPID JWT 서명 검증 / 알림 문구 / handle(가짜 fetch: sent 1·gone 1, bad_request, no_vapid)
+5 passed
+$ node deploy.test.js   (테스트 먼저)
+  FAIL schema.sql 웹 푸시 … / FAIL 웹 푸시 화면·API …
+41 passed
+$ (바꾼 뒤) node deploy.test.js | tail -1; node logic.test.js | tail -1
+43 passed
+134 passed
+```
+로컬 Postgres 16 (`supabase/tests/push.sql`, begin…rollback): 구독 4 / 없는 선수·쉬는 선수 bad_player / http 주소 bad_endpoint / anon이 push_subs 읽기 → permission denied / 토큰 없이 unauthorized / 코트에 없는 경기 not_on_court / 코트 5 시작 → a·c·d player, e predictor(d는 선수이면서 예측도 했지만 player로 한 번만) / 다시 부르면 0 / 빼고 다른 시각에 다시 넣으면 4 / push_gone 1 / 해제 뒤 남은 c·d. schema.sql 두 번 넣어도 오류 없음, live_action.sql 결과 그대로(rev 9).
+가짜 서버 끝까지(진짜 notify 코드 + 로컬 HTTPS 가짜 푸시 서비스가 구독 개인 키로 풀어 봄): d1118A1 코트 5 → 박강호(player) 1건 "코트 5에서 내 경기 시작", 다시 부르면 sent 0, 틀린 토큰 unauthorized / d1118A2 → player 4 + predictor 6, predictor 문구 "내 예측 경기가 코트 5에서 시작", 410 준 9기기는 gone 9로 지워짐.
+화면(390px): 내 기록 탭 "🔔 코트 알림 · 알림 받기", 경기날 내 경기 화면 맨 아래 같은 카드(아직 안 켠 사람만), 차단 상태 안내. 헤드리스 Chromium은 권한을 줘도 Notification.permission이 'denied'라서 찍을 때만 'default'로 덮음.
+미리보기(preview.cmd): 띄울 때마다 새 VAPID 키를 메모리에 만들고 진짜 notify 코드를 씀 → Node 22 이상이면 PC Chrome에 진짜 알림이 옴. 휴대폰에서 http://PC주소로 열면 보안 연결이 아니라 알림은 안 됨(카드가 "지원 안 함").
+사진: docs/screenshots/push/push_card_390.jpg
+
+### 54-1. 실제 Supabase 반영 (2026-11-23, 머지 전)
+- 키: 사용자 PC에 Node가 없어 `npx`가 안 됨(오답 노트 23) → 사용자 요청으로 Claude in Chrome이 사이트 탭에서 WebCrypto로 키 한 쌍을 만들어 화면에만 띄움. Claude는 공개 키만 받음(87자, `config.js`에 넣음). 비밀 키는 화면에서 사용자가 복사해 넣음.
+- 사용자가 Edge Functions › Secrets에 `VAPID_PUBLIC_KEY`·`VAPID_PRIVATE_KEY`·`VAPID_SUBJECT` 입력. 대시보드의 SHA-256 다이제스트가 공개 키(`b1bb1f3e…cac5`)·사이트 주소(`603ce997…eb24`)를 직접 계산한 값과 같음. 비밀 키는 값을 몰라 확인 못 함.
+- `notify` 배포: 대시보드 편집기에 GitHub raw `feat/push`의 index.ts를 넣고 SHA-256(`0f0baa4f…9fdd`)이 커밋된 파일과 같은지 확인한 뒤 배포. 앱과 같은 헤더(apikey + Bearer 공개 키)로 불러 HTTP 200 → JWT 확인 설정이 켜져 있어도 막히지 않음.
+- `schema.sql` 실행: 같은 방법으로 SHA-256(`b824e781…a093`) 확인 → "파괴적 작업" 경고(예전 `drop table if exists admin_login_guard`, 함수 안 delete) 확인 후 실행 → "Success. No rows returned". 첫 시도는 확인 버튼을 누르기 전에 탭 묶음이 사라져 실행 안 됨(`push_targets` 404로 확인) → 사용자 "계속" 후 다시 실행.
+- 공개 키로 확인:
+```
+push_targets(가짜 토큰)      → 400 unauthorized
+push_gone(가짜 토큰)         → 400 unauthorized
+push_subscribe(없는 선수)    → 400 bad_player
+push_subscribe(http 주소)    → 400 bad_endpoint
+GET push_subs / push_log     → 401 permission denied
+live_check(가짜)             → 200 null
+notify(가짜 토큰)            → 200 {ok:false, code:unauthorized}   (실행 전: "Could not find the function public.push_targets")
+```
+- app_state rev 456 (11/23 오전 확인 때 453, 그 사이 저장분). schema.sql은 맨 위에서 app_state를 바꾸지 않음(update는 함수 안에만).
+- 아직 못 본 것: 실제 휴대폰에서 구독 → 코트 넣기 → 알림 도착.

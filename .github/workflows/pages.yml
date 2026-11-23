@@ -27,6 +27,8 @@ jobs:
         run: node logic.test.js
       - name: 배포 테스트
         run: node deploy.test.js
+      - name: 웹 푸시 암호화 테스트 (RFC 8291·8292)
+        run: node --experimental-strip-types push.test.mjs
       - name: 빌드
         run: node build.js
       - uses: actions/configure-pages@v6

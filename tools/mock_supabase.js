@@ -124,7 +124,42 @@ function availApply(d, pid, status, minutes, byAdmin) {
 }
 const attending = (d, pid) => { const w = db.state.weeks.find(x => x.date === d); return !!(w && w.attendees && pid in w.attendees); };
 if (process.env.MOCK_AVAIL) JSON.parse(process.env.MOCK_AVAIL).forEach(r => availApply(kstDay(now()), r.player_id, r.status, r.min || 0, !!r.admin));
+// ---- 웹 푸시 (schema.sql push_* 흉내). 띄울 때마다 새 VAPID 키 → 미리보기에서도 이 PC Chrome에 진짜 알림이 옴 (키는 메모리에만)
+const b64u = b => Buffer.from(b).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const vapid = (() => {
+  const k = crypto.generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
+  return { publicKey: b64u(k.publicKey.export({ format: 'der', type: 'spki' }).subarray(-65)), privateKey: k.privateKey.export({ format: 'jwk' }).d };
+})();
+const pushDb = { subs: new Map(), log: new Set() };  // endpoint → {player_id, p256dh, auth}
+const isOp = t => db.sessions.has(t) || db.ops.has(t);
 const RPC = {
+  push_subscribe: (a, res) => {
+    if (!(db.state.players || []).some(p => p.id === a.p_player && p.active !== false)) return fail(res, 'bad_player');
+    if (!/^https:\/\//.test(a.p_endpoint || '')) return fail(res, 'bad_endpoint');
+    pushDb.subs.set(a.p_endpoint, { player_id: a.p_player, p256dh: a.p_p256dh, auth: a.p_auth });
+    console.log('[알림] 구독', a.p_player, '· 기기', pushDb.subs.size); send(res, 200, 'null');
+  },
+  push_unsubscribe: (a, res) => { pushDb.subs.delete(a.p_endpoint); send(res, 200, 'null'); },
+  push_targets: (a, res) => {
+    if (!isOp(a.token)) return fail(res, 'unauthorized');
+    const w = db.state.weeks.find(x => x.date === a.p_week), m = w && w.matches.find(x => x.id === a.p_match);
+    if (!m) return fail(res, 'no_match');
+    if (m.win || m.court == null || !m.startedAt) return fail(res, 'not_on_court');
+    const key = a.p_week + '/' + a.p_match + '@' + m.startedAt;
+    if (pushDb.log.has(key)) return send(res, 200, '[]');
+    pushDb.log.add(key);
+    const nm = id => ((db.state.players || []).find(p => p.id === id) || {}).name || '?';
+    const ps = m.a.concat(m.b), ta = m.a.map(nm).join('·'), tb = m.b.map(nm).join('·');
+    const picked = new Set(P.predictions.filter(p => p.week_date === a.p_week && (p.picks || []).some(x => x.match === a.p_match)).map(p => p.player_id));
+    const out = [];
+    for (const [endpoint, s] of pushDb.subs) {
+      const kind = ps.includes(s.player_id) ? 'player' : picked.has(s.player_id) ? 'predictor' : null;
+      if (kind) out.push({ endpoint, p256dh: s.p256dh, auth: s.auth, kind, court: m.court, team_a: ta, team_b: tb });
+    }
+    console.log('[알림]', a.p_match, '코트', m.court, '→', out.map(o => nm(pushDb.subs.get(o.endpoint).player_id) + '(' + o.kind + ')').join(', ') || '받을 사람 없음');
+    send(res, 200, JSON.stringify(out));
+  },
+  push_gone: (a, res) => { if (!isOp(a.token)) return fail(res, 'unauthorized'); (a.p_endpoints || []).forEach(e => pushDb.subs.delete(e)); send(res, 200, '0'); },
   admin_login: (a, res) => { if (a.pin !== db.pin) return send(res, 200, 'null'); const t = crypto.randomUUID(); db.sessions.add(t); send(res, 200, JSON.stringify(t)); },
   admin_check: (a, res) => send(res, 200, String(db.sessions.has(a.token))),
   admin_logout: (a, res) => { db.sessions.delete(a.token); db.ops.delete(a.token); send(res, 200, 'null'); },
@@ -266,6 +301,21 @@ http.createServer((req, res) => {
     let body = ''; req.on('data', c => body += c);
     return req.on('end', () => setTimeout(() => send(res, 200, mockRematch(JSON.parse(body || '{}'))), 800));
   }
+  // 실제 Edge Function 코드(supabase/functions/notify/index.ts)를 그대로 씀. Node가 .ts를 못 읽으면(22 미만) 대상만 콘솔에
+  if (u.pathname === '/functions/v1/notify' && req.method === 'POST') {
+    let body = ''; req.on('data', c => body += c);
+    return req.on('end', async () => {
+      const env = { SUPABASE_URL: 'http://localhost:' + PORT, VAPID_PUBLIC_KEY: vapid.publicKey, VAPID_PRIVATE_KEY: vapid.privateKey, VAPID_SUBJECT: 'mailto:mock@example.com' };
+      const r = new Request('http://localhost/functions/v1/notify', { method: 'POST', headers: { apikey: 'mock', 'content-type': 'application/json' }, body });
+      try {
+        const fn = await import(require('url').pathToFileURL(path.join(__dirname, '..', 'supabase', 'functions', 'notify', 'index.ts')).href);
+        const out = await (await fn.handle(r, { fetch, env, now: Date.now() })).json();
+        console.log('[알림] 보냄', JSON.stringify(out)); send(res, 200, out);
+      } catch (e) {
+        console.log('[알림] notify 코드를 못 불러옴(Node 22 이상 + --experimental-strip-types 필요):', e.message); send(res, 200, { ok: false, code: 'mock_no_ts' });
+      }
+    });
+  }
   if (u.pathname === '/rest/v1/app_state' && req.method === 'GET') return send(res, 200, { state: db.state, rev: db.rev, saved_at: db.saved_at });
   const table = u.pathname.slice('/rest/v1/'.length);
   if (u.pathname.startsWith('/rest/v1/') && table in P && table !== 'eventId') {
@@ -277,7 +327,7 @@ http.createServer((req, res) => {
     return req.on('end', () => { const f = RPC[u.pathname.slice(13)]; f ? f(JSON.parse(body || '{}'), res) : send(res, 404, { message: 'no function' }); });
   }
   // 같은 와이파이의 휴대폰으로 PC 주소(http://192.168.x.x:PORT)로 열어도 되게, 접속한 주소를 그대로 씀
-  if (u.pathname === '/config.js') return send(res, 200, "window.DDW_CONFIG = { url: 'http://" + (req.headers.host || 'localhost:' + PORT) + "', anonKey: 'mock', realtime: false };", TYPES['.js']);
+  if (u.pathname === '/config.js') return send(res, 200, "window.DDW_CONFIG = { url: 'http://" + (req.headers.host || 'localhost:' + PORT) + "', anonKey: 'mock', realtime: false, vapidKey: '" + vapid.publicKey + "' };", TYPES['.js']);
   const f = path.join(dist, u.pathname === '/' ? 'index.html' : path.normalize(u.pathname).replace(/^[\\/]+/, ''));
   if (!f.startsWith(dist) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) return send(res, 404, 'not found', 'text/plain');
   send(res, 200, fs.readFileSync(f), TYPES[path.extname(f)] || 'application/octet-stream');
