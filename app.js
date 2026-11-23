@@ -706,8 +706,13 @@
   function pushGuide() {
     var steps = push.ios
       ? ['홈 화면에서 <b>설정</b> 앱을 열어요', '<b>알림 › 다승왕전</b>으로 가요', '<b>알림 스타일</b>을 <b>배너</b>로 골라요 (소리도 켜면 좋아요)', '아래 <b>시험 알림 보내기</b>로 확인해요']
-      : ['알림창을 내려서 <b>시험 알림을 길게</b> 눌러요', '<b>⚙</b> 또는 <b>알림 설정</b>을 눌러요', '<b>팝업으로 표시</b>를 켜요 <span class="muted">(기종에 따라 "화면에 팝업", "소리 및 팝업")</span>', '아래 <b>시험 알림 보내기</b>로 확인해요'];
-    var pic = push.ios ? '' : '<div class="pg-pic" aria-hidden="true"><div class="pg-noti"><i></i><span><b>코트 5에서 내 경기 시작</b><small>김성곤·유성준 vs 이제영·박강호</small></span><u>👆 길게</u></div><div class="pg-row"><span class="pg-arrow">↳ ⚙ 알림 설정</span><div class="pg-set"><span>팝업으로 표시</span><em></em></div></div></div>';
+      // 갤럭시(One UI 6.1+)는 알림 카테고리가 숨겨져 있고, 웹 앱 알림은 '일반' 카테고리의 팝업이 꺼진 채로 만들어짐 → 실제 갤럭시에서 확인한 순서 (2026-11-23)
+      : ['<b>설정 › 알림 › 고급 설정</b>에서 <b>앱별 알림 카테고리 관리</b>를 켜요 <span class="muted">(갤럭시만. 이미 켜져 있으면 넘어가요)</span>',
+        '알림창을 내려서 <b>시험 알림을 길게</b> 누르고 <b>⚙</b>를 눌러요',
+        '맨 아래 <b>알림 카테고리</b> › <b>일반</b> 글자를 눌러요 <span class="muted">(오른쪽 스위치 말고 글자)</span>',
+        '<b>알림</b>(무음 아님)을 고르고 <b>팝업으로 표시</b>를 켜요',
+        '아래 <b>시험 알림 보내기</b>로 화면 위에 뜨는지 확인해요'];
+    var pic = push.ios ? '' : '<div class="pg-pic" aria-hidden="true"><div class="pg-noti"><i></i><span><b>코트 5에서 내 경기 시작</b><small>김성곤·유성준 vs 이제영·박강호</small></span><u>👆 길게</u></div><div class="pg-row"><span class="pg-arrow">↳ ⚙ › 알림 카테고리 › 일반</span><div class="pg-set"><span>팝업으로 표시</span><em></em></div></div></div>';
     return '<div class="push-guide"><b>카톡처럼 화면 위에 뜨게 하기 <span class="muted small">(처음 한 번만)</span></b>' + pic +
       '<ol>' + steps.map(function (x) { return '<li>' + x + '</li>'; }).join('') + '</ol></div>';
   }
