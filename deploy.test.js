@@ -404,6 +404,10 @@ test('코트: 고정 5·6번(설정) + 번호 없는 추가 코트, 실제 번�
   // jsonb의 -> 와 || 는 우선순위가 같아서 괄호가 없으면 (x->'a' || x)->'b'가 됨 → 선수 겹침 검사가 늘 비어 있었음(오답 노트 22)
   assert.ok(!/->'a' \|\| [a-z.]+->'b'/.test(sql), "jsonb ->'a' || ->'b'에 괄호 없음");
 });
+test('내 경기 보기 순서: 지금 코트 → 내 경기 → 늦어요·레슨 → 내 예측 (사용자 요청 2026-11-23)', () => {
+  const wk = appSrc.slice(appSrc.indexOf('if (mine) {\n      var my = [];'), appSrc.indexOf('    out += legend();'));
+  assert.ok(/my-matches[\s\S]*myLiveCard\([\s\S]*myPredCard\(/.test(wk), '내 경기 보기에서 내 경기 → 늦어요·레슨 → 내 예측 순서가 아님');
+});
 test('app.js: 기존 충돌 UI·저장 실패 배너·임시저장 유지', () => {
   for (const s of ['draftConflict', 'ui.saveError', 'KEY.draft', 'draft-load', 'draft-drop']) assert.ok(appSrc.includes(s), s + ' 없음');
 });
