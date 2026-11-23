@@ -555,8 +555,8 @@
       var m = c.m;
       if (!m) return '<div class="court empty"><b>' + L.courtLabel(c.no) + '</b>' + (c.no === L.LIVE.EXTRA ? '<button class="link small" data-act="lv-extra" data-v="0">닫기</button>' : '<span>비어 있음</span>') + '</div>';
       return '<div class="court on g' + m.pool + '"><div class="c-head"><b>' + L.courtLabel(c.no) + '</b>' + gface(m.pool) + '<span class="num muted c-eta">' + etaText(m, typ) + '</span></div>' +
-        ['a', 'b'].map(function (side) { return '<button class="c-team" data-act="lv-win" data-m="' + m.id + '" data-side="' + side + '"><span>' + teamNames(m, side, P) + '</span><small>이김</small></button>'; }).join('<span class="vs">vs</span>') +
-        '<button class="link small" data-act="lv-cancel" data-m="' + m.id + '">코트에서 빼기</button></div>';
+        ['a', 'b'].map(function (side) { return '<button class="c-team" data-act="lv-ask-win" data-m="' + m.id + '" data-side="' + side + '"><span>' + teamNames(m, side, P) + '</span><small>이김</small></button>'; }).join('<span class="vs">vs</span>') +
+        '<button class="link small" data-act="lv-ask-cancel" data-m="' + m.id + '">코트에서 빼기</button></div>';
     }).join('') + (w.extraCourt ? '' : '<button class="court add" data-act="lv-extra" data-v="1">+ 추가 코트 열기</button>') + '</section>' +
       '<p class="small muted lv-typ">' + (typ ? '경기 시간은 보통 <b class="num">' + typ.minutes + '분</b>이에요 (코트에서 끝난 경기 ' + typ.n + '개 기준).' : '코트에서 끝난 경기가 3개 이상 모이면 남은 시간을 짐작해 보여 줘요.') + '</p>';
     // 지금 못 하는 사람
@@ -587,11 +587,12 @@
     var ready = b.ready.filter(inGrp), blocked = b.blocked.filter(inGrp), done = b.done.filter(inGrp);
     // 바로 가능
     var free = b.freeCourts[0];
-    out += '<section class="lv-sec"><h3>바로 가능 <span class="num muted">' + ready.length + '</span><small class="muted">오래 기다린 순</small></h3>' +
+    out += '<section class="lv-sec"><h3>바로 가능 <span class="num muted">' + ready.length + '</span><small class="muted">오래 기다린 순 · 누르면 코트 선택</small></h3>' +
       (ready.length ? ready.map(function (r) {
         var m = r.m;
-        return '<div class="lv-row g' + m.pool + '"><div class="lv-main">' + gface(m.pool) + '<span class="lv-teams">' + teamNames(m, 'a', P) + ' <i>vs</i> ' + teamNames(m, 'b', P) + '</span><small class="num muted">최대 ' + r.longest + '분 기다림</small></div>' +
-          (free != null ? '<button class="btn sm primary" data-act="lv-start" data-m="' + m.id + '" data-c="' + free + '">' + L.courtLabel(free) + '에 넣기</button>' : '<span class="small muted">빈 코트 없음</span>') + '</div>';
+        // 경기를 누르면 빈 코트 고르는 창 (사용자 요청 2026-11-23: '코트 5에 넣기' 버튼 반복 대신)
+        return '<button class="lv-row lv-pick-m g' + m.pool + '" data-act="lv-ask-start" data-m="' + m.id + '"' + (free == null ? ' disabled' : '') + '><div class="lv-main">' + gface(m.pool) + '<span class="lv-teams">' + teamNames(m, 'a', P) + ' <i>vs</i> ' + teamNames(m, 'b', P) + '</span><small class="num muted">최대 ' + r.longest + '분 기다림</small></div>' +
+          (free != null ? '<span class="lv-go" aria-hidden="true">›</span>' : '<span class="small muted">빈 코트 없음</span>') + '</button>';
       }).join('') : '<p class="small muted">' + (ui.lvGroup ? '이 조는 ' : '') + '지금 바로 할 수 있는 경기가 없어요.</p>') + '</section>';
     if (blocked.length) out += '<section class="lv-sec"><h3>지금 못 함 <span class="num muted">' + blocked.length + '</span></h3>' + blocked.map(function (x) {
       var m = x.m;
@@ -600,7 +601,32 @@
     if (done.length) out += '<details class="lv-sec lv-done"' + (ui.lvDone ? ' open' : '') + '><summary data-act="lv-done"><h3>완료 <span class="num muted">' + done.length + '</span></h3></summary>' + done.map(function (m) {
       return '<div class="lv-row done"><div class="lv-main">' + gface(m.pool) + '<span class="lv-teams"><b>' + teamNames(m, m.win, P) + '</b> 승 · ' + teamNames(m, m.win === 'a' ? 'b' : 'a', P) + '</span></div></div>';
     }).join('') + '<p class="small muted">' + (ui.op ? '결과를 고치려면 돼장에게 말해 주세요.' : '결과를 고치려면 위에서 <b>결과 표</b>로 바꿔 주세요.') + '</p></details>';
+    if (ui.lvSheet) out += lvSheet(w, b, P);
     return out;
+  }
+  // 경기 진행 확인 창 (아래에서 올라옴): 코트 고르기 / 이김 저장 / 코트에서 빼기. 그 사이 다른 기기가 바꿨으면 안내만
+  function lvSheet(w, b, P) {
+    var sh = ui.lvSheet, m = w.matches.filter(function (x) { return x.id === sh.m; })[0];
+    var gone = function (t) { return '<div class="pc-back" data-act="lv-close" aria-hidden="true"></div><section class="pc-sheet lv-sheet" role="dialog" aria-modal="true"><h3>' + t + '</h3><div class="pc-btns one"><button class="btn" data-act="lv-close">닫기</button></div></section>'; };
+    if (!m) return gone('이 경기를 찾지 못했어요');
+    var teams = '<p class="lv-sh-teams">' + gface(m.pool) + '<b>' + teamNames(m, 'a', P) + '</b><i>vs</i><b>' + teamNames(m, 'b', P) + '</b></p>';
+    var head = '<div class="pc-back" data-act="lv-close" aria-hidden="true"></div><section class="pc-sheet lv-sheet" role="dialog" aria-modal="true" aria-labelledby="lv-sh-title">';
+    if (sh.kind === 'start') {
+      if (m.court != null || m.win) return gone('이미 코트에 있거나 끝난 경기예요');
+      if (!b.freeCourts.length) return gone('빈 코트가 없어요');
+      return head + '<h3 id="lv-sh-title">어느 코트에 넣을까요?</h3>' + teams +
+        '<div class="lv-courts">' + b.freeCourts.map(function (no) { return '<button class="btn primary lv-court-btn" data-act="lv-start" data-m="' + m.id + '" data-c="' + no + '">' + L.courtLabel(no) + '</button>'; }).join('') + '</div>' +
+        '<div class="pc-btns one"><button class="btn" data-act="lv-close">취소</button></div></section>';
+    }
+    if (m.court == null || m.win) return gone('지금 코트에 없는 경기예요');
+    if (sh.kind === 'win') {
+      return head + '<h3 id="lv-sh-title">' + L.courtLabel(m.court) + ' 결과를 저장할까요?</h3>' +
+        '<p class="lv-sh-win"><b>' + teamNames(m, sh.side, P) + '</b> 승</p><p class="small muted">' + teamNames(m, sh.side === 'a' ? 'b' : 'a', P) + ' 패</p>' +
+        '<div class="pc-btns"><button class="btn" data-act="lv-close">취소</button><button class="btn primary" data-act="lv-win" data-m="' + m.id + '" data-side="' + sh.side + '">네, 저장</button></div></section>';
+    }
+    return head + '<h3 id="lv-sh-title">' + L.courtLabel(m.court) + '에서 뺄까요?</h3>' + teams +
+      '<p class="small muted">결과 없이 코트만 비우고, 이 경기는 다시 \'바로 가능\'으로 돌아가요.</p>' +
+      '<div class="pc-btns"><button class="btn" data-act="lv-close">취소</button><button class="btn danger" data-act="lv-cancel" data-m="' + m.id + '">네, 빼기</button></div></section>';
   }
   // 회원: 오늘 코트 상황(진행 중 3칸)
   // pickOf: 내 예측 {경기 id: {side}} → 내가 예측한 경기가 코트에 있으면 '내 픽'과 고른 팀 강조
@@ -1581,9 +1607,13 @@
     switch (act) {
       case 'awv': ui.awv = v; render(); break;
       case 'lv-extra': liveEdit(function (w) { return L.setExtraCourt(w, el.getAttribute('data-v') === '1'); }, el.getAttribute('data-v') === '1' ? 'extra_open' : 'extra_close', null, null, null, el.getAttribute('data-v') === '1' ? '추가 코트를 열었어요.' : '추가 코트를 닫았어요.'); break;
-      case 'lv-start': liveEdit(function (w, t) { return L.startMatch(w, el.getAttribute('data-m'), +el.getAttribute('data-c'), t, L.courtSlots(work.settings, w)); }, 'start', el.getAttribute('data-m'), +el.getAttribute('data-c'), null, '코트에 넣었어요.'); break;
-      case 'lv-win': liveEdit(function (w, t) { return L.finishMatch(w, el.getAttribute('data-m'), el.getAttribute('data-side'), t); }, 'finish', el.getAttribute('data-m'), null, el.getAttribute('data-side'), '결과를 저장했어요.'); break;
-      case 'lv-cancel': liveEdit(function (w) { return L.cancelMatch(w, el.getAttribute('data-m')); }, 'cancel', el.getAttribute('data-m'), null, null, '코트에서 뺐어요.'); break;
+      case 'lv-ask-start': ui.lvSheet = { kind: 'start', m: el.getAttribute('data-m') }; render(); break;
+      case 'lv-ask-win': ui.lvSheet = { kind: 'win', m: el.getAttribute('data-m'), side: el.getAttribute('data-side') }; render(); break;
+      case 'lv-ask-cancel': ui.lvSheet = { kind: 'cancel', m: el.getAttribute('data-m') }; render(); break;
+      case 'lv-close': ui.lvSheet = null; render(); break;
+      case 'lv-start': ui.lvSheet = null; liveEdit(function (w, t) { return L.startMatch(w, el.getAttribute('data-m'), +el.getAttribute('data-c'), t, L.courtSlots(work.settings, w)); }, 'start', el.getAttribute('data-m'), +el.getAttribute('data-c'), null, '코트에 넣었어요.'); break;
+      case 'lv-win': ui.lvSheet = null; liveEdit(function (w, t) { return L.finishMatch(w, el.getAttribute('data-m'), el.getAttribute('data-side'), t); }, 'finish', el.getAttribute('data-m'), null, el.getAttribute('data-side'), '결과를 저장했어요.'); break;
+      case 'lv-cancel': ui.lvSheet = null; liveEdit(function (w) { return L.cancelMatch(w, el.getAttribute('data-m')); }, 'cancel', el.getAttribute('data-m'), null, null, '코트에서 뺐어요.'); break;
       case 'op-pin-off': remote.setOperatorPin(token, null).then(function () { toast('진행 PIN을 껐어요. 도우미 로그인도 모두 끊겼어요.'); }, function (e) { toast('진행 PIN을 끄지 못했어요 (' + e.code + ').'); }); break;
       case 'lv-grp': ui.lvGroup = v || null; render(); break;
       case 'lv-add': ui.lvAdd = !ui.lvAdd; ui.lvPick = ''; render(); break;

@@ -339,6 +339,20 @@ test('내 경기 화면에서 알림 받기를 눌러도 팝업 안내가 그 �
   assert.ok(/if \(mine && \(pushNeeded\(\) \|\| \(push\.st === 'on' && push\.help\)\)\) out \+= pushCard\(true\);/.test(appSrc), '켜자마자 카드가 사라져 안내를 못 봄');
   assert.ok(/data-act="push-done"/.test(appSrc) && /case 'push-done': push\.help = false;/.test(appSrc), '안내 닫기(다 했어요) 없음');
 });
+test('경기 진행: 경기를 누르면 빈 코트 고르는 창, 이김·코트에서 빼기는 확인 창을 거침 (2026-11-23)', () => {
+  const v = appSrc.match(/function viewLive\(w, P\) \{[\s\S]*?\n  \}\n/);
+  assert.ok(v, 'viewLive 없음');
+  // 바로 가능 목록에는 "코트 N에 넣기" 버튼을 반복하지 않고, 경기 자체를 누르면 고르는 창
+  assert.ok(!/data-act="lv-start"/.test(v[0]), '바로 가능 목록이나 코트 카드에서 바로 코트에 넣음(고르는 창 없이)');
+  assert.ok(/data-act="lv-ask-start"/.test(v[0]), '경기를 눌러 코트 고르기 창을 여는 버튼 없음');
+  assert.ok(!/data-act="lv-win"/.test(v[0]) && /data-act="lv-ask-win"/.test(v[0]), '이김이 확인 없이 바로 저장됨');
+  assert.ok(!/data-act="lv-cancel"/.test(v[0]) && /data-act="lv-ask-cancel"/.test(v[0]), '코트에서 빼기가 확인 없이 바로 실행됨');
+  const sh = appSrc.match(/function lvSheet\(w, b, P\) \{[\s\S]*?\n  \}\n/);
+  assert.ok(sh, '확인 창(lvSheet) 없음');
+  assert.ok(/b\.freeCourts\.map\(/.test(sh[0]) && /data-act="lv-start"/.test(sh[0]), '코트 고르기 창에 빈 코트마다 버튼이 있어야 함');
+  assert.ok(/data-act="lv-win"/.test(sh[0]) && /data-act="lv-cancel"/.test(sh[0]) && /data-act="lv-close"/.test(sh[0]), '확인 창에 실행·취소 버튼이 있어야 함');
+  assert.ok(/case 'lv-ask-start'/.test(appSrc) && /case 'lv-ask-win'/.test(appSrc) && /case 'lv-ask-cancel'/.test(appSrc) && /case 'lv-close'/.test(appSrc), '창 열고 닫는 동작 없음');
+});
 test('Edge Function rematch: 조건 종류가 logic.js와 같고, 모델·폴백·키 처리가 맞음', () => {
   const src = fs.readFileSync(path.join(__dirname, 'supabase', 'functions', 'rematch', 'index.ts'), 'utf8');
   const types = JSON.parse(src.match(/const RULE_TYPES = (\[[^\]]*\])/)[1].replace(/'/g, '"'));
