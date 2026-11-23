@@ -224,9 +224,10 @@ details summary { cursor: pointer; color: var(--text-2); font-size: var(--fs-sm)
 .m-state { font-size: var(--fs-cap); color: var(--text-2); }
 .m-state.done { color: var(--win-text); }
 .m-teams { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 8px; align-items: stretch; }
-.team { display: flex; align-items: center; justify-content: space-between; gap: 6px; min-height: 48px; padding: 8px 10px; border: 1px solid var(--line-2); background: var(--surface-2); border-radius: var(--r-ctl); text-align: left; width: 100%; font-size: 15px; font-weight: 500; color: var(--text); }
+.team { display: flex; align-items: center; justify-content: center; position: relative; gap: 6px; min-height: 48px; padding: 8px 64px; border: 1px solid var(--line-2); background: var(--surface-2); border-radius: var(--r-ctl); text-align: left; width: 100%; font-size: 15px; font-weight: 500; color: var(--text); }
 button.team:hover { border-color: var(--line); background: #F1F4F9; }
-.team .names { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 4px; min-width: 0; }
+.team .names { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 2px 4px; min-width: 0; text-align: center; }
+.team .res { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); }  /* 이름은 가운데, WIN·패는 오른쪽 (2026-11-22) */
 .team.win { background: var(--win-50); border-color: #BFE3CF; font-weight: 700; }
 .team.lose { background: var(--surface); color: var(--text-2); }
 .res { flex: none; font-size: 11px; font-weight: 700; border-radius: var(--r-badge); padding: 2px 6px; }
@@ -270,7 +271,8 @@ button.team:hover { border-color: var(--line); background: #F1F4F9; }
 .medal.m3 { background: #F1D6BE; }
 .rname { min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; }
 .rname b { font-size: 15px; font-weight: 700; }
-.rname .sub { flex-basis: 100%; font-size: var(--fs-cap); color: var(--text-2); }
+.rname .sub { flex-basis: 100%; font-size: var(--fs-cap); color: var(--text-2); word-break: keep-all; }  /* 낱말 중간에서 안 끊기게 */
+.rname .sub .nw { white-space: nowrap; }  /* '결과 대기 N경기'는 한 덩어리로 줄바꿈 */
 .rnum { text-align: right; font-size: 14px; color: var(--text-2); }
 .rnum.strong { font-size: 17px; font-weight: 700; color: var(--navy); }
 
@@ -419,7 +421,9 @@ textarea { width: 100%; min-height: 84px; resize: vertical; }
 .group .m-state.done { color: var(--t-deep); }
 .me-zone .r.w { background: var(--t-deep); }
 .pl.me { color: var(--t-deep, var(--heaven-text)); text-decoration-color: var(--t-mid, currentColor); text-decoration-thickness: 2px; }
-/* 순위: 다승왕권 줄은 팀 연한 색, 배지는 팀 진한 색 + 왕관 / 1위 메달 금색 유지 */
+/* 순위: 다승왕권·동률 추첨은 이름 옆 왕관 아이콘만(글자 배지 없음, 2026-11-20) / 1위 메달 금색 유지 */
+.crown { width: 18px; height: 18px; vertical-align: -3px; fill: #E9A800; stroke: #8A5A00; stroke-width: .8; stroke-linejoin: round; flex: none; }
+p .crown { margin-right: 2px; }
 .team-zone .rrow.contender { background: var(--t-tint); }
 .team-zone .rnum.strong { color: var(--t-deep); }
 .team-zone .rrow.me .rname b { color: var(--t-deep); text-decoration: underline; text-decoration-color: var(--t-mid); text-underline-offset: 3px; }
@@ -662,3 +666,134 @@ textarea { width: 100%; min-height: 84px; resize: vertical; }
 .rp-overlay { position: fixed; inset: 0; z-index: 20; overflow: auto; display: grid; justify-items: center; align-content: start; gap: 10px; padding: 12px; background: #0B0407; }
 .rp-overlay .report { width: 100%; max-width: 420px; }
 .rp-overlay .btn { background: transparent; color: #fff; border-color: rgb(255 255 255 / .4); }
+
+/* 이번 주 탭: 내 경기 | 전체 + 내 예측 실시간 (사용자 요청 2026-11-20) */
+.seg.wview { display: flex; width: 100%; margin: 4px 0 10px; }
+.seg.wview button { flex: 1; min-height: 40px; font-size: 15px; }
+.my-pred.live { display: grid; gap: 8px; margin-bottom: 12px; }
+.my-pred.live .mp-head { justify-content: flex-start; }
+.my-pred.live .mp-head h3 { margin: 0; }
+.mp-score { margin-left: auto; font-size: 15px; font-weight: 700; }
+.my-pred.live.hit { border-color: #BFE3CF; background: var(--win-50); }
+.my-pred.live.miss { border-color: #F1CACA; background: var(--hell-50); }
+.my-pred.live .pred-res { font-size: 16px; }
+.my-pred.mini { padding: 10px 12px; margin-bottom: 12px; }
+.my-pred.mini p { margin: 0; }
+button.link { border: 0; background: none; padding: 0; font: inherit; font-weight: 700; color: var(--navy); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.my-matches { margin-bottom: 14px; }
+.my-matches h3 { margin: 0 0 8px; font-size: 16px; }
+.my-matches .match-list { display: grid; gap: 10px; }
+.m-grp { font-size: var(--fs-cap); color: var(--text-2); margin-bottom: -4px; }
+.m-head { flex-wrap: wrap; row-gap: 6px; }
+.m-no, .m-state { white-space: nowrap; }
+.chip.mypick { background: #FCE8F0; color: var(--plan-text); border-color: #F5C3D7; }
+.chip.mypick.hit { background: var(--win-50); color: var(--win-text); border-color: #BFE3CF; }
+.chip.mypick.miss { background: var(--hell-50); color: var(--hell-text); border-color: #F1CACA; }
+.m-head .chip.mypick { margin-left: auto; }
+.m-head .chip.super + .chip.mypick { margin-left: 0; }
+.team.picked { box-shadow: inset 0 0 0 2px #F5C3D7; }
+.team.picked.win { box-shadow: inset 0 0 0 2px #8FCFAA; }
+.team.picked.lose { box-shadow: inset 0 0 0 2px #E8A3A3; }
+
+/* 내 예측 카드: 조 색 테두리로 어느 조 경기인지 (2026-11-20, 글자 라벨 대신). 결과는 배경색·아이콘 */
+.pick4.grp .pk { border: 2px solid var(--gc, var(--line-2)); }
+/* 조 얼굴 아이콘 (점 대신, 2026-11-20). 그림은 images.css --face-* (tools/make_faces.py) */
+.face { width: 24px; height: 24px; flex: none; background: var(--fi) center / contain no-repeat; }
+.pk i.face { width: 24px; }  /* .pk i(결과 아이콘 18px) 규칙보다 우선 */
+.pick4.grp .pk { gap: 4px; padding: 6px; }
+.pick4.grp .pk i:not(.face) { width: 14px; }  /* 360px에서 이름이 안 잘리게 */
+.face-cv { --fi: var(--face-cv); } .face-lb { --fi: var(--face-lb); } .face-bf { --fi: var(--face-bf); }
+.face-lm { --fi: var(--face-lm); } .face-pk { --fi: var(--face-pk); } .face-ck { --fi: var(--face-ck); }
+
+/* ---------- 경기 진행: 코트 3칸 (2026-11-20) ---------- */
+.courts { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; margin: 4px 0 12px; }
+@media (min-width: 600px) { .courts { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.court { border-radius: var(--r-card); padding: 10px 12px; display: grid; gap: 6px; background: var(--surface); border: 2px solid var(--gc, var(--line)); box-shadow: var(--shadow); }
+.court.empty { border: 2px dashed var(--line); background: var(--surface-2); box-shadow: none; grid-template-columns: auto 1fr; align-items: center; color: var(--text-2); }
+.court.empty b { color: var(--text); }
+.court.empty span { justify-self: end; font-size: var(--fs-cap); }
+.c-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.c-head b { font-size: 16px; }
+.c-head .gdot { font-size: var(--fs-cap); color: var(--text-2); }
+.c-head .num { margin-left: auto; font-size: var(--fs-cap); }
+.c-team { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; min-height: 44px; padding: 8px 12px; border-radius: var(--r-ctl); border: 1px solid var(--line); background: var(--surface-2); font-size: 15px; font-weight: 700; color: var(--text); text-align: left; cursor: pointer; }
+.c-team small { flex: none; font-size: 12px; font-weight: 700; color: var(--win-text); border: 1px solid #BFE3CF; background: var(--win-50); border-radius: 999px; padding: 2px 8px; }
+.c-team:active { background: var(--win-50); }
+.court .vs { justify-self: center; font-size: 12px; color: var(--text-2); }
+.court .link { justify-self: end; }
+.away-box { display: grid; gap: 8px; margin-bottom: 12px; }
+.ab-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.ab-head h3 { margin: 0; font-size: 15px; }
+.ab-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.ab-chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 4px 4px 10px; border-radius: 999px; font-size: 13px; background: var(--yellow-50); border: 1px solid #F0DC9C; }
+.ab-chip.out { background: var(--hell-50); border-color: #F1CACA; }
+.ab-chip small { font-size: 11px; color: var(--text-2); }
+.ab-chip button { border: 0; background: rgb(0 0 0 / .06); border-radius: 50%; width: 24px; height: 24px; font-size: 14px; line-height: 1; cursor: pointer; }
+.ab-pick { display: grid; gap: 8px; padding: 10px; border-radius: var(--r-ctl); background: var(--surface-2); }
+.ab-pick p { margin: 0; }
+.ab-att button .gdot { font-weight: 500; }
+.lv-sec { margin: 0 0 12px; display: grid; gap: 6px; }
+.lv-sec h3 { margin: 0 0 2px; font-size: 15px; display: flex; align-items: baseline; gap: 6px; }
+.lv-sec h3 small { margin-left: auto; font-size: var(--fs-cap); font-weight: 500; }
+.lv-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--r-card); background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--gc, var(--line)); }
+.lv-row .btn { flex: none; }
+.lv-main { display: grid; gap: 2px; min-width: 0; flex: 1; }
+.lv-main .gdot.small { font-size: var(--fs-cap); color: var(--text-2); }
+.lv-teams { font-size: 14px; font-weight: 700; word-break: keep-all; }
+.lv-teams i { font-style: normal; font-weight: 500; color: var(--text-2); margin: 0 2px; }
+.lv-row.blocked { opacity: .62; background: var(--surface-2); }
+.lv-row.blocked small { color: var(--hell-text); font-size: 12px; }
+.lv-row.done { padding: 8px 12px; }
+.lv-row.done .lv-teams { font-weight: 500; }
+.lv-done summary { list-style: none; cursor: pointer; }
+.lv-done summary::-webkit-details-marker { display: none; }
+.lv-done summary h3::after { content: "▾"; margin-left: auto; color: var(--text-2); }
+.lv-done[open] summary h3::after { content: "▴"; }
+.m-state.on { color: var(--plan-text); font-weight: 700; }
+/* 회원: 지금 코트 + 내 차례 */
+.courts.mini { gap: 6px; }
+.courts.mini .court { padding: 8px 10px; gap: 2px; grid-template-columns: auto 1fr; align-items: center; column-gap: 8px; }
+.courts.mini .court.on .gdot { justify-self: end; font-size: 11px; color: var(--text-2); }
+.courts.mini .c-names { grid-column: 1 / -1; font-size: 13px; font-weight: 700; }
+.courts.mini .c-names i { font-style: normal; font-weight: 500; color: var(--text-2); margin: 0 4px; }
+.my-live { display: grid; gap: 6px; margin-bottom: 12px; border-left: 4px solid var(--navy); }
+.my-live.away { border-left-color: var(--hell-text); background: var(--yellow-50); }
+.my-live p { margin: 0; }
+
+/* ---------- 경기·예측 화면: 조 점 → 얼굴, 이름만·크게·가운데 (사용자 요청 2026-11-22) ---------- */
+.gdot.gA::before, .gdot.gB::before, .gdot.gC::before { width: 18px; height: 18px; border-radius: 0; background: center / contain no-repeat; }
+.gdot.gA::before { background-image: var(--face-lb); }
+.gdot.gB::before { background-image: var(--face-bf); }
+.gdot.gC::before { background-image: var(--face-pk); }
+/* 코트 */
+.c-head .face { width: 26px; height: 26px; }
+.c-team { justify-content: center; position: relative; font-size: 18px; padding: 10px 56px; text-align: center; }
+.c-team span { word-break: keep-all; }
+.c-team small { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); }
+/* 바로 가능·못 함·완료: 얼굴은 왼쪽 위, 이름은 가운데 크게, 버튼은 아래 넓게 */
+.lv-row { flex-direction: column; align-items: stretch; gap: 8px; position: relative; padding: 12px 14px; }
+.lv-main { justify-items: center; text-align: center; gap: 4px; }
+.lv-main .face { position: absolute; left: 12px; top: 10px; width: 26px; height: 26px; }
+.lv-teams { font-size: 18px; line-height: 1.35; padding: 0 22px; }
+.lv-teams i { font-size: 14px; margin: 0 4px; }
+.lv-row .btn { width: 100%; min-height: 40px; }
+.lv-row > .small { text-align: center; }
+.lv-row.done .lv-teams { font-size: 16px; }
+.lv-row.done .lv-main .face { top: 8px; width: 22px; height: 22px; }
+/* 회원 지금 코트 */
+.courts.mini .court.on .face { justify-self: end; width: 22px; height: 22px; }
+.courts.mini .c-names { text-align: center; font-size: 16px; word-break: keep-all; }
+/* 내 경기 카드 머리의 얼굴 */
+.m-head .face { width: 24px; height: 24px; }
+/* 예측 확정 목록·인기 픽 제목의 얼굴 */
+.mb-title .face, .pc-picks .face { width: 22px; height: 22px; vertical-align: middle; }
+
+/* 예측 칸: 내 예측 말고는 가운데, 내 예측은 진행 중 코트 표시 (2026-11-22) */
+.pick4:not(.grp) .pk { justify-content: center; }
+.pk .pk-res { margin-left: auto; font-style: normal; font-weight: 700; }   /* ✓·✕는 오른쪽 */
+.pick4:not(.grp) .pk .pk-res { margin-left: 4px; }
+/* 맨 위 지금 코트: 내가 예측한 경기 */
+.courts.mini .court.mine-pick { background: #FFF6FA; }
+.courts.mini .court .chip.mypick { justify-self: start; font-size: 11px; padding: 1px 8px; }
+.courts.mini .court.mine-pick { grid-template-columns: auto auto 1fr; }
+.c-pick { color: var(--plan-text); text-decoration: underline; text-underline-offset: 3px; }

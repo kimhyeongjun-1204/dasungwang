@@ -208,6 +208,79 @@ test('schema.sql pred_check: 조별 고정(bad_quota)이 logic.js PREDICT.quota�
   assert.ok(/raise exception 'bad_quota'/.test(sql), 'bad_quota 오류 없음');
   assert.ok(/function public\.prediction_match_pools\(d date\)/.test(sql), '경기→조 함수 없음');
 });
+test('schema.sql 경기 진행: availability 테이블(읽기만 공개)·본인/돼장 RPC·Realtime (2026-11-20)', () => {
+  const sql = fs.readFileSync(path.join(__dirname, 'supabase', 'schema.sql'), 'utf8');
+  assert.ok(/create table if not exists public\.availability \(/.test(sql), 'availability 테이블 없음');
+  assert.ok(/check \(status in \('late', 'away', 'out'\)\)/.test(sql), '상태 값 제한 없음');
+  assert.ok(/alter table public\.availability enable row level security/.test(sql), 'RLS 안 켬');
+  assert.ok(/revoke all on public\.availability from anon, authenticated/.test(sql) && /grant select on public\.availability to anon, authenticated/.test(sql), '읽기만 공개가 아님');
+  const self = sql.match(/function public\.set_availability\([\s\S]*?end \$\$;/);
+  assert.ok(self, '본인용 set_availability 없음');
+  for (const code of ['not_today', 'not_attending', 'admin_locked', 'bad_status', 'bad_minutes']) assert.ok(self[0].includes("'" + code + "'"), 'set_availability에 ' + code + ' 검사 없음');
+  assert.ok(/p_status not in \('late', 'away', 'here'\)/.test(self[0]), '회원이 오늘 못 함(out)을 직접 넣을 수 있음');
+  const adm = sql.match(/function public\.admin_set_availability\([\s\S]*?end \$\$;/);
+  assert.ok(adm && /live_check\(/.test(adm[0]), '돼장용 admin_set_availability가 토큰을 확인하지 않음');  // 진행 PIN 뒤로 돼장·도우미 둘 다
+  assert.ok(/public\.set_availability\(date, text, text, int\)/.test(sql) && /public\.admin_set_availability\(uuid, date, text, text, int\)/.test(sql), 'RPC 실행 권한(grant execute) 없음');
+  for (const t of ['availability', 'app_state']) assert.ok(new RegExp("tablename = '" + t + "'[\\s\\S]*?add table public\\." + t).test(sql), t + ' Realtime 등록 없음');
+});
+test('api 경기 진행: 자리 비움 읽기·본인/돼장 저장, 상태(app_state)·자리 비움 Realtime 구독', async () => {
+  const ok = () => ({ data: 't', error: null });
+  const c = tableClient({ availability: [{ player_id: 'p1', status: 'away' }] }, { set_availability: ok, admin_set_availability: ok });
+  const a = need().api(c);
+  assert.deepStrictEqual(await a.availability('2026-11-25'), [{ player_id: 'p1', status: 'away' }]);
+  assert.ok(c.calls[0].includes('week_date=2026-11-25'));
+  await a.setAvailability('2026-11-25', 'p1', 'away', 30);
+  await a.adminSetAvailability('tok', '2026-11-25', 'p2', 'out', null);
+  assert.deepStrictEqual(c.calls[1], ['rpc', 'set_availability', { p_week: '2026-11-25', p_player: 'p1', p_status: 'away', p_minutes: 30 }]);
+  assert.deepStrictEqual(c.calls[2], ['rpc', 'admin_set_availability', { token: 'tok', p_week: '2026-11-25', p_player: 'p2', p_status: 'out', p_minutes: null }]);
+  for (const m of ['not_today', 'not_attending', 'admin_locked', 'bad_status', 'bad_minutes']) assert.strictEqual(need().errorCode({ message: m }).code, m);
+  const subs = [];
+  const rt = { channel(n) { const ch = { on(ev, f, cb) { subs.push(f); return ch; }, subscribe(cb) { cb('SUBSCRIBED'); return ch; } }; return ch; }, removeChannel() { } };
+  const w = need().api(rt).watchLive('2026-11-25', () => { });
+  assert.strictEqual(w.live(), true);
+  assert.deepStrictEqual(subs.map(f => f.table + ':' + (f.filter || '')).sort(), ['app_state:', 'availability:week_date=eq.2026-11-25']);
+  const off = need().api(rt, { realtime: false }).watchLive('2026-11-25', () => { });
+  assert.strictEqual(off.live(), false);
+});
+test('schema.sql 진행 PIN: 역할(role) 세션, admin_check는 돼장만, 진행 동작은 서버에서 경기 하나만 바꿈 (2026-11-20)', () => {
+  const sql = fs.readFileSync(path.join(__dirname, 'supabase', 'schema.sql'), 'utf8');
+  const iRole = sql.indexOf("alter table public.admin_session add column if not exists role text not null default 'admin'");
+  assert.ok(iRole > 0, 'admin_session.role 없음');
+  assert.ok(iRole < sql.indexOf('create or replace function public.admin_check'), 'role 열을 admin_check보다 먼저 만들어야 함(sql 함수는 만들 때 열을 확인)');
+  assert.ok(/function public\.admin_check\(token uuid\)[\s\S]*?s\.role = 'admin'/.test(sql), 'admin_check가 진행 도우미 토큰도 돼장으로 인정함');
+  assert.ok(/alter table public\.admin_secret add column if not exists op_pin_hash text/.test(sql), '진행 PIN 저장 칸 없음');
+  const login = sql.match(/function public\.operator_login\([\s\S]*?end \$\$;/);
+  assert.ok(login && /'operator'/.test(login[0]) && /interval '365 days'/.test(login[0]), '진행 로그인이 operator 역할·계속 유지(365일, PIN 바꾸거나 끄면 끊김)가 아님 (사용자 결정 2026-11-20)');
+  const setp = sql.match(/function public\.set_operator_pin\([\s\S]*?end \$\$;/);
+  assert.ok(setp && /admin_check\(/.test(setp[0]) && /'same_as_admin'/.test(setp[0]), '진행 PIN 설정이 돼장 확인·관리 PIN과 같은지 확인을 안 함');
+  assert.ok(/function public\.change_pin[\s\S]*?'same_as_operator'[\s\S]*?end \$\$;/.test(sql), '관리 PIN을 진행 PIN과 같게 바꾸는 걸 안 막음');
+  const act = sql.match(/function public\.live_action\([\s\S]*?end \$\$;/);
+  assert.ok(act, 'live_action 없음');
+  for (const c of ['unauthorized', 'no_week', 'no_match', 'bad_court', 'court_busy', 'player_busy', 'already_done', 'not_on_court', 'bad_side', 'bad_action']) assert.ok(act[0].includes("'" + c + "'"), 'live_action에 ' + c + ' 없음');
+  assert.ok(/for update/.test(act[0]) && /rev = cur \+ 1/.test(act[0]), 'live_action이 잠금·rev 올리기를 안 함');
+  assert.ok(/function public\.admin_set_availability[\s\S]*?public\.live_check\(/.test(sql), '자리 비움 관리가 진행 도우미를 안 받음');
+  for (const f of ['operator_login(text)', 'live_check(uuid)', 'set_operator_pin(uuid, text)', 'live_action(uuid, date, text, text, int, text)'])
+    assert.ok(sql.includes('public.' + f), f + ' 실행 권한 없음');
+});
+test('api 진행 PIN: 로그인·역할 확인·진행 동작·PIN 설정, 토큰에 역할 저장', async () => {
+  const ok = v => () => ({ data: v, error: null });
+  const c = tableClient({}, { operator_login: ok('otok'), live_check: ok('operator'), live_action: ok(9), set_operator_pin: ok(null) });
+  const a = need().api(c);
+  assert.strictEqual(await a.operatorLogin('5678'), 'otok');
+  assert.strictEqual(await a.liveCheck('otok'), 'operator');
+  assert.strictEqual(await a.liveAction('otok', '2026-11-25', 'm1', 'start', 2, null), 9);
+  await a.setOperatorPin('tok', '5678');
+  assert.deepStrictEqual(c.calls.map(x => x[1]), ['operator_login', 'live_check', 'live_action', 'set_operator_pin']);
+  assert.deepStrictEqual(c.calls[2][2], { token: 'otok', p_week: '2026-11-25', p_match: 'm1', p_action: 'start', p_court: 2, p_side: null });
+  for (const m of ['court_busy', 'player_busy', 'already_done', 'not_on_court', 'no_match', 'same_as_admin', 'same_as_operator', 'no_op_pin']) assert.strictEqual(need().errorCode({ message: m }).code, m);
+  const r = need(), ls = memStore(), now = Date.parse('2026-11-25T19:00:00+09:00');
+  r.saveToken(ls, 'otok', now, 'operator', now + r.OP_DAYS * 864e5);
+  assert.strictEqual(r.OP_DAYS, 365, '도우미 로그인은 계속 유지(365일)');
+  assert.deepStrictEqual(r.loadSession(ls, now + 300 * 864e5), { token: 'otok', role: 'operator' });
+  assert.strictEqual(r.loadSession(ls, now + 366 * 864e5), null);
+  r.saveToken(ls, 'atok', now);
+  assert.deepStrictEqual(r.loadSession(ls, now), { token: 'atok', role: 'admin' }, '예전처럼 저장하면 돼장');
+});
 test('Edge Function rematch: 조건 종류가 logic.js와 같고, 모델·폴백·키 처리가 맞음', () => {
   const src = fs.readFileSync(path.join(__dirname, 'supabase', 'functions', 'rematch', 'index.ts'), 'utf8');
   const types = JSON.parse(src.match(/const RULE_TYPES = (\[[^\]]*\])/)[1].replace(/'/g, '"'));
@@ -236,6 +309,87 @@ test('순위표 열: 순위·이름·총합·승·보너스·패 (사용자 요�
   assert.ok(m, '순위표 머리줄 없음');
   const cols = [...m[1].matchAll(/<span>([^<]*)<\/span>/g)].map(x => x[1]);
   assert.deepStrictEqual(cols, ['순위', '이름', '총합', '승', '보너스', '패']);
+});
+test('다승왕권·동률 추첨: 글자 배지 없이 왕관 아이콘만 (사용자 요청 2026-11-20)', () => {
+  assert.ok(!/chip (king|lot)">(다승왕권|동률 추첨)</.test(appSrc), '다승왕권·동률 추첨 글자 배지가 남아 있음');
+  assert.ok(/function crown\(/.test(appSrc), 'crown() 아이콘 함수 없음');
+  assert.ok(/<svg class="crown"[^>]*role="img"[^>]*aria-label=/.test(appSrc), '왕관 svg에 role=img·aria-label 없음(화면 읽기용 이름)');
+  const css = fs.readFileSync(path.join(__dirname, 'app.css'), 'utf8');
+  assert.ok(/\.chip\.king \{/.test(css) && /\.chip\.lot \{/.test(css), '다른 곳(마감·바뀜·승 표시)에서 쓰는 배지 스타일이 지워짐');
+  assert.ok(/\.crown \{/.test(css), '.crown 스타일 없음');
+});
+test('화면 문구: "결과 미입력" 대신 "결과 대기", 순위 계산에 now 전달 (사용자 요청 2026-11-20)', () => {
+  assert.ok(!/결과 미입력/.test(appSrc), '"결과 미입력" 문구가 남아 있음');
+  const calls = appSrc.match(/L\.standings\([^;]*\)/g) || [];
+  assert.ok(calls.length >= 2 && calls.every(c => /now:/.test(c)), 'standings 호출에 now가 빠짐: ' + calls.join(' / '));
+});
+test('이번 주 탭: 내 경기 | 전체 전환, 기본은 내 경기 (사용자 요청 2026-11-20)', () => {
+  assert.ok(/data-act="wview"/.test(appSrc), '전환 버튼(data-act=wview) 없음');
+  assert.ok(/wview: 'ddw-wview'/.test(appSrc), '마지막 선택 기억용 키 없음');
+  assert.ok(/LS\.get\(KEY\.wview\) \|\| 'mine'/.test(appSrc), '기본값이 내 경기가 아님');
+  assert.ok(/L\.livePrediction\(/.test(appSrc), '내 예측 실시간 상태를 logic.livePrediction으로 계산하지 않음');
+  assert.ok(/내 픽/.test(appSrc), '전체 보기에서 내가 고른 경기 표시 없음');
+});
+test('내 예측 카드: 글자 대신 조 색 테두리로 구분 (사용자 요청 2026-11-20)', () => {
+  assert.ok(/function pickCells\(w, s, P, small, grp\)/.test(appSrc), 'pickCells에 grp(조 색 테두리) 옵션 없음');
+  assert.ok(!/class="pk-body"/.test(appSrc), '조·경기 글자 라벨이 남아 있음');
+  // 내 예측 카드 3곳(이번 주 탭, 돼블스플랜 마감 전·후)만, 전원 공개 목록은 그대로
+  assert.strictEqual((appSrc.match(/P, (true|false), true\)/g) || []).length, 3, '조 색 테두리 pickCells 호출이 3곳이 아님');
+  const css = fs.readFileSync(path.join(__dirname, 'app.css'), 'utf8');
+  assert.ok(/\.pick4\.grp \.pk \{[^}]*border:[^}]*var\(--gc[,)]/.test(css), '조 색(--gc) 테두리 스타일 없음');
+});
+test('내 예측 카드: 점 대신 조 캐릭터 얼굴 아이콘 (사용자 요청 2026-11-20)', () => {
+  const img = fs.readFileSync(path.join(__dirname, 'images.css'), 'utf8');
+  ['cv', 'lb', 'bf', 'lm', 'pk', 'ck'].forEach(k => assert.ok(new RegExp('--face-' + k + ': url\\(data:image/webp;base64,').test(img), '--face-' + k + ' 없음'));
+  assert.ok(/GROUP_FACE = \{ A: '\w\w', B: '\w\w', C: '\w\w' \}/.test(appSrc), '조 → 얼굴 아이콘 표(GROUP_FACE) 없음');
+  assert.ok(/<i class="face face-' \+ [^>]*role="img" aria-label=/.test(appSrc), '얼굴 아이콘에 role=img·aria-label(조 이름) 없음');
+  const css = fs.readFileSync(path.join(__dirname, 'app.css'), 'utf8');
+  assert.ok(/\.face \{[^}]*width: 24px; height: 24px/.test(css), '.face 24px 스타일 없음');
+});
+test('경기 진행 화면: 돼장 경기 진행|결과 표, 코트 넣기·결과·빼기는 바로 저장, 자리 비움은 RPC (2026-11-20)', () => {
+  assert.ok(/data-act="awv" data-v="live"/.test(appSrc) && /data-act="awv" data-v="table"/.test(appSrc), '경기 진행 | 결과 표 전환 없음');
+  for (const a of ['lv-start', 'lv-win', 'lv-cancel', 'lv-set', 'my-avail']) assert.ok(new RegExp("case '" + a + "'").test(appSrc), a + ' 동작 없음');
+  assert.ok(/function liveEdit\(fn, action[\s\S]{0,900}remote\.liveAction\(/.test(appSrc), '코트 동작이 바로 저장되지 않음');
+  assert.ok(/L\.startMatch\(/.test(appSrc) && /L\.finishMatch\(/.test(appSrc) && /L\.cancelMatch\(/.test(appSrc), '코트 동작이 logic 함수를 안 씀');
+  assert.ok(/remote\.watchLive\(/.test(appSrc), '돼장 저장·자리 비움 Realtime 구독 없음');
+  assert.ok(/function reloadState\(\)[\s\S]{0,200}if \(dirty\(\) \|\| ui\.busy\) return/.test(appSrc), '저장 안 한 변경이 있을 때 덮어쓰지 않는 확인 없음');
+});
+test('진행 도우미: 같은 PIN 칸에서 진행 PIN도 받고, 코트 동작은 live_action으로 (전체 저장 아님)', () => {
+  assert.ok(/remote\.login\(p1\)[\s\S]{0,600}remote\.operatorLogin\(p1\)/.test(appSrc), 'PIN 칸에서 진행 PIN을 안 받음');
+  assert.ok(/function liveEdit\(fn, action[\s\S]{0,900}remote\.liveAction\(/.test(appSrc), '코트 동작이 live_action RPC를 안 씀');
+  assert.ok(!/function liveEdit\(fn, action[^]*?\n  \}/.exec(appSrc) || !/\bsave\(\)/.test(/function liveEdit\(fn, action[^]*?\n  \}/.exec(appSrc)[0]), '코트 동작이 아직 전체 저장(save)을 부름');
+  assert.ok(/ui\.op/.test(appSrc), '진행 도우미 상태(ui.op) 없음');
+  assert.ok(/id="op-pin"/.test(appSrc), '설정에 진행 PIN 칸 없음');
+});
+test('이름: 내 예측 카드만 이름만, 나머지는 성까지·가운데 / 조는 얼굴 아이콘 / "N경기" 없음 / 모래시계 없음 / 내 예측에 진행 코트 (사용자 요청 2026-11-22)', () => {
+  assert.ok(/L\.shortNames\(work\.players\)/.test(appSrc), '짧은 이름 표 없음');
+  assert.ok(/function teamText\(m, side, P\) \{[^\n]*P\[p\]\.name/.test(appSrc) && !/function teamText\(m, side, P\) \{[^\n]*sname\(/.test(appSrc), '예측 화면(내 예측 말고)은 성까지 써야 함');
+  assert.ok(/function teamNames\(m, side, P\) \{[^\n]*pname\(/.test(appSrc), '경기 진행은 성까지 써야 함');
+  assert.ok(/var nm = p \? p\.name : '빈 자리';/.test(appSrc), '경기 카드는 성까지 써야 함');
+  const pick = appSrc.slice(appSrc.indexOf('function pickCells('), appSrc.indexOf('function pickCells(') + 1800);
+  assert.ok(/grp \? shortTeam\(/.test(pick), '내 예측 카드(grp)는 이름만이어야 함');
+  assert.ok(!/pk-court/.test(pick), '내 예측 칸의 코트 배지는 빼기로 함(맨 위 코트에 표시)');
+  assert.ok(/face \+ '<span>' \+ esc\([^;]*\) \+ '<\/span>' \+ icon/.test(pick), '✓·✕가 이름 오른쪽에 있어야 함');
+  const strip = appSrc.slice(appSrc.indexOf('function courtsStrip('), appSrc.indexOf('function myLiveCard('));
+  assert.ok(/pickOf/.test(strip) && /내 픽/.test(strip), '맨 위 코트에 내 예측 경기 표시 없음');
+  const wk = appSrc.slice(appSrc.indexOf('if (mine) {\n      var my = [];'), appSrc.indexOf('    out += legend();'));
+  assert.ok(/my-matches[\s\S]*myPredCard\(/.test(wk), '내 경기 보기에서 내 경기가 내 예측보다 먼저여야 함');
+  assert.ok(!/gdot/.test(pick) && /gface\(/.test(pick), '예측 칸이 아직 점(gdot)을 씀');
+  assert.ok(/pending: ''/.test(appSrc) && !/⏳/.test(appSrc), '모래시계가 남아 있음');
+  const live = appSrc.slice(appSrc.indexOf('function viewLive('), appSrc.indexOf('function myLiveCard('));
+  assert.ok(!/matchLabel\(/.test(live) && /gface\(m\.pool\)/.test(live), '경기 진행 화면 조 표시가 얼굴 아이콘이 아님');
+  const css = fs.readFileSync(path.join(__dirname, 'app.css'), 'utf8');
+  assert.ok(/\.gdot\.gA::before \{[^}]*--face-lb/.test(css), '조 점(gdot)이 얼굴 아이콘으로 안 바뀜');
+  assert.ok(/\.team \{[^}]*justify-content: center/.test(css), '경기 카드 이름이 가운데가 아님');
+});
+test('회원 내 차례 문구는 빼고 늦어요·레슨·왔어요 버튼만 (사용자 요청 2026-11-22)', () => {
+  const card = appSrc.slice(appSrc.indexOf('function myLiveCard('), appSrc.indexOf('// ---- 서버에서 읽기 ----'));
+  assert.ok(!/곧 내 차례|대기 ' \+ st\.rank|에서 경기 중|오늘 남은 내 경기/.test(card), '내 차례 문구가 남아 있음');
+  assert.ok(/data-st="late"/.test(card) && /data-st="away">레슨</.test(card) && /data-st="here"/.test(card), '늦어요·레슨·왔어요 버튼이 없음');
+  // 레슨은 30분 자동 복귀 없이 '왔어요'를 누를 때까지 (사용자 요청 2026-11-22)
+  assert.ok(!/data-min/.test(appSrc) && !/레슨 30분/.test(appSrc), '레슨 30분(자동 복귀)이 남아 있음');
+  const sql = fs.readFileSync(path.join(__dirname, 'supabase', 'schema.sql'), 'utf8');
+  assert.ok(/if p_status = 'away' and p_minutes is not null and \(p_minutes < 10 or p_minutes > 90\)/.test(sql), '서버가 시간 없는 레슨(away)을 거절함');
 });
 test('app.js: 기존 충돌 UI·저장 실패 배너·임시저장 유지', () => {
   for (const s of ['draftConflict', 'ui.saveError', 'KEY.draft', 'draft-load', 'draft-drop']) assert.ok(appSrc.includes(s), s + ' 없음');
