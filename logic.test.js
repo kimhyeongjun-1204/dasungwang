@@ -313,6 +313,24 @@ test('shortNames: 경기·예측 화면은 성 빼고 이름만, 겹치면 성�
   assert.deepStrictEqual(L.shortNames([]), {});
 });
 
+test('typicalMinutes: 코트에서 끝난 경기들의 걸린 시간 중앙값, 3분 미만·90분 초과는 버림, 3경기 미만이면 null (사용자 요청 2026-11-23)', () => {
+  const at = (hm) => '2026-11-25T' + hm + ':00+09:00';
+  const mk = (s, e) => ({ win: 'a', startedAt: s && new Date(Date.parse(at(s))).toISOString(), endedAt: e && new Date(Date.parse(at(e))).toISOString() });
+  const weeks = [{ date: '2026-11-18', matches: [mk('18:00', '18:12'), mk('18:00', '18:15'), mk(null, '18:20')] },
+                 { date: '2026-11-25', matches: [mk('18:00', '18:18'), mk('18:00', '18:40'), mk('18:00', '18:16'), mk('18:00', '18:01'), mk('18:00', '20:00'), { win: null, startedAt: at('18:00') }] }];
+  assert.deepStrictEqual(L.typicalMinutes(weeks), { minutes: 16, n: 5 });   // 12,15,18,40,16 → 16 (1분·120분·시작 없음·진행 중은 뺌)
+  assert.strictEqual(L.typicalMinutes([{ matches: [mk('18:00', '18:12'), mk('18:00', '18:15')] }]), null, '2경기로는 짐작 안 함');
+  assert.strictEqual(L.typicalMinutes([]), null);
+});
+test('courtEta: 진행 시간과 보통 시간으로 남은 시간 짐작', () => {
+  const now = Date.parse('2026-11-25T18:13:00+09:00');
+  const m = { startedAt: new Date(Date.parse('2026-11-25T18:00:00+09:00')).toISOString() };
+  assert.deepStrictEqual(L.courtEta(m, now, { minutes: 16, n: 5 }), { elapsed: 13, left: 3 });
+  assert.deepStrictEqual(L.courtEta(m, now + 5 * 60000, { minutes: 16, n: 5 }), { elapsed: 18, left: 0 }, '보통 시간을 넘으면 0(곧 끝남)');
+  assert.deepStrictEqual(L.courtEta(m, now, null), { elapsed: 13, left: null }, '기록이 모자라면 진행 시간만');
+  assert.deepStrictEqual(L.courtEta({}, now, { minutes: 16, n: 5 }), { elapsed: null, left: null });
+});
+
 console.log('validateWeek');
 test('공식 2경기 아닌 참석자·파트너 중복·중복 출전 경고', () => {
   const w = {

@@ -903,6 +903,27 @@ var Logic = (function () {
     week.extraCourt = !!on;
     return true;
   }
+  // 코트에서 끝난 경기(startedAt·endedAt 둘 다)의 걸린 시간 중앙값(분). 3분 미만·90분 초과(누르기 잊음 등)는 버림, 3경기 미만이면 null
+  function typicalMinutes(weeks) {
+    var d = [];
+    (weeks || []).forEach(function (w) {
+      (w.matches || []).forEach(function (m) {
+        if (!m.win || !m.startedAt || !m.endedAt) return;
+        var x = (Date.parse(m.endedAt) - Date.parse(m.startedAt)) / 60000;
+        if (x >= 3 && x <= 90) d.push(x);
+      });
+    });
+    if (d.length < 3) return null;
+    d.sort(function (a, b) { return a - b; });
+    var h = Math.floor(d.length / 2), med = d.length % 2 ? d[h] : (d[h - 1] + d[h]) / 2;
+    return { minutes: Math.round(med), n: d.length };
+  }
+  // 진행 중 경기: 지난 시간과 (보통 시간이 있으면) 남은 시간 짐작. 보통 시간을 넘으면 left 0
+  function courtEta(m, now, typ) {
+    if (!m || !m.startedAt) return { elapsed: null, left: null };
+    var el = Math.max(0, Math.floor((now - Date.parse(m.startedAt)) / 60000));
+    return { elapsed: el, left: typ ? Math.max(0, typ.minutes - el) : null };
+  }
   // 회원 화면용: 내 경기 상태 → playing(코트) | next(바로 가능 순위 ≤ 코트 수) | waiting | blocked | none
   function myLive(board, pid) {
     var n = board.courts.length;
@@ -928,7 +949,7 @@ var Logic = (function () {
   }
 
   return {
-    LIVE: LIVE, courtSlots: courtSlots, courtLabel: courtLabel, setExtraCourt: setExtraCourt, liveBoard: liveBoard, shortNames: shortNames, startMatch: startMatch, finishMatch: finishMatch, cancelMatch: cancelMatch, myLive: myLive,
+    LIVE: LIVE, typicalMinutes: typicalMinutes, courtEta: courtEta, courtSlots: courtSlots, courtLabel: courtLabel, setExtraCourt: setExtraCourt, liveBoard: liveBoard, shortNames: shortNames, startMatch: startMatch, finishMatch: finishMatch, cancelMatch: cancelMatch, myLive: myLive,
     meRecord: meRecord, matchStarted: matchStarted, livePrediction: livePrediction, predictionRecord: predictionRecord,
     PREDICT: PREDICT, pickQuota: pickQuota, quotaStatus: quotaStatus, predictionDeadline: predictionDeadline, isPredictionClosed: isPredictionClosed, validatePicks: validatePicks,
     scorePrediction: scorePrediction, bonusByPlayer: bonusByPlayer, popularPicks: popularPicks, pickChanges: pickChanges,

@@ -524,27 +524,37 @@
     var polling = !live.watch || !live.watch.live();
     if (polling && Date.now() - live.at > 20000) loadAvail(d).then(render);
     if (polling && Date.now() - live.stateAt > 20000) reloadState().then(function (ch) { if (ch) render(); });
+    // 코트에 경기가 있으면 1분마다 다시 그려 진행 시간·남은 시간을 갱신
+    var mm = Math.floor(Date.now() / 60000), w = getWeek(d);
+    if (live.minute !== mm) { live.minute = mm; if (w && w.matches.some(function (m) { return !m.win && m.court != null; })) render(); }
     // 레슨 복귀 시각이 지나면 다시 그림
     if (liveRows().some(function (r) { return r.status === 'away' && r.until && Date.parse(r.until) <= Date.now() && Date.parse(r.until) > Date.now() - 1000; })) render();
   }
   function pname(P, pid) { return P[pid] ? P[pid].name : '?'; }
   function teamNames(m, side, P) { return m[side].map(function (p) { return esc(pname(P, p)); }).join('·'); }
   function untilText(u) { return u ? '~' + hhmm(u) : ''; }
+  // 진행 시간 + 남은 시간 짐작 (보통 시간 = 끝난 경기들의 중앙값, logic.typicalMinutes)
+  function etaText(m, typ) {
+    var e = L.courtEta(m, Date.now(), typ);
+    if (e.elapsed == null) return '';
+    return e.elapsed + '분째' + (e.left == null ? '' : e.left > 0 ? ' · 약 ' + e.left + '분 남음' : ' · 곧 끝나요');
+  }
   function mins(iso) { return Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 60000)); }
   function whyText(x, P) {
     return x.why.map(function (y) { return esc(pname(P, y.pid)) + ' ' + (y.kind === 'playing' ? L.courtLabel(y.court) + ' 경기 중' : AWAY_LABEL[y.kind] + (y.until ? ' ' + untilText(y.until) : '')); }).join(' · ');
   }
   // 돼장: 코트 3칸 + 지금 못 하는 사람 + 바로 가능(오래 기다린 순) + 지금 못 함 + 완료(접힘)
   function viewLive(w, P) {
-    var b = L.liveBoard(w, liveRows(), Date.now(), { slots: L.courtSlots(work.settings, w) }), out = '';
+    var b = L.liveBoard(w, liveRows(), Date.now(), { slots: L.courtSlots(work.settings, w) }), out = '', typ = L.typicalMinutes(work.weeks);
     // 코트: 고정 번호(설정, 기본 5·6) + 그날 여는 '추가 코트'(번호 없음). 비어 있는 추가 코트는 닫을 수 있음
     out += '<section class="courts" aria-label="코트">' + b.courts.map(function (c) {
       var m = c.m;
       if (!m) return '<div class="court empty"><b>' + L.courtLabel(c.no) + '</b>' + (c.no === L.LIVE.EXTRA ? '<button class="link small" data-act="lv-extra" data-v="0">닫기</button>' : '<span>비어 있음</span>') + '</div>';
-      return '<div class="court on g' + m.pool + '"><div class="c-head"><b>' + L.courtLabel(c.no) + '</b>' + gface(m.pool) + '<span class="num muted">' + (m.startedAt ? mins(m.startedAt) + '분째' : '') + '</span></div>' +
+      return '<div class="court on g' + m.pool + '"><div class="c-head"><b>' + L.courtLabel(c.no) + '</b>' + gface(m.pool) + '<span class="num muted c-eta">' + etaText(m, typ) + '</span></div>' +
         ['a', 'b'].map(function (side) { return '<button class="c-team" data-act="lv-win" data-m="' + m.id + '" data-side="' + side + '"><span>' + teamNames(m, side, P) + '</span><small>이김</small></button>'; }).join('<span class="vs">vs</span>') +
         '<button class="link small" data-act="lv-cancel" data-m="' + m.id + '">코트에서 빼기</button></div>';
-    }).join('') + (w.extraCourt ? '' : '<button class="court add" data-act="lv-extra" data-v="1">+ 추가 코트 열기</button>') + '</section>';
+    }).join('') + (w.extraCourt ? '' : '<button class="court add" data-act="lv-extra" data-v="1">+ 추가 코트 열기</button>') + '</section>' +
+      '<p class="small muted lv-typ">' + (typ ? '경기 시간은 보통 <b class="num">' + typ.minutes + '분</b>이에요 (코트에서 끝난 경기 ' + typ.n + '개 기준).' : '코트에서 끝난 경기가 3개 이상 모이면 남은 시간을 짐작해 보여 줘요.') + '</p>';
     // 지금 못 하는 사람
     var awayIds = Object.keys(b.away);
     out += '<section class="card away-box"><div class="ab-head"><h3>지금 못 하는 사람 <span class="num muted">' + awayIds.length + '</span></h3><button class="btn sm" data-act="lv-add">' + (ui.lvAdd ? '닫기' : '+ 추가') + '</button></div>' +
@@ -583,10 +593,11 @@
   // pickOf: 내 예측 {경기 id: {side}} → 내가 예측한 경기가 코트에 있으면 '내 픽'과 고른 팀 강조
   function courtsStrip(w, b, P, pickOf) {
     if (!b.courts.some(function (c) { return c.m; })) return '';
+    var typ = L.typicalMinutes(work.weeks);
     return '<section class="courts mini" aria-label="지금 코트">' + b.courts.map(function (c) {
       var m = c.m, pk = pickOf && pickOf[m && m.id];
       var tn = function (side) { var t = teamNames(m, side, P); return pk && pk.side === side ? '<b class="c-pick">' + t + '</b>' : t; };
-      return m ? '<div class="court on g' + m.pool + (pk ? ' mine-pick' : '') + '"><b>' + L.courtLabel(c.no) + '</b>' + (pk ? '<span class="chip mypick">내 픽</span>' : '') + gface(m.pool) + '<span class="c-names">' + tn('a') + '<i>vs</i>' + tn('b') + '</span></div>'
+      return m ? '<div class="court on g' + m.pool + (pk ? ' mine-pick' : '') + '"><b>' + L.courtLabel(c.no) + '</b>' + (pk ? '<span class="chip mypick">내 픽</span>' : '') + gface(m.pool) + '<span class="c-names">' + tn('a') + '<i>vs</i>' + tn('b') + '</span><span class="c-eta num">' + etaText(m, typ) + '</span></div>'
         : '<div class="court empty"><b>' + L.courtLabel(c.no) + '</b><span>비어 있음</span></div>';
     }).join('') + '</section>';
   }
