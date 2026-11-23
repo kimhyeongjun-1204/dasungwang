@@ -254,7 +254,8 @@
     if (!ui.admin) out += ui.me ? '<div class="seg wview" role="group" aria-label="보기"><button data-act="wview" data-v="mine" aria-pressed="' + (ui.wview !== 'all') + '">내 경기</button><button data-act="wview" data-v="all" aria-pressed="' + (ui.wview === 'all') + '">전체</button></div>'
       : '<p class="small muted">내 기록 탭에서 이름을 고르면 <b>내 경기만</b> 모아 볼 수 있어요.</p>';
     // 알림을 아직 안 켠 사람: 내 경기 보기 맨 위에 알림 카드 (사용자 요청 2026-11-23)
-    if (mine && pushNeeded()) out += pushCard(true);
+    // 켠 직후에는 팝업 설정 안내가 끝날 때까지('다 했어요') 그 자리에 남김
+    if (mine && (pushNeeded() || (push.st === 'on' && push.help))) out += pushCard(true);
     if (board && !ui.admin) out += courtsStrip(w, board, P, pickOf) + (ui.me && !mine ? myLiveCard(w, board, P) : '');
     // 내 경기 보기: 지금 코트 → 내 경기 → 늦어요·레슨 → 내 예측 (사용자 요청 2026-11-22·23), 전체 보기: 늦어요·레슨 → 내 예측 → 전체 경기
     if (ui.me && !ui.admin && !mine) out += myPredCard(w, myp, lvp, P);
@@ -727,7 +728,7 @@
     var body;
     if (push.st === 'on') body = '<p class="small muted">이 기기로 받아요.</p>' +
       (push.help ? pushGuide() : '<button class="link small" data-act="push-help">카톡처럼 화면 위에 뜨게 하려면?</button>') +
-      '<div class="push-btns"><button class="btn sm" data-act="push-test">시험 알림 보내기</button><button class="btn sm" data-act="push-off"' + (push.busy ? ' disabled' : '') + '>알림 끄기</button></div>';
+      '<div class="push-btns">' + (push.help ? '<button class="btn sm primary" data-act="push-done">다 했어요</button>' : '') + '<button class="btn sm" data-act="push-test">시험 알림 보내기</button><button class="btn sm" data-act="push-off"' + (push.busy ? ' disabled' : '') + '>알림 끄기</button></div>';
     else if (push.st === 'default') body = (short ? '' : what) + '<button class="btn sm primary" data-act="push-on"' + (push.busy ? ' disabled' : '') + '>알림 받기</button>';
     else if (push.st === 'denied') body = what + '<p class="small">알림이 차단돼 있어요. 브라우저 설정 › 사이트 설정에서 이 사이트 알림을 허용한 뒤 다시 열어 주세요.</p>';
     else if (push.st === 'ios') body = what + '<p class="small">아이폰은 Safari 공유 버튼 › <b>홈 화면에 추가</b>로 앱을 설치한 뒤, 그 앱에서 켤 수 있어요 (iOS 16.4 이상).</p>';
@@ -1593,6 +1594,7 @@
       case 'push-on': pushOn(); break;
       case 'push-off': pushOff(); break;
       case 'push-help': push.help = true; render(); break;
+      case 'push-done': push.help = false; render(); break;
       case 'push-test': pushTest().then(function (ok) { toast(ok ? '시험 알림을 보냈어요. 화면 위에 떴는지 확인해 보세요.' : '시험 알림을 못 보냈어요. 알림 허용을 확인해 주세요.'); }); break;
       case 'wview': ui.wview = v === 'all' ? 'all' : 'mine'; LS.set(KEY.wview, ui.wview); render(); break;
       case 'tab': ui.tab = v; LS.set(KEY.tab, v); ui.notice = null; ui.pred.edit = false; ui.pred.full = false; ui.pred.confirm = false; render(); window.scrollTo(0, 0); break;
