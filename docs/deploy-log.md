@@ -1409,3 +1409,23 @@ $ (구현 뒤) node tourney.test.js | tail -1; node logic.test.js | tail -1; nod
   - 3연속 비용만 0 → FAIL 없음(오래 쉰 팀 먼저 규칙이 이미 막음). 연속·3연속·쉬는 간격 비용을 모두 0 → "3연속 없음" FAIL
   - 처음 도착 검사 역검증은 sed 치환 실수로 파일이 깨져 17개 FAIL이 나왔던 것(진짜 결과 아님) → 파이썬으로 다시 지워서 1개 FAIL 확인
 - CI에 `node tourney.test.js` 추가. 이를 지키는 deploy.test.js 테스트는 워크플로 변경을 되돌린 상태에서 FAIL 확인
+
+## 63. 갤럭시 알림 사진 안내 guide.html (브랜치 feat/alarm-guide, 2026-11-25)
+- 요청(김형준 2026-11-25): 직접 찍은 갤럭시 설정 화면으로 파트 1(휴대폰 설정)·파트 2(다승왕 알림 설정) 나눠 따라 하기 쉽게. 개인정보는 지우기
+- 새 페이지 `guide.html`(앱과 따로 된 정적 페이지 → 단톡방에 링크로 공유 가능), 사진 8장 `guide/*.jpg`(폭 540, 합계 약 160KB). 앱 알림 안내(안드로이드)에 "📷 사진으로 따라 하기" 버튼
+  - 파트 1: 설정 › 알림 › 고급 설정 › 앱별 알림 카테고리 관리 켜기
+  - 파트 2: 시험 알림 보내기 → 길게 누르기 → ⚙ → 알림 카테고리 → '일반' 글자 → 소리 + 팝업으로 표시 → 다시 시험 알림
+- 개인정보 처리(`tools/guide_images.py`, 원본 스크린샷은 저장소에 안 넣음): 설정 첫 화면 위쪽(이름·이어폰 이름) 잘라냄, 시험 알림의 사이트 주소(kimhyeo…) 가림, 모든 사진에서 상태표시줄(통신사·알림 아이콘) 잘라냄. 누를 곳에 노란 테두리
+```
+$ node deploy.test.js   (테스트 먼저)
+  FAIL 갤럭시 알림 사진 안내 guide.html: … → dist/guide.html 없음
+  FAIL 앱 알림 안내(안드로이드)에서 사진 안내 guide.html로 가는 링크 → pushGuide에 guide.html 링크 없음
+51 passed
+$ (만든 뒤) node deploy.test.js | tail -1; node logic.test.js | tail -1; node tourney.test.js | tail -1; node --experimental-strip-types push.test.mjs | tail -1
+53 passed
+134 passed
+17 passed
+5 passed
+```
+- 역검증: 사진 이름 하나 틀리게 → "dist에 사진 없음" FAIL / 'kimhyeo' 넣기 → "개인정보 문자열" FAIL / 파트 2 제목 지우기 → 처음엔 FAIL 없음(본문 "파트 2로 가요"에 걸림) → 제목(h2) 기준으로 테스트를 고친 뒤 FAIL 확인
+- 360px·1024px: 깨진 사진 0, 가로 넘침 없음, 페이지 오류 없음. 사진: docs/screenshots/alarm-guide/guide_360.jpg
