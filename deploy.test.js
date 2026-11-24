@@ -339,6 +339,13 @@ test('내 경기 화면에서 알림 받기를 눌러도 팝업 안내가 그 �
   assert.ok(/if \(mine && \(pushNeeded\(\) \|\| \(push\.st === 'on' && push\.help\)\)\) out \+= pushCard\(true\);/.test(appSrc), '켜자마자 카드가 사라져 안내를 못 봄');
   assert.ok(/data-act="push-done"/.test(appSrc) && /case 'push-done': push\.help = false;/.test(appSrc), '안내 닫기(다 했어요) 없음');
 });
+test('갤럭시 팝업 안내: 숨은 카테고리 켜기 → 일반 글자 → 팝업으로 표시 (실제 갤럭시에서 확인한 순서, 2026-11-23)', () => {
+  const g = appSrc.match(/function pushGuide\(\) \{[\s\S]*?\n  \}\n/);
+  assert.ok(g, 'pushGuide 없음');
+  for (const w of ['앱별 알림 카테고리 관리', '알림 카테고리', '일반', '팝업으로 표시'])
+    assert.ok(g[0].includes(w), '안드로이드 안내에 "' + w + '" 없음');
+  assert.ok(/스위치 말고/.test(g[0]), '"일반" 스위치를 누르는 실수를 막는 문구 없음');
+});
 test('Edge Function rematch: 조건 종류가 logic.js와 같고, 모델·폴백·키 처리가 맞음', () => {
   const src = fs.readFileSync(path.join(__dirname, 'supabase', 'functions', 'rematch', 'index.ts'), 'utf8');
   const types = JSON.parse(src.match(/const RULE_TYPES = (\[[^\]]*\])/)[1].replace(/'/g, '"'));
