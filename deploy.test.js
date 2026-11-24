@@ -386,6 +386,10 @@ test('클럽 홈 틀: 하단 탭 홈·기록·내 기록·관리, 다승왕전�
   assert.ok(/ui\.tab === 'home' \? viewHome\(\)/.test(appSrc) && /ui\.tab === 'records' \? viewRecords\(\)/.test(appSrc), 'render가 홈·기록을 그리지 않음');
   assert.ok(/tab: LS\.get\(KEY\.tab\) \|\| 'home'/.test(appSrc), '처음 여는 사람은 홈부터');
 });
+test('render: 데이터를 받기 전에는 그리지 않음 (알림 초기화가 먼저 render를 불러 TypeError 나던 것, #15부터)', () => {
+  const r = appSrc.match(/function render\(\) \{\n([^\n]*\n){0,3}/)[0];
+  assert.ok(/if \(!work\) return;/.test(r), 'render 맨 앞에 work 확인 없음');
+});
 test('Edge Function rematch: 조건 종류가 logic.js와 같고, 모델·폴백·키 처리가 맞음', () => {
   const src = fs.readFileSync(path.join(__dirname, 'supabase', 'functions', 'rematch', 'index.ts'), 'utf8');
   const types = JSON.parse(src.match(/const RULE_TYPES = (\[[^\]]*\])/)[1].replace(/'/g, '"'));
