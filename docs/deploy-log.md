@@ -1345,6 +1345,20 @@ $ (#57 테스트를 `if (mine && (pushNeeded()…`로 넓힘, 위치 검사는 �
 가짜 서버(390px, 안드로이드 UA, 권한 요청·구독·showNotification 흉내): 알림 받기 → 서버 구독 1건(p001) + 시험 알림 1건 + 카드 1·안내 1 남음, 토스트 "방금 온 시험 알림으로 화면 위 팝업을 켜 주세요" → 다 했어요 → 카드 0.
 사진: docs/screenshots/push/mine_flow_390.jpg
 
+## 59. 갤럭시 팝업 안내를 실제로 된 순서로 고침 (브랜치 fix/galaxy-popup-guide, 2026-11-23)
+- 실제 기기 확인(사용자 갤럭시, PC에서 조영재 경기 m10382hh를 코트 5에 넣었다 바로 뺌, 15:32·15:35 두 번, 둘 다 notify sent 1·failed 0, 뺀 뒤 court·startedAt null·결과 그대로): 알림은 오지만 헤드업 없음.
+- 원인: Chromium `WebApkServiceImplWrapper.java` 원문 — 채널 ID가 HIGH_PRIORITY일 때만 IMPORTANCE_HIGH, 나머지는 IMPORTANCE_DEFAULT. 웹 API로 바꿀 수 없음. 갤럭시는 One UI 6.1부터 알림 카테고리가 숨겨져 앱 단위 "알림 팝업 ✓"만 보였음(오답 노트 25).
+- 사용자 갤럭시에서 확인된 순서: 설정 › 알림 › 고급 설정 › 앱별 알림 카테고리 관리 켬 → 다승왕 알림 설정 맨 아래 "알림 카테고리" 생김(항목 "일반" 하나) → "일반" 글자(스위치 아님) → 팝업으로 표시 켬 → **헤드업 뜸**(사용자 "되네").
+- 앱 안 안드로이드 안내를 이 5단계로 바꿈(아이폰 안내는 그대로).
+```
+$ node deploy.test.js   (테스트 먼저)
+  FAIL 갤럭시 팝업 안내: 숨은 카테고리 켜기 → 일반 글자 → 팝업으로 표시 …
+47 passed
+$ (바꾼 뒤) node deploy.test.js | tail -1
+48 passed
+```
+가짜 서버 360px 안드로이드 UA: 5단계 안내·그림 "⚙ › 알림 카테고리 › 일반 / 팝업으로 표시", 가로 넘침 없음.
+사진: docs/screenshots/push/galaxy_guide_360.jpg
 ## 60. 경기 진행: 경기를 누르면 빈 코트 고르기, 이김·빼기는 확인 창 (사용자 요청, 브랜치 feat/court-pick-confirm, 2026-11-23)
 "진행 가능한 경기마다 '코트 5에 넣기'가 반복됨 → 경기를 누르면 비어 있는 코트 선택 창, 코트에서 뺄 때·승리 눌렀을 때 확인 창"
 - 바로 가능: 줄 전체가 버튼, 오른쪽에 › 하나, 제목에 "누르면 코트 선택". 누르면 아래에서 창이 올라와 **빈 코트마다 큰 버튼**(코트 5·코트 6·추가 코트 중 빈 것)과 취소. 빈 코트가 없으면 줄이 눌리지 않고 "빈 코트 없음".
@@ -1374,3 +1388,4 @@ $ (바꾼 뒤) node deploy.test.js | tail -1
 ```
 가짜 서버 360px 돼장: 같은 흐름 다시 — 코트 고르기 [코트 5, 코트 6, 추가 코트] → 코트 6 / 이김 취소 → 결과 그대로 / 빼기 → 코트 비워짐, 세 창 모두 화면 가운데, 가로 넘침 없음.
 사진: docs/screenshots/live-courts/pick_confirm_center_360.jpg
+- #20 머지 뒤 이 브랜치가 충돌(deploy.test.js·deploy-log.md 같은 자리에 둘 다 추가). main을 합치며 양쪽을 모두 살렸는데, git이 두 테스트를 공통 `});` 줄 기준으로 갈라서 "화면 가운데" 테스트의 닫는 `});`가 빠짐 → `node deploy.test.js`가 SyntaxError로 멈춰서 발견, 한 줄 복구. 합친 뒤 deploy.test.js 50 passed(#20의 48 + 이 브랜치 2), logic.test.js 134, push.test.mjs 5.
