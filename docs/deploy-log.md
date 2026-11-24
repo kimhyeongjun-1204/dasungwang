@@ -1389,3 +1389,23 @@ $ (바꾼 뒤) node deploy.test.js | tail -1
 가짜 서버 360px 돼장: 같은 흐름 다시 — 코트 고르기 [코트 5, 코트 6, 추가 코트] → 코트 6 / 이김 취소 → 결과 그대로 / 빼기 → 코트 비워짐, 세 창 모두 화면 가운데, 가로 넘침 없음.
 사진: docs/screenshots/live-courts/pick_confirm_center_360.jpg
 - #20 머지 뒤 이 브랜치가 충돌(deploy.test.js·deploy-log.md 같은 자리에 둘 다 추가). main을 합치며 양쪽을 모두 살렸는데, git이 두 테스트를 공통 `});` 줄 기준으로 갈라서 "화면 가운데" 테스트의 닫는 `});`가 빠짐 → `node deploy.test.js`가 SyntaxError로 멈춰서 발견, 한 줄 복구. 합친 뒤 deploy.test.js 50 passed(#20의 48 + 이 브랜치 2), logic.test.js 134, push.test.mjs 5.
+
+## 61. 뚱뚱배 1차 ① 순수 함수 (브랜치 feat/tourney-logic, 2026-11-24)
+- 결정(김형준 2026-11-24): 명세 v2 2장 질문 1~12번 모두 기본값으로 진행 (돼장은 판단 안 함). 12/2 명단 마감, 12/4 대진 공개
+- 새 파일 `tourney.js`(뚱뚱배 순수 함수)·`tourney.test.js`. 명세는 logic.js에 넣자고 했지만 logic.js가 이미 960줄이라 따로 둠. 아직 화면에서 쓰지 않음(빌드에 안 들어감) → 머지해도 앱은 그대로
+- 함수: roundRobin(원형 순환, 홀수·2바퀴), scheduleMatches(조 코트에만·같은 순서 두 코트 금지·도착 전 금지는 반드시 지킴 / 연속 출전·쉬는 간격·길이는 비용으로, 무작위 탐욕 배치 200번 중 최소), estimateStarts, parseRoster(회원 매칭·게스트·급수·중복), defaultMode(공개일~대회 다음 날)
+```
+$ node tourney.test.js   (테스트 먼저, tourney.js 없음)
+0 passed   (FAIL 17)
+$ (구현 뒤) node tourney.test.js | tail -1; node logic.test.js | tail -1; node deploy.test.js | tail -1
+17 passed
+134 passed
+51 passed
+```
+- 역검증(규칙을 일부러 지운 복사본으로 테스트):
+  - 도착 시각 검사 제거 → "늦게 오는 사람" 1개 FAIL
+  - 같은 순서 겹침 검사 제거 → 1개 FAIL
+  - 연속 출전 경고 제거 → 1개 FAIL / 중복 이름 처리 제거 → 1개 FAIL / defaultMode 다음 날 경계 제거 → 1개 FAIL
+  - 3연속 비용만 0 → FAIL 없음(오래 쉰 팀 먼저 규칙이 이미 막음). 연속·3연속·쉬는 간격 비용을 모두 0 → "3연속 없음" FAIL
+  - 처음 도착 검사 역검증은 sed 치환 실수로 파일이 깨져 17개 FAIL이 나왔던 것(진짜 결과 아님) → 파이썬으로 다시 지워서 1개 FAIL 확인
+- CI에 `node tourney.test.js` 추가. 이를 지키는 deploy.test.js 테스트는 워크플로 변경을 되돌린 상태에서 FAIL 확인

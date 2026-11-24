@@ -368,6 +368,10 @@ test('갤럭시 팝업 안내: 숨은 카테고리 켜기 → 일반 글자 → 
     assert.ok(g[0].includes(w), '안드로이드 안내에 "' + w + '" 없음');
   assert.ok(/스위치 말고/.test(g[0]), '"일반" 스위치를 누르는 실수를 막는 문구 없음');
 });
+test('CI: 뚱뚱배 순수 함수 테스트(tourney.test.js)도 통과해야 배포 (2026-11-24)', () => {
+  const wf = fs.readFileSync(path.join(__dirname, '.github', 'workflows', 'pages.yml'), 'utf8');
+  assert.ok(/run: node tourney\.test\.js/.test(wf), 'CI에서 tourney.test.js를 안 돌림');
+});
 test('Edge Function rematch: 조건 종류가 logic.js와 같고, 모델·폴백·키 처리가 맞음', () => {
   const src = fs.readFileSync(path.join(__dirname, 'supabase', 'functions', 'rematch', 'index.ts'), 'utf8');
   const types = JSON.parse(src.match(/const RULE_TYPES = (\[[^\]]*\])/)[1].replace(/'/g, '"'));
