@@ -1,4 +1,4 @@
-// 페이지 조립: node build.js → dist/ (index.html + config.js, sw.js, manifest, 아이콘). GitHub Pages가 dist/를 그대로 배포
+// 페이지 조립: node build.js → dist/ (index.html + config.js, sw.js, manifest, 아이콘, 알림 안내 guide.html·사진). GitHub Pages가 dist/를 그대로 배포
 // 데이터는 넣지 않음: 앱이 시작할 때 Supabase에서 읽는다
 const fs = require('fs');
 const path = require('path');
@@ -42,8 +42,11 @@ const html = '<!doctype html>\n<html lang="ko"><head>' +
 const dist = path.join(__dirname, 'dist');
 fs.rmSync(dist, { recursive: true, force: true });
 fs.mkdirSync(path.join(dist, 'icons'), { recursive: true });
+fs.mkdirSync(path.join(dist, 'guide'), { recursive: true });
 fs.writeFileSync(path.join(dist, 'index.html'), html);
-for (const f of ['config.js', 'sw.js', 'manifest.webmanifest']) fs.copyFileSync(path.join(__dirname, f), path.join(dist, f));
+for (const f of ['config.js', 'sw.js', 'manifest.webmanifest', 'guide.html']) fs.copyFileSync(path.join(__dirname, f), path.join(dist, f));
 for (const f of fs.readdirSync(path.join(__dirname, 'icons'))) fs.copyFileSync(path.join(__dirname, 'icons', f), path.join(dist, 'icons', f));
+// 갤럭시 알림 사진 안내(guide.html)의 사진
+for (const f of fs.readdirSync(path.join(__dirname, 'guide'))) fs.copyFileSync(path.join(__dirname, 'guide', f), path.join(dist, 'guide', f));
 fs.writeFileSync(path.join(dist, '.nojekyll'), '');
 console.log('built dist/index.html', (html.length / 1024).toFixed(1) + 'KB');

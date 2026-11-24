@@ -739,7 +739,8 @@
         '<b>알림</b>(무음 아님)을 고르고 <b>팝업으로 표시</b>를 켜요',
         '아래 <b>시험 알림 보내기</b>로 화면 위에 뜨는지 확인해요'];
     var pic = push.ios ? '' : '<div class="pg-pic" aria-hidden="true"><div class="pg-noti"><i></i><span><b>코트 5에서 내 경기 시작</b><small>김성곤·유성준 vs 이제영·박강호</small></span><u>👆 길게</u></div><div class="pg-row"><span class="pg-arrow">↳ ⚙ › 알림 카테고리 › 일반</span><div class="pg-set"><span>팝업으로 표시</span><em></em></div></div></div>';
-    return '<div class="push-guide"><b>카톡처럼 화면 위에 뜨게 하기 <span class="muted small">(처음 한 번만)</span></b>' + pic +
+    var photo = push.ios ? '' : '<a class="btn sm pg-photo" href="guide.html">📷 사진으로 따라 하기</a>';
+    return '<div class="push-guide"><b>카톡처럼 화면 위에 뜨게 하기 <span class="muted small">(처음 한 번만)</span></b>' + pic + photo +
       '<ol>' + steps.map(function (x) { return '<li>' + x + '</li>'; }).join('') + '</ol></div>';
   }
   function pushOff() {
