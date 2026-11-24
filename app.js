@@ -622,11 +622,11 @@
     if (sh.kind === 'win') {
       return head + '<h3 id="lv-sh-title">' + L.courtLabel(m.court) + ' 결과를 저장할까요?</h3>' +
         '<p class="lv-sh-win"><b>' + teamNames(m, sh.side, P) + '</b> 승</p><p class="small muted">' + teamNames(m, sh.side === 'a' ? 'b' : 'a', P) + ' 패</p>' +
-        '<div class="pc-btns"><button class="btn" data-act="lv-close">취소</button><button class="btn primary" data-act="lv-win" data-m="' + m.id + '" data-side="' + sh.side + '">네, 저장</button></div></section>';
+        '<div class="pc-btns lv-yesno"><button class="btn primary" data-act="lv-win" data-m="' + m.id + '" data-side="' + sh.side + '">네, 저장</button><button class="btn" data-act="lv-close">취소</button></div></section>';
     }
     return head + '<h3 id="lv-sh-title">' + L.courtLabel(m.court) + '에서 뺄까요?</h3>' + teams +
       '<p class="small muted">결과 없이 코트만 비우고, 이 경기는 다시 \'바로 가능\'으로 돌아가요.</p>' +
-      '<div class="pc-btns"><button class="btn" data-act="lv-close">취소</button><button class="btn danger" data-act="lv-cancel" data-m="' + m.id + '">네, 빼기</button></div></section>';
+      '<div class="pc-btns lv-yesno"><button class="btn danger" data-act="lv-cancel" data-m="' + m.id + '">네, 빼기</button><button class="btn" data-act="lv-close">취소</button></div></section>';
   }
   // 회원: 오늘 코트 상황(진행 중 3칸)
   // pickOf: 내 예측 {경기 id: {side}} → 내가 예측한 경기가 코트에 있으면 '내 픽'과 고른 팀 강조

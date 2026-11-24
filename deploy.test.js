@@ -353,6 +353,14 @@ test('경기 진행: 경기를 누르면 빈 코트 고르는 창, 이김·코�
   assert.ok(/data-act="lv-win"/.test(sh[0]) && /data-act="lv-cancel"/.test(sh[0]) && /data-act="lv-close"/.test(sh[0]), '확인 창에 실행·취소 버튼이 있어야 함');
   assert.ok(/case 'lv-ask-start'/.test(appSrc) && /case 'lv-ask-win'/.test(appSrc) && /case 'lv-ask-cancel'/.test(appSrc) && /case 'lv-close'/.test(appSrc), '창 열고 닫는 동작 없음');
 });
+test('경기 진행 확인 창: 화면 가운데, 확인 버튼이 왼쪽·취소가 오른쪽 (사용자 요청 2026-11-24)', () => {
+  const sh = appSrc.match(/function lvSheet\(w, b, P\) \{[\s\S]*?\n  \}\n/)[0];
+  assert.ok(!/data-act="lv-close">취소<\/button><button class="btn (primary|danger)"/.test(sh), '취소가 확인보다 왼쪽에 있음');
+  assert.ok(/data-act="lv-win"[^>]*>네, 저장<\/button><button class="btn" data-act="lv-close">취소/.test(sh), '이김 확인: [네, 저장][취소] 순서가 아님');
+  assert.ok(/data-act="lv-cancel"[^>]*>네, 빼기<\/button><button class="btn" data-act="lv-close">취소/.test(sh), '빼기 확인: [네, 빼기][취소] 순서가 아님');
+  const css = fs.readFileSync(path.join(__dirname, 'app.css'), 'utf8');
+  assert.ok(/\.pc-sheet\.lv-sheet \{[^}]*top: 50%[^}]*bottom: auto/.test(css), '확인 창이 화면 가운데가 아님');
+});
 test('Edge Function rematch: 조건 종류가 logic.js와 같고, 모델·폴백·키 처리가 맞음', () => {
   const src = fs.readFileSync(path.join(__dirname, 'supabase', 'functions', 'rematch', 'index.ts'), 'utf8');
   const types = JSON.parse(src.match(/const RULE_TYPES = (\[[^\]]*\])/)[1].replace(/'/g, '"'));
