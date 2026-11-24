@@ -1035,4 +1035,22 @@ test('meRecord: 행이 없거나 아무 기록도 없으면 has=false', () => {
   assert.strictEqual(L.meRecord({ wins: 0, losses: 0 }).has, false);
 });
 
+// ---- 클럽 홈 (2026-11-24): 다승왕전 카드에 들어갈 요약 ----
+test('homeSummary: 시즌 전·중·후 상태, 끝난 주 수, 다음 경기날', () => {
+  assert.strictEqual(typeof L.homeSummary, 'function', 'homeSummary 없음');
+  const st = { settings: { seasonStart: '2026-10-07', seasonEnd: '2026-10-28', skipDates: [] }, players: [{ id: 'p1', name: 'A', group: 'A' }],
+    weeks: [{ date: '2026-10-07', attendees: {}, matches: [{ id: 'm1', pool: 'A', a: ['p1', 'p1'], b: ['x', 'y'], win: 'a' }] },
+            { date: '2026-10-14', attendees: {}, matches: [{ id: 'm2', pool: 'A', a: ['p1', 'p1'], b: ['x', 'y'], win: null }] }] };
+  const pre = L.homeSummary(st, '2026-10-01', null);
+  assert.strictEqual(pre.status, 'upcoming'); assert.strictEqual(pre.next, '2026-10-07'); assert.strictEqual(pre.total, 4);
+  const mid = L.homeSummary(st, '2026-10-10', 'p1');
+  assert.strictEqual(mid.status, 'live'); assert.strictEqual(mid.done, 1, '결과가 다 들어간 주만 끝난 주'); assert.strictEqual(mid.next, '2026-10-14');
+  assert.ok(['hell', 'heaven', 'mid'].includes(mid.myTier), '내 이름을 고르면 다음 주 배정(지옥도·천국도)');
+  assert.strictEqual(L.homeSummary(st, '2026-10-10', null).myTier, null);
+  const today = L.homeSummary(st, '2026-10-14', null);
+  assert.strictEqual(today.next, '2026-10-14', '경기 당일은 오늘이 다음 경기날');
+  const post = L.homeSummary(st, '2026-10-29', null);
+  assert.strictEqual(post.status, 'ended'); assert.strictEqual(post.next, null);
+});
+
 console.log(`\n${passed} passed`);
