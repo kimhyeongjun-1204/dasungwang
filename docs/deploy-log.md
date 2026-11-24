@@ -1429,3 +1429,19 @@ $ (만든 뒤) node deploy.test.js | tail -1; node logic.test.js | tail -1; node
 ```
 - 역검증: 사진 이름 하나 틀리게 → "dist에 사진 없음" FAIL / 'kimhyeo' 넣기 → "개인정보 문자열" FAIL / 파트 2 제목 지우기 → 처음엔 FAIL 없음(본문 "파트 2로 가요"에 걸림) → 제목(h2) 기준으로 테스트를 고친 뒤 FAIL 확인
 - 360px·1024px: 깨진 사진 0, 가로 넘침 없음, 페이지 오류 없음. 사진: docs/screenshots/alarm-guide/guide_360.jpg
+
+## 64. "카톡처럼 화면 위에 뜨게 하려면?" → 사진 안내로 바로 (브랜치 feat/guide-direct, 2026-11-25)
+- 요청(김형준 2026-11-25): 알림 카드의 이 링크를 누르면 사진 안내 화면이 바로 뜨게
+- 안드로이드: 링크를 `<a href="guide.html">`로 바꿔 누르면 바로 guide.html. 아이폰: 사진 안내가 갤럭시용이라 지금처럼 앱 안 글 안내(push-help). 알림을 막 켰을 때 자동으로 펼쳐지는 안내(📷 사진으로 따라 하기 버튼 포함)는 그대로
+```
+$ node deploy.test.js   (테스트 먼저)
+  FAIL 알림 카드 "카톡처럼 화면 위에 뜨게 하려면?" → … 안드로이드 링크가 guide.html로 바로 가지 않음
+53 passed
+$ (바꾼 뒤) node deploy.test.js | tail -1; node logic.test.js | tail -1; node tourney.test.js | tail -1; node --experimental-strip-types push.test.mjs | tail -1
+54 passed
+134 passed
+17 passed
+5 passed
+```
+- 역검증: 아이폰 쪽도 링크로 바꾸면 → "아이폰은 앱 안 안내(push-help)로" FAIL (기존 "안내 다시 보기 없음"도 같이 FAIL)
+- 가짜 서버 360px, 알림 켜진 상태: 안드로이드 UA → 링크 누르면 http://localhost:8799/guide.html, 제목 [파트 1 · 휴대폰 설정, 파트 2 · 다승왕 알림 설정, 안 될 때] / 아이폰 UA → 앱 안 글 안내가 펼쳐지고 시험 알림 1건, 가로 넘침 없음

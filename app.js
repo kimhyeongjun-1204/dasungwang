@@ -759,7 +759,8 @@
     var what = '<p class="small muted">내 경기가 코트에 들어갈 때, 내가 예측한 경기가 시작할 때 몇 번 코트인지 알려 드려요.</p>';
     var body;
     if (push.st === 'on') body = '<p class="small muted">이 기기로 받아요.</p>' +
-      (push.help ? pushGuide() : '<button class="link small" data-act="push-help">카톡처럼 화면 위에 뜨게 하려면?</button>') +
+      (push.help ? pushGuide() : push.ios ? '<button class="link small" data-act="push-help">카톡처럼 화면 위에 뜨게 하려면?</button>'
+        : '<a class="link small" href="guide.html">카톡처럼 화면 위에 뜨게 하려면?</a>') +
       '<div class="push-btns">' + (push.help ? '<button class="btn sm primary" data-act="push-done">다 했어요</button>' : '') + '<button class="btn sm" data-act="push-test">시험 알림 보내기</button><button class="btn sm" data-act="push-off"' + (push.busy ? ' disabled' : '') + '>알림 끄기</button></div>';
     else if (push.st === 'default') body = (short ? '' : what) + '<button class="btn sm primary" data-act="push-on"' + (push.busy ? ' disabled' : '') + '>알림 받기</button>';
     else if (push.st === 'denied') body = what + '<p class="small">알림이 차단돼 있어요. 브라우저 설정 › 사이트 설정에서 이 사이트 알림을 허용한 뒤 다시 열어 주세요.</p>';

@@ -679,7 +679,7 @@ p .crown { margin-right: 2px; }
 .my-pred.live .pred-res { font-size: 16px; }
 .my-pred.mini { padding: 10px 12px; margin-bottom: 12px; }
 .my-pred.mini p { margin: 0; }
-button.link { border: 0; background: none; padding: 0; font: inherit; font-weight: 700; color: var(--navy); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+button.link, a.link { border: 0; background: none; padding: 0; font: inherit; font-weight: 700; color: var(--navy); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .my-matches { margin-bottom: 14px; }
 .my-matches h3 { margin: 0 0 8px; font-size: 16px; }
 .my-matches .match-list { display: grid; gap: 10px; }
