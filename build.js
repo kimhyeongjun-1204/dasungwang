@@ -4,8 +4,8 @@ const fs = require('fs');
 const path = require('path');
 const read = f => fs.readFileSync(path.join(__dirname, f), 'utf8');
 const css = read('images.css') + read('app.css');
-const logic = read('logic.js'), remote = read('remote.js'), app = read('app.js');
-for (const [n, s] of [['css', css], ['logic', logic], ['remote', remote], ['app', app]]) if (/<\/script|<\/style/i.test(s)) throw new Error(n + '에 닫는 태그 문자열이 있음');
+const logic = read('logic.js'), remote = read('remote.js'), club = read('club.js'), app = read('app.js');
+for (const [n, s] of [['css', css], ['logic', logic], ['remote', remote], ['club', club], ['app', app]]) if (/<\/script|<\/style/i.test(s)) throw new Error(n + '에 닫는 태그 문자열이 있음');
 
 const TITLE = '라켓뚱보단 다승왕전';
 const THEME = '#20264F';
@@ -35,6 +35,7 @@ const html = '<!doctype html>\n<html lang="ko"><head>' +
   '<script src="config.js"></script>' +
   '<script id="app-logic">' + logic + '</script>' +
   '<script id="app-remote">' + remote + '</script>' +
+  '<script id="app-club">' + club + '</script>' +
   '<script id="app-js">' + app + '</script>' +
   "<script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function () { });</script>" +
   '</body></html>\n';

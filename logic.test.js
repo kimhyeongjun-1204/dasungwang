@@ -1064,4 +1064,34 @@ test('startTab: 경기날이면 week(관리 화면만 그대로), 아니면 보�
   assert.strictEqual(L.startTab('admin', '2026-11-25', ds), 'admin', '관리 화면에서 새로 고침하면 그대로');
 });
 
+// ---- 클럽 홈 밴드 정보 (2026-11-25): 진행 중 공지·행사·참가신청서 (club.js, 밴드 원문 링크) ----
+let CL = {};
+try { CL = require('./club.js'); } catch (e) { }
+const needC = f => { assert.strictEqual(typeof CL[f], 'function', 'club.js ' + f + ' 없음'); return CL[f]; };
+test('activeNotices: 오늘 기준 끝난 공지는 빼고, 기한 없는 공지(규칙)는 늘 포함', () => {
+  const list = [{ title: 'a', until: '2026-11-26' }, { title: 'b', until: '2026-11-24' }, { title: 'c', until: null }, { title: 'd', from: '2026-12-01', until: '2026-12-05' }];
+  assert.deepStrictEqual(needC('activeNotices')('2026-11-25', list).map(n => n.title), ['a', 'c']);
+  assert.deepStrictEqual(CL.activeNotices('2026-11-26', list).map(n => n.title), ['a', 'c'], '마지막 날까지는 보임');
+  assert.deepStrictEqual(CL.activeNotices('2026-12-01', list).map(n => n.title), ['c', 'd'], '시작 전 공지는 안 보임');
+});
+test('currentSignup: 오늘이 들어 있거나 다음에 오는 밴드 참가신청서 주간', () => {
+  const s = [{ from: '2026-11-23', to: '2026-11-26', post: 1 }, { from: '2026-11-30', to: '2026-12-04', post: 2 }];
+  assert.strictEqual(needC('currentSignup')('2026-11-25', s).post, 1);
+  assert.strictEqual(CL.currentSignup('2026-11-27', s).post, 2, '이번 주가 끝나면 다음 주');
+  assert.strictEqual(CL.currentSignup('2026-12-05', s), null);
+});
+test('upcoming: 다승왕전 날짜와 행사를 날짜순으로 합쳐 오늘부터 n개', () => {
+  const ev = [{ name: '청백전', date: '2026-11-29' }, { name: '뚠뚠배', date: '2026-12-18' }];
+  const r = needC('upcoming')('2026-11-25', ['2026-11-18', '2026-11-25', '2026-12-02'], ev, 4);
+  assert.deepStrictEqual(r.map(x => x.date + ' ' + x.kind), ['2026-11-25 dsw', '2026-11-29 event', '2026-12-02 dsw', '2026-12-18 event']);
+});
+test('club.js 데이터: 진행 중 공지마다 밴드 글 번호, 2025년 비상연락망 같은 지난 공지 없음', () => {
+  assert.ok(Array.isArray(CL.NOTICES) && CL.NOTICES.length >= 4, '공지 데이터 없음');
+  CL.NOTICES.forEach(n => { assert.ok(n.post > 0 && n.kind && n.title, '공지 항목 모양: ' + JSON.stringify(n)); });
+  assert.ok(CL.activeNotices('2026-11-25', CL.NOTICES).every(n => !/2025|비상연락망/.test(n.title)));
+  assert.ok(/^https:\/\/band\.us\/band\/\d+$/.test(CL.BAND), '밴드 주소');
+  const cb = CL.EVENTS.filter(e => e.short === '청백전')[0];
+  assert.ok(cb && cb.date === '2026-11-27' && new Date(cb.date + 'T00:00:00Z').getUTCDay() === 5 && !cb.noDow, '청백전은 11/27(금) (사용자 확인 2026-11-25)');
+});
+
 console.log(`\n${passed} passed`);
