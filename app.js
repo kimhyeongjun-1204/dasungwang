@@ -1916,6 +1916,9 @@
     saved = state; work = clone(saved);
     restoreDraft();
     if (!ui.week || seasonDates().indexOf(ui.week) < 0) ui.week = defaultWeek();
+    // 첫 화면: 다승왕전 경기날이면 바로 그날 '이번 주' (왼쪽 위 ‹ 홈으로 클럽 홈), 아니면 보던 탭 (2026-11-25)
+    ui.tab = L.startTab(LS.get(KEY.tab), todayKST(), seasonDates());
+    if (ui.tab === 'week' && seasonDates().indexOf(todayKST()) >= 0) ui.week = todayKST();
     var sess = R.loadSession(LS, Date.now());
     token = sess ? sess.token : null;
     ui.admin = !!sess && sess.role === 'admin'; ui.op = !!sess && sess.role === 'operator';

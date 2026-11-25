@@ -949,6 +949,13 @@ var Logic = (function () {
   }
 
   // 클럽 홈 다승왕전 카드: 시즌 상태(upcoming/live/ended), 결과가 다 들어간 주 수, 다음 경기날(당일 포함), 내 다음 배정
+  // 앱을 열 때 첫 화면: 다승왕전 경기날(today가 시즌 날짜)이면 '이번 주'로 바로. 관리 화면에서 새로 고침한 경우만 그대로 (2026-11-25)
+  function startTab(saved, today, seasonDates) {
+    if (saved === 'admin') return saved;
+    if ((seasonDates || []).indexOf(today) >= 0) return 'week';
+    return saved || 'home';
+  }
+
   function homeSummary(state, today, pid) {
     var ds = seasonDays(state.settings), byDate = {};
     (state.weeks || []).forEach(function (w) { byDate[w.date] = w; });
@@ -961,6 +968,7 @@ var Logic = (function () {
 
   return {
     homeSummary: homeSummary,
+    startTab: startTab,
     LIVE: LIVE, typicalMinutes: typicalMinutes, courtEta: courtEta, courtSlots: courtSlots, courtLabel: courtLabel, setExtraCourt: setExtraCourt, liveBoard: liveBoard, shortNames: shortNames, startMatch: startMatch, finishMatch: finishMatch, cancelMatch: cancelMatch, myLive: myLive,
     meRecord: meRecord, matchStarted: matchStarted, livePrediction: livePrediction, predictionRecord: predictionRecord,
     PREDICT: PREDICT, pickQuota: pickQuota, quotaStatus: quotaStatus, predictionDeadline: predictionDeadline, isPredictionClosed: isPredictionClosed, validatePicks: validatePicks,

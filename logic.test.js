@@ -1053,4 +1053,15 @@ test('homeSummary: 시즌 전·중·후 상태, 끝난 주 수, 다음 경기날
   assert.strictEqual(post.status, 'ended'); assert.strictEqual(post.next, null);
 });
 
+// ---- 앱을 열 때 첫 화면 (2026-11-25): 다승왕전 경기날이면 바로 '이번 주', 아니면 마지막에 보던 탭(처음이면 홈) ----
+test('startTab: 경기날이면 week(관리 화면만 그대로), 아니면 보던 탭, 처음이면 home', () => {
+  assert.strictEqual(typeof L.startTab, 'function', 'startTab 없음');
+  const ds = ['2026-11-18', '2026-11-25', '2026-12-02'];
+  assert.strictEqual(L.startTab('home', '2026-11-25', ds), 'week', '경기날인데 홈으로 열림');
+  assert.strictEqual(L.startTab(null, '2026-11-25', ds), 'week');
+  assert.strictEqual(L.startTab('records', '2026-11-26', ds), 'records', '경기날 아닌 날은 보던 탭');
+  assert.strictEqual(L.startTab(null, '2026-11-26', ds), 'home', '처음 여는 사람은 홈');
+  assert.strictEqual(L.startTab('admin', '2026-11-25', ds), 'admin', '관리 화면에서 새로 고침하면 그대로');
+});
+
 console.log(`\n${passed} passed`);

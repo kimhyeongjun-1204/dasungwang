@@ -593,6 +593,13 @@ test('알림 카드 "카톡처럼 화면 위에 뜨게 하려면?" → 안드로
   assert.ok(/<a [^>]*href="guide\.html"[^>]*>카톡처럼 화면 위에 뜨게 하려면\?<\/a>/.test(c[0]), '안드로이드 링크가 guide.html로 바로 가지 않음');
   assert.ok(/push\.ios \? '<button[^']*data-act="push-help"/.test(c[0]), '아이폰은 앱 안 안내(push-help)로');
 });
+test('앱을 열 때: 경기날이면 바로 이번 주(그날), 왼쪽 위 ‹ 홈으로 클럽 홈 (2026-11-25)', () => {
+  const st = appSrc.match(/function start\(state\) \{[\s\S]*?\n  \}\n/);
+  assert.ok(st, 'start 없음');
+  assert.ok(/ui\.tab = L\.startTab\(LS\.get\(KEY\.tab\), todayKST\(\), seasonDates\(\)\)/.test(st[0]), 'start에서 첫 화면을 startTab으로 정하지 않음');
+  assert.ok(/if \(ui\.tab === 'week' && seasonDates\(\)\.indexOf\(todayKST\(\)\) >= 0\) ui\.week = todayKST\(\)/.test(st[0]), '경기날 이번 주가 오늘 날짜가 아님');
+  assert.ok(/class="back-home" data-act="tab" data-v="home"/.test(appSrc), '다승왕 화면 왼쪽 위 ‹ 홈 없음');
+});
 test('service worker: index.html network-first, supabase는 캐시 안 함', () => {
   const sw = fs.readFileSync(path.join(__dirname, 'dist', 'sw.js'), 'utf8');
   const cached = [];
