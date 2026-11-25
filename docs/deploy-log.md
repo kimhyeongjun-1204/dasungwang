@@ -1427,3 +1427,38 @@ $ (구현 뒤) logic 135 · deploy 53 · tourney 17 · push 5 passed
 ```
 가짜 서버: 360px 홈→다승왕전(안쪽 탭 [이번 주, 순위, 예측])→기록→내 기록→관리→홈→‹ 홈 모두 이동, pageerror 0, 가로 넘침 없음 / 390·1024px 가로 넘침 없음, 저장된 탭 'week'면 이번 주로 열림 / 회귀: 경기 진행(코트 고르기 [코트 5, 코트 6, 추가 코트] → 코트 6, 이김 취소, 빼기) 그대로, 알림 켜기 흐름(구독 1·시험 알림 1·안내·다 했어요) 그대로
 사진: docs/screenshots/club-home/club_home_360.jpg
+## 63. 갤럭시 알림 사진 안내 guide.html (브랜치 feat/alarm-guide, 2026-11-25)
+- 요청(김형준 2026-11-25): 직접 찍은 갤럭시 설정 화면으로 파트 1(휴대폰 설정)·파트 2(다승왕 알림 설정) 나눠 따라 하기 쉽게. 개인정보는 지우기
+- 새 페이지 `guide.html`(앱과 따로 된 정적 페이지 → 단톡방에 링크로 공유 가능), 사진 8장 `guide/*.jpg`(폭 540, 합계 약 160KB). 앱 알림 안내(안드로이드)에 "📷 사진으로 따라 하기" 버튼
+  - 파트 1: 설정 › 알림 › 고급 설정 › 앱별 알림 카테고리 관리 켜기
+  - 파트 2: 시험 알림 보내기 → 길게 누르기 → ⚙ → 알림 카테고리 → '일반' 글자 → 소리 + 팝업으로 표시 → 다시 시험 알림
+- 개인정보 처리(`tools/guide_images.py`, 원본 스크린샷은 저장소에 안 넣음): 설정 첫 화면 위쪽(이름·이어폰 이름) 잘라냄, 시험 알림의 사이트 주소(kimhyeo…) 가림, 모든 사진에서 상태표시줄(통신사·알림 아이콘) 잘라냄. 누를 곳에 노란 테두리
+```
+$ node deploy.test.js   (테스트 먼저)
+  FAIL 갤럭시 알림 사진 안내 guide.html: … → dist/guide.html 없음
+  FAIL 앱 알림 안내(안드로이드)에서 사진 안내 guide.html로 가는 링크 → pushGuide에 guide.html 링크 없음
+51 passed
+$ (만든 뒤) node deploy.test.js | tail -1; node logic.test.js | tail -1; node tourney.test.js | tail -1; node --experimental-strip-types push.test.mjs | tail -1
+53 passed
+134 passed
+17 passed
+5 passed
+```
+- 역검증: 사진 이름 하나 틀리게 → "dist에 사진 없음" FAIL / 'kimhyeo' 넣기 → "개인정보 문자열" FAIL / 파트 2 제목 지우기 → 처음엔 FAIL 없음(본문 "파트 2로 가요"에 걸림) → 제목(h2) 기준으로 테스트를 고친 뒤 FAIL 확인
+- 360px·1024px: 깨진 사진 0, 가로 넘침 없음, 페이지 오류 없음. 사진: docs/screenshots/alarm-guide/guide_360.jpg
+
+## 64. "카톡처럼 화면 위에 뜨게 하려면?" → 사진 안내로 바로 (브랜치 feat/guide-direct, 2026-11-25)
+- 요청(김형준 2026-11-25): 알림 카드의 이 링크를 누르면 사진 안내 화면이 바로 뜨게
+- 안드로이드: 링크를 `<a href="guide.html">`로 바꿔 누르면 바로 guide.html. 아이폰: 사진 안내가 갤럭시용이라 지금처럼 앱 안 글 안내(push-help). 알림을 막 켰을 때 자동으로 펼쳐지는 안내(📷 사진으로 따라 하기 버튼 포함)는 그대로
+```
+$ node deploy.test.js   (테스트 먼저)
+  FAIL 알림 카드 "카톡처럼 화면 위에 뜨게 하려면?" → … 안드로이드 링크가 guide.html로 바로 가지 않음
+53 passed
+$ (바꾼 뒤) node deploy.test.js | tail -1; node logic.test.js | tail -1; node tourney.test.js | tail -1; node --experimental-strip-types push.test.mjs | tail -1
+54 passed
+134 passed
+17 passed
+5 passed
+```
+- 역검증: 아이폰 쪽도 링크로 바꾸면 → "아이폰은 앱 안 안내(push-help)로" FAIL (기존 "안내 다시 보기 없음"도 같이 FAIL)
+- 가짜 서버 360px, 알림 켜진 상태: 안드로이드 UA → 링크 누르면 http://localhost:8799/guide.html, 제목 [파트 1 · 휴대폰 설정, 파트 2 · 다승왕 알림 설정, 안 될 때] / 아이폰 UA → 앱 안 글 안내가 펼쳐지고 시험 알림 1건, 가로 넘침 없음

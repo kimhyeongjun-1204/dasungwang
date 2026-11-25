@@ -568,6 +568,31 @@ test('build.js: dist/index.html 완전한 문서 + PWA 파일', () => {
   const sw = fs.readFileSync(dist('sw.js'), 'utf8');
   assert.ok(/supabase/.test(sw), 'sw: supabase 요청 예외 처리');
 });
+test('갤럭시 알림 사진 안내 guide.html: 파트 1·2, 사진 파일이 dist에 다 있고, 개인정보 없음 (2026-11-25)', () => {
+  execFileSync(process.execPath, [path.join(__dirname, 'build.js')], { stdio: 'pipe' });
+  const dist = p => path.join(__dirname, 'dist', p);
+  assert.ok(fs.existsSync(dist('guide.html')), 'dist/guide.html 없음');
+  const g = fs.readFileSync(dist('guide.html'), 'utf8');
+  assert.ok(/^<!doctype html>/i.test(g) && /<meta charset="utf-8">/i.test(g) && /name="viewport"/.test(g), '완전한 문서가 아님');
+  assert.ok(/id="part1"[\s\S]*?<h2>파트 1[^<]*<\/h2>/.test(g) && /id="part2"[\s\S]*?<h2>파트 2[^<]*<\/h2>/.test(g), '파트 1·파트 2 제목 없음');
+  for (const w of ['앱별 알림 카테고리 관리', '고급 설정', '길게', '알림 카테고리', '일반', '팝업으로 표시']) assert.ok(g.includes(w), '단계 문구 없음: ' + w);
+  const imgs = [...g.matchAll(/<img[^>]+src="([^"]+)"/g)].map(m => m[1]);
+  assert.ok(imgs.length >= 8, '사진이 8장보다 적음: ' + imgs.length);
+  imgs.forEach(s => assert.ok(fs.existsSync(dist(s)), 'dist에 사진 없음: ' + s));
+  assert.ok([...g.matchAll(/<img[^>]*>/g)].every(m => /alt="[^"]+"/.test(m[0])), 'alt 없는 사진');
+  assert.ok(!/김형준|Kim's|kimhyeo/i.test(g), '개인정보 문자열');
+  assert.ok(/href="\.\/"/.test(g), '앱으로 돌아가기 링크 없음');
+});
+test('앱 알림 안내(안드로이드)에서 사진 안내 guide.html로 가는 링크 (2026-11-25)', () => {
+  const gd = appSrc.match(/function pushGuide\(\) \{[\s\S]*?\n  \}\n/);
+  assert.ok(gd && /href="guide\.html"/.test(gd[0]), 'pushGuide에 guide.html 링크 없음');
+});
+test('알림 카드 "카톡처럼 화면 위에 뜨게 하려면?" → 안드로이드는 사진 안내 guide.html을 바로 엶, 아이폰만 앱 안 글 안내 (2026-11-25)', () => {
+  const c = appSrc.match(/function pushCard\(short\) \{[\s\S]*?\n  \}\n/);
+  assert.ok(c, 'pushCard 없음');
+  assert.ok(/<a [^>]*href="guide\.html"[^>]*>카톡처럼 화면 위에 뜨게 하려면\?<\/a>/.test(c[0]), '안드로이드 링크가 guide.html로 바로 가지 않음');
+  assert.ok(/push\.ios \? '<button[^']*data-act="push-help"/.test(c[0]), '아이폰은 앱 안 안내(push-help)로');
+});
 test('service worker: index.html network-first, supabase는 캐시 안 함', () => {
   const sw = fs.readFileSync(path.join(__dirname, 'dist', 'sw.js'), 'utf8');
   const cached = [];

@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="ko"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>알림 팝업 설정</title>
+<meta name="theme-color" content="#20264F">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@500;700;900&display=swap">
+<style>
+:root { --bg:#F4F7FC; --surface:#fff; --line:#DCE2EC; --text:#202535; --text-2:#626C80; --navy:#20264F; --navy-50:#EEF0F8; --yellow:#FFC928; --yellow-50:#FFF7DB; --win:#21865B; --win-50:#E8F5EE; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--text); font-family:'Noto Sans KR',system-ui,sans-serif; font-weight:500; line-height:1.55; -webkit-text-size-adjust:100%; word-break:keep-all; }
+header { background:var(--navy); color:#fff; padding:12px 16px calc(18px) ; padding-top:calc(12px + env(safe-area-inset-top)); }
+header a { color:#fff; text-decoration:none; font-weight:700; font-size:15px; display:inline-block; padding:6px 0; }
+header h1 { margin:8px 0 4px; font-size:21px; font-weight:900; line-height:1.35; }
+header p { margin:0; font-size:14px; opacity:.85; }
+main { max-width:560px; margin:0 auto; padding:14px 16px 40px; }
+.card { background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:16px; margin-bottom:14px; }
+.why { font-size:14px; }
+.why b { color:var(--navy); }
+.jump { display:flex; gap:8px; margin-top:12px; }
+.jump a { flex:1; text-align:center; text-decoration:none; color:var(--navy); background:var(--navy-50); border-radius:10px; padding:9px 6px; font-weight:700; font-size:14px; }
+.part { margin:26px 0 10px; display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; scroll-margin-top:12px; }
+.part h2 { margin:0; font-size:19px; font-weight:900; color:var(--navy); }
+.part .tag { font-size:12px; font-weight:700; background:var(--yellow-50); color:#8A6400; border-radius:999px; padding:2px 9px; }
+.part p { margin:0; width:100%; font-size:13px; color:var(--text-2); }
+.step { background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:14px; margin-bottom:12px; }
+.step h3 { margin:0 0 4px; font-size:16px; font-weight:700; display:flex; gap:10px; align-items:flex-start; }
+.step h3 .n { flex:none; width:26px; height:26px; border-radius:50%; background:var(--navy); color:#fff; font-size:14px; font-weight:900; display:grid; place-items:center; margin-top:-1px; }
+.step .tip { margin:2px 0 0 36px; font-size:13px; color:var(--text-2); }
+.step .tip b { color:var(--text); }
+.shot { margin:12px auto 0; max-width:300px; }
+.shot.wide { max-width:420px; }
+.shot img { display:block; width:100%; height:auto; border-radius:12px; border:1px solid var(--line); background:#000; }
+.hl { background:linear-gradient(transparent 55%, var(--yellow) 55%); font-weight:700; }
+.done { background:var(--win-50); border-color:#BFE3CF; }
+.done h3 .n { background:var(--win); }
+.faq h2 { font-size:16px; margin:0 0 8px; color:var(--navy); }
+.faq dt { font-weight:700; font-size:14px; margin-top:10px; }
+.faq dd { margin:2px 0 0; font-size:14px; color:var(--text-2); }
+.back { display:block; text-align:center; text-decoration:none; background:var(--navy); color:#fff; font-weight:700; border-radius:12px; padding:13px; margin-top:18px; }
+</style>
+</head><body>
+<header>
+  <a href="./">‹ 앱으로</a>
+  <h1>다승왕 알림을<br>카톡처럼 화면 위에 뜨게 하기</h1>
+  <p>갤럭시 기준 · 처음 한 번만 하면 돼요</p>
+</header>
+<main>
+  <div class="card why">
+    알림이 와도 <b>알림창을 내려야만 보이면</b> 이 설정이 꺼져 있는 거예요. 갤럭시는 웹 앱 알림을 처음에 '팝업 없이' 만들어서, 직접 한 번 켜 줘야 해요.
+    <br><br>먼저 앱 <b>이번 주 › 내 경기</b>에서 <b>알림 받기</b>를 켜 두세요.
+    <div class="jump"><a href="#part1">파트 1 · 휴대폰 설정</a><a href="#part2">파트 2 · 다승왕 알림</a></div>
+  </div>
+
+  <div class="part" id="part1">
+    <h2>파트 1 · 휴대폰 설정</h2><span class="tag">1번만 · 30초</span>
+    <p>숨어 있는 '알림 카테고리' 메뉴를 보이게 하는 단계예요.</p>
+  </div>
+
+  <div class="step">
+    <h3><span class="n">1</span><span>휴대폰 <span class="hl">설정</span> 앱을 열고 <span class="hl">알림</span>을 눌러요</span></h3>
+    <div class="shot"><img src="guide/p1-1-settings.jpg" width="540" height="335" alt="설정 첫 화면에서 알림 메뉴에 노란 테두리"></div>
+  </div>
+  <div class="step">
+    <h3><span class="n">2</span><span>맨 아래 <span class="hl">고급 설정</span>을 눌러요</span></h3>
+    <div class="shot"><img src="guide/p1-2-noti.jpg" width="540" height="888" alt="알림 화면 맨 아래 고급 설정에 노란 테두리" loading="lazy"></div>
+  </div>
+  <div class="step">
+    <h3><span class="n">3</span><span><span class="hl">앱별 알림 카테고리 관리</span>를 켜요</span></h3>
+    <p class="tip">이미 파랗게 켜져 있으면 그대로 두고 파트 2로 가요.</p>
+    <div class="shot"><img src="guide/p1-3-advanced.jpg" width="540" height="940" alt="고급 설정 화면에서 앱별 알림 카테고리 관리 스위치가 켜진 모습에 노란 테두리" loading="lazy"></div>
+  </div>
+
+  <div class="part" id="part2">
+    <h2>파트 2 · 다승왕 알림 설정</h2><span class="tag">1번만 · 1분</span>
+    <p>다승왕 알림에 '팝업으로 표시'를 켜는 단계예요.</p>
+  </div>
+
+  <div class="step">
+    <h3><span class="n">1</span><span>앱에서 <span class="hl">시험 알림 보내기</span>를 눌러요</span></h3>
+    <p class="tip">이번 주 › 내 경기 맨 위 <b>🔔 코트 알림</b> 카드에 있어요. 알림을 막 켰다면 시험 알림이 이미 와 있어요.</p>
+  </div>
+  <div class="step">
+    <h3><span class="n">2</span><span>알림창을 내려서 시험 알림을 <span class="hl">길게</span> 눌러요</span></h3>
+    <div class="shot wide"><img src="guide/p2-1-longpress.jpg" width="540" height="135" alt="알림창의 다승왕 시험 알림에 노란 테두리" loading="lazy"></div>
+  </div>
+  <div class="step">
+    <h3><span class="n">3</span><span>오른쪽 <span class="hl">⚙ 톱니바퀴</span>를 눌러요</span></h3>
+    <p class="tip">빨간 종(알림 끄기)은 누르지 마세요.</p>
+    <div class="shot wide"><img src="guide/p2-2-gear.jpg" width="540" height="135" alt="길게 누른 알림의 오른쪽 톱니바퀴 버튼에 노란 동그라미" loading="lazy"></div>
+  </div>
+  <div class="step">
+    <h3><span class="n">4</span><span>맨 아래 <span class="hl">알림 카테고리</span>를 눌러요</span></h3>
+    <div class="shot"><img src="guide/p2-3-category.jpg" width="540" height="412" alt="다승왕 알림 설정 화면 맨 아래 알림 카테고리에 노란 테두리" loading="lazy"></div>
+  </div>
+  <div class="step">
+    <h3><span class="n">5</span><span><span class="hl">일반</span> 글자를 눌러요</span></h3>
+    <p class="tip">오른쪽 스위치 말고 <b>왼쪽 '일반' 글자</b>를 눌러야 다음 화면이 열려요.</p>
+    <div class="shot"><img src="guide/p2-4-general.jpg" width="540" height="305" alt="알림 카테고리 화면의 일반 글자 부분에 노란 테두리" loading="lazy"></div>
+  </div>
+  <div class="step">
+    <h3><span class="n">6</span><span><span class="hl">소리</span>를 고르고 <span class="hl">팝업으로 표시</span>를 켜요</span></h3>
+    <p class="tip">'무음'이면 팝업이 안 떠요.</p>
+    <div class="shot"><img src="guide/p2-5-popup.jpg" width="540" height="565" alt="일반 화면에서 소리가 선택되고 팝업으로 표시 스위치가 켜진 모습에 노란 테두리" loading="lazy"></div>
+  </div>
+  <div class="step done">
+    <h3><span class="n">✓</span><span>앱으로 돌아가 <b>시험 알림 보내기</b>를 한 번 더 눌러요</span></h3>
+    <p class="tip">화면 맨 위에 잠깐 내려오면 끝이에요. 다른 앱을 보고 있을 때도 떠요.</p>
+  </div>
+
+  <div class="card faq">
+    <h2>안 될 때</h2>
+    <dl>
+      <dt>고급 설정에 '앱별 알림 카테고리 관리'가 없어요</dt>
+      <dd>휴대폰 버전에 따라 없는 경우가 있어요. 파트 1은 건너뛰고 파트 2로 가면 돼요.</dd>
+      <dt>⚙를 눌렀는데 '알림 카테고리'가 안 보여요</dt>
+      <dd>파트 1의 스위치가 꺼져 있는 거예요. 파트 1을 다시 해 주세요.</dd>
+      <dt>시험 알림이 아예 안 와요</dt>
+      <dd>앱에서 알림 받기가 켜져 있는지 확인하고, 방해 금지 모드가 켜져 있으면 꺼 주세요.</dd>
+      <dt>아이폰은요?</dt>
+      <dd>설정 › 알림 › 다승왕전 › 알림 스타일을 <b>배너</b>로 골라요. 아이폰은 홈 화면에 추가한 앱에서만 알림이 와요.</dd>
+    </dl>
+  </div>
+
+  <a class="back" href="./">다승왕 앱으로 돌아가기</a>
+</main>
+</body></html>
