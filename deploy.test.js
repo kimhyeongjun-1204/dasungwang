@@ -372,6 +372,24 @@ test('CI: 뚱뚱배 순수 함수 테스트(tourney.test.js)도 통과해야 배
   const wf = fs.readFileSync(path.join(__dirname, '.github', 'workflows', 'pages.yml'), 'utf8');
   assert.ok(/run: node tourney\.test\.js/.test(wf), 'CI에서 tourney.test.js를 안 돌림');
 });
+test('클럽 홈 틀: 하단 탭 홈·기록·내 기록·관리, 다승왕전은 홈 카드로 들어가고 안쪽 탭은 이번 주·순위·예측 (2026-11-24)', () => {
+  const nav = appSrc.match(/function bottomNav\(\) \{[\s\S]*?\n  \}\n/);
+  assert.ok(nav, '하단 탭(bottomNav) 없음');
+  for (const v of ['home', 'records', 'me', 'admin']) assert.ok(new RegExp("\\['" + v + "', '").test(nav[0]), '하단 탭에 ' + v + ' 없음');
+  const hd = appSrc.match(/function header\(\) \{[\s\S]*?\n  \}\n/)[0];
+  assert.ok(/\['week', '이번 주'\], \['rank', '순위'\], \['plan', '예측'\]\]/.test(hd), '다승왕전 안쪽 탭은 이번 주·순위·예측 세 개');
+  assert.ok(!/\['me', '내 기록'\]/.test(hd) && !/\['admin', '관리'\]/.test(hd), '내 기록·관리는 하단 탭으로 옮김');
+  assert.ok(/data-act="tab" data-v="home"[^>]*>‹ 홈/.test(hd), '다승왕전 화면에서 홈으로 돌아가는 버튼 없음');
+  const home = appSrc.match(/function viewHome\(\) \{[\s\S]*?\n  \}\n/);
+  assert.ok(home && /L\.homeSummary\(/.test(home[0]) && /data-act="tab" data-v="week"/.test(home[0]), '홈에 다승왕전 카드(→ 이번 주) 없음');
+  assert.ok(/function viewRecords\(\) \{/.test(appSrc), '기록 탭 화면 없음');
+  assert.ok(/ui\.tab === 'home' \? viewHome\(\)/.test(appSrc) && /ui\.tab === 'records' \? viewRecords\(\)/.test(appSrc), 'render가 홈·기록을 그리지 않음');
+  assert.ok(/tab: LS\.get\(KEY\.tab\) \|\| 'home'/.test(appSrc), '처음 여는 사람은 홈부터');
+});
+test('render: 데이터를 받기 전에는 그리지 않음 (알림 초기화가 먼저 render를 불러 TypeError 나던 것, #15부터)', () => {
+  const r = appSrc.match(/function render\(\) \{\n([^\n]*\n){0,3}/)[0];
+  assert.ok(/if \(!work\) return;/.test(r), 'render 맨 앞에 work 확인 없음');
+});
 test('Edge Function rematch: 조건 종류가 logic.js와 같고, 모델·폴백·키 처리가 맞음', () => {
   const src = fs.readFileSync(path.join(__dirname, 'supabase', 'functions', 'rematch', 'index.ts'), 'utf8');
   const types = JSON.parse(src.match(/const RULE_TYPES = (\[[^\]]*\])/)[1].replace(/'/g, '"'));
@@ -574,6 +592,13 @@ test('알림 카드 "카톡처럼 화면 위에 뜨게 하려면?" → 안드로
   assert.ok(c, 'pushCard 없음');
   assert.ok(/<a [^>]*href="guide\.html"[^>]*>카톡처럼 화면 위에 뜨게 하려면\?<\/a>/.test(c[0]), '안드로이드 링크가 guide.html로 바로 가지 않음');
   assert.ok(/push\.ios \? '<button[^']*data-act="push-help"/.test(c[0]), '아이폰은 앱 안 안내(push-help)로');
+});
+test('앱을 열 때: 경기날이면 바로 이번 주(그날), 왼쪽 위 ‹ 홈으로 클럽 홈 (2026-11-25)', () => {
+  const st = appSrc.match(/function start\(state\) \{[\s\S]*?\n  \}\n/);
+  assert.ok(st, 'start 없음');
+  assert.ok(/ui\.tab = L\.startTab\(LS\.get\(KEY\.tab\), todayKST\(\), seasonDates\(\)\)/.test(st[0]), 'start에서 첫 화면을 startTab으로 정하지 않음');
+  assert.ok(/if \(ui\.tab === 'week' && seasonDates\(\)\.indexOf\(todayKST\(\)\) >= 0\) ui\.week = todayKST\(\)/.test(st[0]), '경기날 이번 주가 오늘 날짜가 아님');
+  assert.ok(/class="back-home" data-act="tab" data-v="home"/.test(appSrc), '다승왕 화면 왼쪽 위 ‹ 홈 없음');
 });
 test('service worker: index.html network-first, supabase는 캐시 안 함', () => {
   const sw = fs.readFileSync(path.join(__dirname, 'dist', 'sw.js'), 'utf8');

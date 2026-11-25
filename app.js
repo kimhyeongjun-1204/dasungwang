@@ -21,7 +21,7 @@
   var saved = null, work = null; // Supabase에서 읽은 뒤 start()에서 채움
   var remote = null, token = null, pinBusy = false;
   var ui = {
-    tab: LS.get(KEY.tab) || 'week',
+    tab: LS.get(KEY.tab) || 'home',
     week: SS.get(SKEY.week) || null,
     me: LS.get(KEY.me) || '',
     wview: LS.get(KEY.wview) || 'mine',   // 이번 주 탭: 'mine'(내 경기) | 'all'. 기본 내 경기 (사용자 요청 2026-11-20)
@@ -163,15 +163,58 @@
       if (s === 'done') done++;
       return '<i class="' + (s === 'done' ? 'done' : s === 'part' ? 'part' : '') + (d === ui.week ? ' sel' : '') + '" title="' + md(d) + '"></i>';
     }).join('');
-    return '<header class="hero"><div class="pig" role="img" aria-label="모임장 돼장"></div>' +
+    return '<button class="back-home" data-act="tab" data-v="home">‹ 홈</button>' +
+      '<header class="hero"><div class="pig" role="img" aria-label="모임장 돼장"></div>' +
       '<div class="hero-txt"><span class="kicker">' + esc(work.settings.club) + ' · 수요 다승왕전</span>' +
       '<h1 class="title">돼지지옥<small>다승왕</small></h1>' +
       '<span class="tagline">이기면 <b>지옥도</b>, 지면 천국도!</span></div>' +
       '<span class="hero-side hell" aria-hidden="true">지옥도</span><span class="hero-side heaven" aria-hidden="true">천국도</span></header>' +
       '<div class="season"><span class="season-label">시즌 진행</span><div class="season-bar" aria-label="시즌 진행 ' + done + '/' + ds.length + '주">' + bar + '</div><span class="season-txt num">' + md(ds[0]) + '–' + md(ds[ds.length - 1]) + ' · ' + done + '/' + ds.length + '주 완료</span></div>' +
-      '<nav class="tabs" role="tablist">' + [['week', '이번 주'], ['rank', '순위'], ['plan', '예측'], ['me', '내 기록'], ['admin', '관리']].map(function (t) {
-        return '<button role="tab" data-act="tab" data-v="' + t[0] + '" aria-selected="' + (ui.tab === t[0]) + '">' + t[1] + (t[0] === 'admin' && !ui.admin ? ' <span class="lock">PIN</span>' : '') + '</button>';
+      // 다승왕전 안쪽 탭 (내 기록·관리는 하단 탭으로, 2026-11-24 클럽 홈 틀)
+      '<nav class="tabs" role="tablist">' + [['week', '이번 주'], ['rank', '순위'], ['plan', '예측']].map(function (t) {
+        return '<button role="tab" data-act="tab" data-v="' + t[0] + '" aria-selected="' + (ui.tab === t[0]) + '">' + t[1] + '</button>';
       }).join('') + '</nav>';
+  }
+
+  // ---- 클럽 홈 틀 (2026-11-24): 하단 탭 홈·기록·내 기록·관리. 다승왕전·뚱뚱배는 홈의 카드로 들어감 ----
+  var DSW_TABS = ['week', 'rank', 'plan'];
+  function bottomNav() {
+    var on = DSW_TABS.indexOf(ui.tab) >= 0 ? 'home' : ui.tab;
+    return '<nav class="bnav" aria-label="메뉴"><div class="in">' + [['home', '홈', '🏠'], ['records', '기록', '🏆'], ['me', '내 기록', '📋'], ['admin', '관리', '⚙️']].map(function (t) {
+      return '<button data-act="tab" data-v="' + t[0] + '"' + (on === t[0] ? ' aria-current="page"' : '') + '><i aria-hidden="true">' + t[2] + '</i>' + t[1] +
+        (t[0] === 'admin' && !ui.admin && !ui.op ? '<span class="lock">PIN</span>' : '') + '</button>';
+    }).join('') + '</div></nav>';
+  }
+  function clubBar(title) {
+    return '<div class="clubbar"><span class="club-logo">' + esc(work.settings.club || '라켓뚱보단') + '</span>' + (title ? '<h1 class="club-title">' + esc(title) + '</h1>' : '') + '</div>';
+  }
+  function viewHome() {
+    var t = todayKST(), h = L.homeSummary(work, t, ui.me || null);
+    var st = h.status === 'live' ? '● 시즌 진행 중' : h.status === 'upcoming' ? '시즌 시작 전' : '시즌 종료';
+    var nextTxt = h.next ? (h.next === t ? '오늘' : '이번 주') + ' ' + md(h.next) + '(수)' : '시즌이 끝났어요';
+    var tier = /^(hell|heaven|mid)$/.test(h.myTier || '') ? ' · 내 배정 <b class="' + h.myTier + '">' + TIER_LABEL[h.myTier] + '</b>' : '';
+    var pct = h.total ? Math.round(h.done / h.total * 100) : 0;
+    var out = '<h2 class="home-h">진행 중</h2>' +
+      '<button class="ev-card dsw" data-act="tab" data-v="week"><span class="ev-tag">' + st + '</span>' +
+      '<span class="ev-title">돼지지옥 다승왕전</span><span class="ev-sub">이기면 지옥도, 지면 천국도! · 매주 수요일</span>' +
+      '<span class="ev-bar" aria-label="시즌 진행 ' + h.done + '/' + h.total + '주"><i style="width:' + pct + '%"></i></span>' +
+      '<span class="ev-meta num">' + (h.first ? md(h.first) + '–' + md(h.last) : '') + ' · ' + h.done + '/' + h.total + '주 완료</span>' +
+      '<span class="ev-act"><span>' + nextTxt + tier + '</span><b>바로가기 ›</b></span></button>';
+    var up = L.seasonDays(work.settings).filter(function (d) { return d >= t; }).slice(0, 3);
+    if (up.length) {
+      out += '<h2 class="home-h">다가오는 일정</h2><div class="card sched">' + up.map(function (d) {
+        var p = d.split('-'), last = d === h.last;
+        return '<div class="sch-row"><span class="sch-d"><b class="num">' + (+p[2]) + '</b><small>' + (+p[1]) + '월 수</small></span>' +
+          '<span class="sch-t"><b>' + (last ? '다승왕전 시즌 마지막 주' : '다승왕전 매칭데이') + '</b><small>' + (d === t ? '오늘' : md(d)) + ' · 17:30</small></span><span class="chip sch-chip">다승왕</span></div>';
+      }).join('') + '</div>';
+    }
+    return out;
+  }
+  function viewRecords() {
+    var h = L.homeSummary(work, todayKST(), null);
+    return '<div class="card"><p class="small muted">지난 시즌·대회 결과를 볼 수 있어요. 뚱뚱배 기록은 대회가 끝나면 여기에 모여요.</p></div>' +
+      '<button class="rec-card" data-act="tab" data-v="rank"><span class="rec-h"><b>돼지지옥 다승왕전</b><span class="chip ' + (h.status === 'ended' ? '' : 'rec-live') + '">' +
+      (h.status === 'ended' ? '종료' : '진행 중') + '</span></span><span class="small muted num">' + (h.first ? md(h.first) + '–' + md(h.last) : '') + ' · ' + h.done + '/' + h.total + '주 · 순위 보기 ›</span></button>';
   }
 
   // 팀 배너: 팀 배경 + 원본 캐릭터 2명 + 팀명/정보 (이벤트 비주얼 영역)
@@ -1533,11 +1576,13 @@
     p.then(function () { return loadAvail(d); }).then(function () { render(); }, function (e) { toast(AVAIL_ERR[e && e.code] || '저장하지 못했어요 (' + (e && e.code || '오류') + ').'); });
   }
   function render() {
+    if (!work) return; // 데이터 받기 전(알림 초기화 등)에는 그리지 않음
     var app = document.getElementById('app');
     var focusId = document.activeElement && document.activeElement.id;
     SN = null;   // 명단이 바뀌었을 수 있으니 그릴 때마다 다시
-    var main = ui.tab === 'rank' ? viewRank() : ui.tab === 'plan' ? viewPredict() : ui.tab === 'me' ? viewMe() : ui.tab === 'admin' ? viewAdmin() : viewWeek();
-    var html = header() + '<main>' + saveBar() + main + '</main>';
+    var main = ui.tab === 'home' ? viewHome() : ui.tab === 'records' ? viewRecords() : ui.tab === 'rank' ? viewRank() : ui.tab === 'plan' ? viewPredict() : ui.tab === 'me' ? viewMe() : ui.tab === 'admin' ? viewAdmin() : viewWeek();
+    var top = DSW_TABS.indexOf(ui.tab) >= 0 ? header() : clubBar({ home: '', records: '🏆 기록 보관소', me: '📋 내 기록', admin: '⚙️ 관리' }[ui.tab] || '');
+    var html = top + '<main>' + saveBar() + main + '</main>' + bottomNav();
     if (dirty() || ui.busy && ui.busy.indexOf('편성') !== 0) {
       html += '<div class="savebar" role="region" aria-label="저장"><div class="in"><span>' + esc(ui.busy || '저장 안 된 변경이 있어요') + '</span>' +
         (ui.busy ? '' : '<span class="row"><button class="btn sm" data-act="revert">되돌리기</button><button class="btn sm primary" data-act="save">저장</button></span>') + '</div></div>';
@@ -1871,6 +1916,9 @@
     saved = state; work = clone(saved);
     restoreDraft();
     if (!ui.week || seasonDates().indexOf(ui.week) < 0) ui.week = defaultWeek();
+    // 첫 화면: 다승왕전 경기날이면 바로 그날 '이번 주' (왼쪽 위 ‹ 홈으로 클럽 홈), 아니면 보던 탭 (2026-11-25)
+    ui.tab = L.startTab(LS.get(KEY.tab), todayKST(), seasonDates());
+    if (ui.tab === 'week' && seasonDates().indexOf(todayKST()) >= 0) ui.week = todayKST();
     var sess = R.loadSession(LS, Date.now());
     token = sess ? sess.token : null;
     ui.admin = !!sess && sess.role === 'admin'; ui.op = !!sess && sess.role === 'operator';
