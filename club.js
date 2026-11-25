@@ -43,6 +43,44 @@ var Club = (function () {
   }
   function postUrl(post) { return BAND + '/post/' + post; }
 
-  return { BAND: BAND, NOTICES: NOTICES, SIGNUPS: SIGNUPS, EVENTS: EVENTS, activeNotices: activeNotices, currentSignup: currentSignup, upcoming: upcoming, postUrl: postUrl };
+  // ---- 앱 공지 (Supabase notices, 돼장·도우미가 앱에서 씀) ----
+  var KINDS = ['운동', '행사', '규칙', '결과·소식'];
+  function noticeTitle(body) {
+    var line = String(body || '').split(/\r?\n/).map(function (x) { return x.trim(); }).filter(Boolean)[0] || '';
+    if (!line) return '(제목 없음)';
+    return line.length > 60 ? line.slice(0, 60) + '…' : line;
+  }
+  function kstDate(iso) { return new Date(Date.parse(iso) + 9 * 3600e3).toISOString().slice(0, 10); }
+  function addDays(d, n) { var x = new Date(d + 'T00:00:00Z'); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); }
+  // 홈에 보일 공지: 기한 안 지난 중요 공지(pin) 먼저, 그다음 최근 14일 안에 올린 공지. 각각 최근 순
+  function homeNotices(today, list) {
+    var from = addDays(today, -13), pins = [], rest = [];
+    (list || []).forEach(function (n) {
+      var active = n.pinned && (!n.pin_until || n.pin_until >= today);
+      if (active) pins.push(Object.assign({}, n, { pin: true }));
+      else if (kstDate(n.created_at) >= from) rest.push(Object.assign({}, n, { pin: false }));
+    });
+    var byNew = function (a, b) { return a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0; };
+    return pins.sort(byNew).concat(rest.sort(byNew));
+  }
+  var DOWS = '일월화수목금토';
+  function mdw(d) { var x = new Date(d + 'T00:00:00Z'); return (x.getUTCMonth() + 1) + '.' + x.getUTCDate() + '(' + DOWS[x.getUTCDay()] + ')'; }
+  // 자주 쓰는 글: 다음 월~금 배드민턴위크 (오늘이 월요일이면 다음 주 월요일부터)
+  function weekTemplate(today) {
+    var dow = new Date(today + 'T00:00:00Z').getUTCDay();
+    var mon = addDays(today, ((8 - dow) % 7) || 7), fri = addDays(mon, 4);
+    return {
+      kind: '운동', pinned: true, until: fri,
+      body: mdw(mon) + '~' + mdw(fri) + ' 배드민턴위크 🏸\n이번 주도 다 같이 즐겁게 운동해요!\n참가 신청과 대기는 밴드 참가신청서에서 해 주세요.'
+    };
+  }
+  var TEMPLATES = {
+    event: { kind: '행사', pinned: true, until: null, body: '📅 행사 이름\n날짜: \n장소: \n참가 여부는 밴드 투표로 알려 주세요.' },
+    result: { kind: '결과·소식', pinned: false, until: null, body: '🎉 돼블스플랜 적중자 발표 🎉\n하이리스크 적중 +3승: \n안전형 적중 +1승: ' },
+    rule: { kind: '규칙', pinned: false, until: null, body: '📌 안내\n' }
+  };
+
+  return { BAND: BAND, NOTICES: NOTICES, SIGNUPS: SIGNUPS, EVENTS: EVENTS, activeNotices: activeNotices, currentSignup: currentSignup, upcoming: upcoming, postUrl: postUrl,
+    KINDS: KINDS, noticeTitle: noticeTitle, homeNotices: homeNotices, weekTemplate: weekTemplate, TEMPLATES: TEMPLATES, kstDate: kstDate };
 })();
 if (typeof module !== 'undefined') module.exports = Club;

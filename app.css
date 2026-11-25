@@ -910,3 +910,31 @@ button.lv-row:disabled { cursor: default; opacity: .7; }
 .chip.k-run { background: var(--navy-50); color: var(--navy); }
 .chip.k-ev { background: var(--yellow-50); color: #8A5300; }
 .chip.k-rule { background: var(--line-2); color: #3E4659; }
+/* 앱 공지: 쓰기(밴드 글쓰기처럼)·보기 (2026-11-25) */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.hm-nh { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+button.hm-n { width: 100%; background: none; border: 0; border-bottom: 1px solid var(--line-2); font: inherit; text-align: left; cursor: pointer; }
+button.hm-n:last-child { border-bottom: 0; }
+.chip.k-res { background: var(--win-50, #E8F5EE); color: #1C7650; }
+.nw { position: fixed; inset: 0; z-index: 16; background: var(--bg); overflow-y: auto; }
+.nw-top { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: 8px; padding: calc(8px + env(safe-area-inset-top, 0px)) 12px 8px; background: var(--navy); color: #fff; }
+.nw-top h2 { flex: 1; margin: 0; text-align: center; font-size: 17px; font-weight: 900; color: #fff; }
+.nw-x { width: 44px; height: 44px; border: 0; background: none; color: #fff; font-size: 18px; cursor: pointer; }
+.nw-in { max-width: 640px; margin: 0 auto; padding: 14px 16px calc(24px + env(safe-area-inset-bottom, 0px)); display: grid; gap: 10px; }
+.nw-lbl { margin: 4px 0 0; font-size: 12px; font-weight: 700; color: var(--text-2); }
+.nw-tpls { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
+.nw-tpl { flex: none; height: 38px; padding: 0 12px; border-radius: 19px; border: 1px solid var(--line); background: var(--surface); color: var(--text); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.nw-tpl[aria-pressed="true"] { border-color: var(--navy); color: var(--navy); }
+.nw-kinds { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.nw-kinds button { white-space: nowrap; font-size: 13px; padding-inline: 2px; }
+.nw-body textarea { width: 100%; box-sizing: border-box; min-height: 200px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); font: inherit; font-size: 15px; line-height: 1.65; color: var(--text); resize: vertical; }
+.nw-opts { gap: 0; padding-block: 4px; }
+.nw-opt { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line-2); }
+.nw-opt:last-child { border-bottom: 0; }
+.nw-opt > span { flex: 1; display: grid; font-size: 14px; } .nw-opt small { font-size: 12px; color: var(--text-2); font-weight: 400; }
+.nw-opt input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--navy); }
+.nw-opt input[type="date"] { height: 40px; border: 1px solid var(--line); border-radius: 10px; padding: 0 10px; font: inherit; }
+.nw-err { color: var(--hell-text); font-weight: 700; }
+.nd-sheet { max-height: 80dvh; overflow-y: auto; }
+.nd-meta { margin: 0; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.nd-body { white-space: pre-wrap; word-break: break-word; font-size: 15px; line-height: 1.7; }
