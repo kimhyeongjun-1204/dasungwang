@@ -188,24 +188,53 @@
   function clubBar(title) {
     return '<div class="clubbar"><span class="club-logo">' + esc(work.settings.club || '라켓뚱보단') + '</span>' + (title ? '<h1 class="club-title">' + esc(title) + '</h1>' : '') + '</div>';
   }
+  // 클럽 홈 (2026-11-25): 운동 참가(예시 · 신청은 밴드) → 진행 중(다승왕전·행사) → 진행 중인 공지 → 다가오는 일정. 밴드 정보는 club.js
+  var DOW = '일월화수목금토';
+  function dowOf(d) { return DOW[new Date(d + 'T00:00:00Z').getUTCDay()]; }
+  function addDay(d) { var x = new Date(d + 'T00:00:00Z'); x.setUTCDate(x.getUTCDate() + 1); return x.toISOString().slice(0, 10); }
+  function bandLink(post, cls, inner) { return '<a class="' + cls + '" href="' + Club.postUrl(post) + '" target="_blank" rel="noopener">' + inner + '</a>'; }
   function viewHome() {
-    var t = todayKST(), h = L.homeSummary(work, t, ui.me || null);
+    var t = todayKST(), h = L.homeSummary(work, t, ui.me || null), out = '';
+    var su = Club.currentSignup(t);
+    if (su) {
+      var days = []; for (var d = su.from; d <= su.to; d = addDay(d)) days.push(d);
+      out += '<section class="card hm-join"><div class="hm-head"><h2>운동 참가 <span class="small muted num">' + md(su.from) + '–' + md(su.to) + '</span></h2><span class="chip hm-ex">예시</span></div>' +
+        '<div class="hm-days" style="grid-template-columns:repeat(' + days.length + ',minmax(0,1fr))">' + days.map(function (x) {
+          return '<span class="hm-day' + (x === t ? ' today' : x < t ? ' past' : '') + '"><b>' + dowOf(x) + '</b><small class="num">' + md(x) + '</small><em>' + (x < t ? '지남' : x === t ? '오늘' : '밴드') + '</em></span>';
+        }).join('') + '</div>' +
+        '<p class="small">앱에서 바로 신청하는 기능은 준비 중이에요. 위 칸은 <b>예시</b>이고, 참가 신청과 대기는 지금처럼 <b>밴드 참가신청서</b>에서 해 주세요.</p>' +
+        bandLink(su.post, 'btn primary hm-band', '밴드 참가신청서 열기 ›') + '</section>';
+    }
     var st = h.status === 'live' ? '● 시즌 진행 중' : h.status === 'upcoming' ? '시즌 시작 전' : '시즌 종료';
-    var nextTxt = h.next ? (h.next === t ? '오늘' : '이번 주') + ' ' + md(h.next) + '(수)' : '시즌이 끝났어요';
+    var nextTxt = h.next ? (h.next === t ? '오늘' : '이번 주') + ' ' + md(h.next) + '(수) 17:30' : '시즌이 끝났어요';
     var tier = /^(hell|heaven|mid)$/.test(h.myTier || '') ? ' · 내 배정 <b class="' + h.myTier + '">' + TIER_LABEL[h.myTier] + '</b>' : '';
     var pct = h.total ? Math.round(h.done / h.total * 100) : 0;
-    var out = '<h2 class="home-h">진행 중</h2>' +
+    out += '<h2 class="home-h">진행 중</h2>' +
       '<button class="ev-card dsw" data-act="tab" data-v="week"><span class="ev-tag">' + st + '</span>' +
-      '<span class="ev-title">돼지지옥 다승왕전</span><span class="ev-sub">이기면 지옥도, 지면 천국도! · 매주 수요일</span>' +
+      '<span class="ev-title">돼지지옥 다승왕전</span><span class="ev-sub">이기면 지옥도, 지면 천국도! · 매주 수요일 17:30</span>' +
       '<span class="ev-bar" aria-label="시즌 진행 ' + h.done + '/' + h.total + '주"><i style="width:' + pct + '%"></i></span>' +
       '<span class="ev-meta num">' + (h.first ? md(h.first) + '–' + md(h.last) : '') + ' · ' + h.done + '/' + h.total + '주 완료</span>' +
       '<span class="ev-act"><span>' + nextTxt + tier + '</span><b>바로가기 ›</b></span></button>';
-    var up = L.seasonDays(work.settings).filter(function (d) { return d >= t; }).slice(0, 3);
+    var evs = Club.EVENTS.filter(function (e) { return e.date >= t; });
+    if (evs.length) out += '<div class="hm-evs">' + evs.map(function (e) {
+      var n = Math.round((Date.parse(e.date) - Date.parse(t)) / 864e5);
+      return bandLink(e.post, 'ev-mini', '<span class="ev-dday">' + (n ? 'D-' + n : 'D-DAY') + '</span><b>' + esc(e.name) + '</b>' +
+        '<small class="num">' + md(e.date) + (e.noDow ? '' : '(' + dowOf(e.date) + ')') + ' · ' + esc(e.place) + '</small><span class="ev-link">밴드에서 보기 ›</span>');
+    }).join('') + '</div>';
+    var ns = Club.activeNotices(t), KCLS = { '운동': 'k-run', '행사': 'k-ev', '규칙': 'k-rule' };
+    if (ns.length) out += '<h2 class="home-h">진행 중인 공지 <span class="small muted">누르면 밴드 원문</span></h2><div class="card hm-notices">' + ns.map(function (x) {
+      return bandLink(x.post, 'hm-n', '<span class="chip ' + (KCLS[x.kind] || 'k-rule') + '">' + esc(x.kind) + '</span><span class="hm-nt"><b>' + esc(x.title) + '</b>' +
+        (x.sub ? '<small>' + esc(x.sub) + '</small>' : '') + '</span><span class="hm-go" aria-hidden="true">›</span>');
+    }).join('') + '</div>';
+    var up = Club.upcoming(t, L.seasonDays(work.settings), Club.EVENTS, 4);
     if (up.length) {
-      out += '<h2 class="home-h">다가오는 일정</h2><div class="card sched">' + up.map(function (d) {
-        var p = d.split('-'), last = d === h.last;
-        return '<div class="sch-row"><span class="sch-d"><b class="num">' + (+p[2]) + '</b><small>' + (+p[1]) + '월 수</small></span>' +
-          '<span class="sch-t"><b>' + (last ? '다승왕전 시즌 마지막 주' : '다승왕전 매칭데이') + '</b><small>' + (d === t ? '오늘' : md(d)) + ' · 17:30</small></span><span class="chip sch-chip">다승왕</span></div>';
+      out += '<h2 class="home-h">다가오는 일정</h2><div class="card sched">' + up.map(function (u) {
+        var p = u.date.split('-'), ev = u.kind === 'event' ? u.ev : null, last = !ev && u.date === h.last;
+        var dl = (+p[1]) + '월' + (ev && ev.noDow ? '' : ' ' + dowOf(u.date));
+        var title = ev ? esc(ev.name) : (last ? '다승왕전 시즌 마지막 주' : '다승왕전 매칭데이');
+        var sub = (u.date === t ? '오늘' : md(u.date)) + ' · ' + (ev ? esc(ev.place) : '17:30');
+        return '<div class="sch-row"><span class="sch-d"><b class="num">' + (+p[2]) + '</b><small>' + dl + '</small></span>' +
+          '<span class="sch-t"><b>' + title + '</b><small>' + sub + '</small></span><span class="chip sch-chip' + (ev ? ' k-ev' : '') + '">' + (ev ? esc(ev.short) : '다승왕') + '</span></div>';
       }).join('') + '</div>';
     }
     return out;

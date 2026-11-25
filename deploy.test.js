@@ -611,6 +611,21 @@ test('하단 탭(.bnav)에 가려지는 고정 버튼 없음: 예측 하기(.pla
     assert.ok(/bottom: calc\(60px \+ env\(safe-area-inset-bottom, 0px\)\)/.test(r), sel + '가 하단 탭 뒤(bottom: 0)에 깔림');
   }
 });
+test('클럽 홈: 참가 신청은 예시 + 밴드 안내, 진행 중 공지·행사(청백전·뚠뚠배)·일정은 club.js에서 (2026-11-25)', () => {
+  execFileSync(process.execPath, [path.join(__dirname, 'build.js')], { stdio: 'pipe' });
+  const html = fs.readFileSync(path.join(__dirname, 'dist', 'index.html'), 'utf8');
+  const ic = html.indexOf('<script id="app-club">'), ia = html.indexOf('<script id="app-js">');
+  assert.ok(ic > 0 && ic < ia, 'club.js가 app.js보다 먼저 들어가야 함');
+  const home = appSrc.match(/function viewHome\(\) \{[\s\S]*?\n  \}\n/);
+  assert.ok(home, 'viewHome 없음');
+  const h = home[0];
+  assert.ok(/Club\.currentSignup\(/.test(h) && /Club\.activeNotices\(/.test(h) && /Club\.upcoming\(/.test(h) && /Club\.EVENTS/.test(h), 'club.js 데이터를 안 씀');
+  assert.ok(/예시/.test(h) && /밴드 참가신청서/.test(h), '참가 신청이 예시이고 밴드에서 한다는 안내 없음');
+  assert.ok(!/data-act="(join|apply|signup)/.test(h), '홈에 앱 신청 버튼이 있으면 안 됨(아직 밴드에서)');
+  const bl = appSrc.match(/function bandLink\([^)]*\) \{[^\n]*\}/);
+  assert.ok(bl && /target="_blank" rel="noopener"/.test(bl[0]) && /bandLink\(/.test(h), '밴드 링크는 새 창(bandLink)으로');
+  assert.ok(/data-act="tab" data-v="week"/.test(h), '다승왕전 카드(→ 이번 주) 그대로');
+});
 test('service worker: index.html network-first, supabase는 캐시 안 함', () => {
   const sw = fs.readFileSync(path.join(__dirname, 'dist', 'sw.js'), 'utf8');
   const cached = [];
