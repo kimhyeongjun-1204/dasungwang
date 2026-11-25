@@ -1090,6 +1090,8 @@ test('club.js 데이터: 진행 중 공지마다 밴드 글 번호, 2025년 비�
   CL.NOTICES.forEach(n => { assert.ok(n.post > 0 && n.kind && n.title, '공지 항목 모양: ' + JSON.stringify(n)); });
   assert.ok(CL.activeNotices('2026-11-25', CL.NOTICES).every(n => !/2025|비상연락망/.test(n.title)));
   assert.ok(/^https:\/\/band\.us\/band\/\d+$/.test(CL.BAND), '밴드 주소');
+  const cb = CL.EVENTS.filter(e => e.short === '청백전')[0];
+  assert.ok(cb && cb.date === '2026-11-27' && new Date(cb.date + 'T00:00:00Z').getUTCDay() === 5 && !cb.noDow, '청백전은 11/27(금) (사용자 확인 2026-11-25)');
 });
 
 console.log(`\n${passed} passed`);
