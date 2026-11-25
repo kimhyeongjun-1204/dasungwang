@@ -170,19 +170,18 @@
       '<span class="tagline">이기면 <b>지옥도</b>, 지면 천국도!</span></div>' +
       '<span class="hero-side hell" aria-hidden="true">지옥도</span><span class="hero-side heaven" aria-hidden="true">천국도</span></header>' +
       '<div class="season"><span class="season-label">시즌 진행</span><div class="season-bar" aria-label="시즌 진행 ' + done + '/' + ds.length + '주">' + bar + '</div><span class="season-txt num">' + md(ds[0]) + '–' + md(ds[ds.length - 1]) + ' · ' + done + '/' + ds.length + '주 완료</span></div>' +
-      // 다승왕전 안쪽 탭 (내 기록·관리는 하단 탭으로, 2026-11-24 클럽 홈 틀)
-      '<nav class="tabs" role="tablist">' + [['week', '이번 주'], ['rank', '순위'], ['plan', '예측']].map(function (t) {
-        return '<button role="tab" data-act="tab" data-v="' + t[0] + '" aria-selected="' + (ui.tab === t[0]) + '">' + t[1] + '</button>';
+      // 다승왕전 안쪽 탭: 예전처럼 내 기록·관리도 여기 (2026-11-25 사용자 요청으로 하단 탭에서 되돌림)
+      '<nav class="tabs" role="tablist">' + [['week', '이번 주'], ['rank', '순위'], ['plan', '예측'], ['me', '내 기록'], ['admin', '관리']].map(function (t) {
+        return '<button role="tab" data-act="tab" data-v="' + t[0] + '" aria-selected="' + (ui.tab === t[0]) + '">' + t[1] + (t[0] === 'admin' && !ui.admin && !ui.op ? ' <span class="lock">PIN</span>' : '') + '</button>';
       }).join('') + '</nav>';
   }
 
-  // ---- 클럽 홈 틀 (2026-11-24): 하단 탭 홈·기록·내 기록·관리. 다승왕전·뚱뚱배는 홈의 카드로 들어감 ----
-  var DSW_TABS = ['week', 'rank', 'plan'];
+  // ---- 클럽 홈 틀: 하단 탭 홈·다승왕·기록 (2026-11-25: 내 기록·관리는 다승왕 안쪽 탭으로 되돌림) ----
+  var DSW_TABS = ['week', 'rank', 'plan', 'me', 'admin'];
   function bottomNav() {
-    var on = DSW_TABS.indexOf(ui.tab) >= 0 ? 'home' : ui.tab;
-    return '<nav class="bnav" aria-label="메뉴"><div class="in">' + [['home', '홈', '🏠'], ['records', '기록', '🏆'], ['me', '내 기록', '📋'], ['admin', '관리', '⚙️']].map(function (t) {
-      return '<button data-act="tab" data-v="' + t[0] + '"' + (on === t[0] ? ' aria-current="page"' : '') + '><i aria-hidden="true">' + t[2] + '</i>' + t[1] +
-        (t[0] === 'admin' && !ui.admin && !ui.op ? '<span class="lock">PIN</span>' : '') + '</button>';
+    var on = DSW_TABS.indexOf(ui.tab) >= 0 ? 'week' : ui.tab;
+    return '<nav class="bnav" aria-label="메뉴"><div class="in">' + [['home', '홈', '🏠'], ['week', '다승왕', '🐷'], ['records', '기록', '🏆']].map(function (t) {
+      return '<button data-act="tab" data-v="' + t[0] + '"' + (on === t[0] ? ' aria-current="page"' : '') + '><i aria-hidden="true">' + t[2] + '</i>' + t[1] + '</button>';
     }).join('') + '</div></nav>';
   }
   function clubBar(title) {
@@ -1610,7 +1609,7 @@
     var focusId = document.activeElement && document.activeElement.id;
     SN = null;   // 명단이 바뀌었을 수 있으니 그릴 때마다 다시
     var main = ui.tab === 'home' ? viewHome() : ui.tab === 'records' ? viewRecords() : ui.tab === 'rank' ? viewRank() : ui.tab === 'plan' ? viewPredict() : ui.tab === 'me' ? viewMe() : ui.tab === 'admin' ? viewAdmin() : viewWeek();
-    var top = DSW_TABS.indexOf(ui.tab) >= 0 ? header() : clubBar({ home: '', records: '🏆 기록 보관소', me: '📋 내 기록', admin: '⚙️ 관리' }[ui.tab] || '');
+    var top = DSW_TABS.indexOf(ui.tab) >= 0 ? header() : clubBar({ home: '', records: '🏆 기록 보관소' }[ui.tab] || '');
     var html = top + '<main>' + saveBar() + main + '</main>' + bottomNav();
     if (dirty() || ui.busy && ui.busy.indexOf('편성') !== 0) {
       html += '<div class="savebar" role="region" aria-label="저장"><div class="in"><span>' + esc(ui.busy || '저장 안 된 변경이 있어요') + '</span>' +
