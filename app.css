@@ -50,7 +50,7 @@
 }
 * { box-sizing: border-box; }
 body { background: var(--bg); color: var(--text); font-family: var(--font); font-size: var(--fs-body); line-height: 1.55; -webkit-text-size-adjust: 100%; }
-#app { max-width: 720px; margin: 0 auto; padding-inline: 16px; padding-block: 12px 128px; }
+#app { max-width: 720px; margin: 0 auto; padding-inline: 16px; padding-block: 12px 150px; }
 button, input, select, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; }
 :focus-visible { outline: 2px solid var(--heaven); outline-offset: 2px; }
@@ -547,7 +547,7 @@ p .crown { margin-right: 2px; }
   @keyframes feed-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
 }
 /* 하단 고정 바 (내 예측 하기 / 제출) */
-.plan-cta { position: fixed; left: 0; right: 0; bottom: 0; z-index: 9; padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px)); background: linear-gradient(180deg, rgb(244 247 252 / 0), var(--bg) 30%); }
+.plan-cta { position: fixed; left: 0; right: 0; bottom: calc(60px + env(safe-area-inset-bottom, 0px)); z-index: 9; padding: 10px 16px; background: linear-gradient(180deg, rgb(244 247 252 / 0), var(--bg) 30%); }
 .plan-cta .in { max-width: 688px; margin: 0 auto; display: grid; gap: 8px; }
 .plan-cta .btn.primary { min-height: 52px; font-size: 17px; gap: 8px; box-shadow: 0 4px 14px rgb(32 38 79 / .15); }
 .plan-cta .btn small { font-size: 13px; font-weight: 500; }

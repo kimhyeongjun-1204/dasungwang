@@ -600,6 +600,17 @@ test('앱을 열 때: 경기날이면 바로 이번 주(그날), 왼쪽 위 ‹ 
   assert.ok(/if \(ui\.tab === 'week' && seasonDates\(\)\.indexOf\(todayKST\(\)\) >= 0\) ui\.week = todayKST\(\)/.test(st[0]), '경기날 이번 주가 오늘 날짜가 아님');
   assert.ok(/class="back-home" data-act="tab" data-v="home"/.test(appSrc), '다승왕 화면 왼쪽 위 ‹ 홈 없음');
 });
+test('하단 탭(.bnav)에 가려지는 고정 버튼 없음: 예측 하기(.plan-cta)·저장 막대는 탭 위에 (2026-11-25 회귀)', () => {
+  const css = fs.readFileSync(path.join(__dirname, 'app.css'), 'utf8');
+  const rule = sel => (css.match(new RegExp('\\n' + sel.replace('.', '\\.') + ' \\{([^}]*)\\}')) || [])[1] || '';
+  const nav = rule('.bnav');
+  assert.ok(/bottom: 0/.test(nav) && /height: 60px/.test(rule('.bnav button')), '하단 탭 높이 60px 가정이 바뀜');
+  for (const sel of ['.plan-cta', '.savebar']) {
+    const r = rule(sel);
+    assert.ok(/position: fixed/.test(r), sel + ' 규칙 없음');
+    assert.ok(/bottom: calc\(60px \+ env\(safe-area-inset-bottom, 0px\)\)/.test(r), sel + '가 하단 탭 뒤(bottom: 0)에 깔림');
+  }
+});
 test('service worker: index.html network-first, supabase는 캐시 안 함', () => {
   const sw = fs.readFileSync(path.join(__dirname, 'dist', 'sw.js'), 'utf8');
   const cached = [];
