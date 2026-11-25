@@ -372,14 +372,18 @@ test('CI: 뚱뚱배 순수 함수 테스트(tourney.test.js)도 통과해야 배
   const wf = fs.readFileSync(path.join(__dirname, '.github', 'workflows', 'pages.yml'), 'utf8');
   assert.ok(/run: node tourney\.test\.js/.test(wf), 'CI에서 tourney.test.js를 안 돌림');
 });
-test('클럽 홈 틀: 하단 탭 홈·기록·내 기록·관리, 다승왕전은 홈 카드로 들어가고 안쪽 탭은 이번 주·순위·예측 (2026-11-24)', () => {
+test('클럽 홈 틀: 하단 탭 홈·다승왕·기록, 다승왕전 안쪽 탭은 예전처럼 이번 주·순위·예측·내 기록·관리 (2026-11-24, 2026-11-25 사용자 요청으로 내 기록·관리 되돌림)', () => {
   const nav = appSrc.match(/function bottomNav\(\) \{[\s\S]*?\n  \}\n/);
   assert.ok(nav, '하단 탭(bottomNav) 없음');
-  for (const v of ['home', 'records', 'me', 'admin']) assert.ok(new RegExp("\\['" + v + "', '").test(nav[0]), '하단 탭에 ' + v + ' 없음');
+  assert.ok(/\[\['home', '홈', [^\]]*\], \['week', '다승왕', [^\]]*\], \['records', '기록', [^\]]*\]\]/.test(nav[0]), '하단 탭은 홈·다승왕·기록 세 개');
+  assert.ok(!/\['me', '내 기록'/.test(nav[0]) && !/\['admin', '관리'/.test(nav[0]), '내 기록·관리는 하단 탭이 아니라 다승왕 안쪽 탭');
   const hd = appSrc.match(/function header\(\) \{[\s\S]*?\n  \}\n/)[0];
-  assert.ok(/\['week', '이번 주'\], \['rank', '순위'\], \['plan', '예측'\]\]/.test(hd), '다승왕전 안쪽 탭은 이번 주·순위·예측 세 개');
-  assert.ok(!/\['me', '내 기록'\]/.test(hd) && !/\['admin', '관리'\]/.test(hd), '내 기록·관리는 하단 탭으로 옮김');
+  assert.ok(/\[\['week', '이번 주'\], \['rank', '순위'\], \['plan', '예측'\], \['me', '내 기록'\], \['admin', '관리'\]\]/.test(hd), '다승왕전 안쪽 탭은 이번 주·순위·예측·내 기록·관리');
+  assert.ok(/t\[0\] === 'admin' && !ui\.admin && !ui\.op \? ' <span class="lock">PIN<\/span>'/.test(hd), '관리 탭 PIN 표시');
+  assert.ok(/var DSW_TABS = \['week', 'rank', 'plan', 'me', 'admin'\];/.test(appSrc), '내 기록·관리도 다승왕 화면(헤더) 안');
   assert.ok(/data-act="tab" data-v="home"[^>]*>‹ 홈/.test(hd), '다승왕전 화면에서 홈으로 돌아가는 버튼 없음');
+  const css = fs.readFileSync(path.join(__dirname, 'app.css'), 'utf8');
+  assert.ok(/\.tabs \{[^}]*grid-template-columns: repeat\(5, 1fr\)/.test(css), '안쪽 탭 5칸');
   const home = appSrc.match(/function viewHome\(\) \{[\s\S]*?\n  \}\n/);
   assert.ok(home && /L\.homeSummary\(/.test(home[0]) && /data-act="tab" data-v="week"/.test(home[0]), '홈에 다승왕전 카드(→ 이번 주) 없음');
   assert.ok(/function viewRecords\(\) \{/.test(appSrc), '기록 탭 화면 없음');
