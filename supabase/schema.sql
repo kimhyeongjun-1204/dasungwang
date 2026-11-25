@@ -1047,3 +1047,68 @@ create or replace function public.workout_defaults() returns jsonb
 language sql stable security definer set search_path = public as $$
   select coalesce(jsonb_agg(cap order by dow), '[]'::jsonb) from public.workout_default;
 $$;
+-- ============================================================
+-- 공지 (2026-11-25): 돼장·도우미가 앱에서 쓰는 클럽 공지. 첫 줄이 제목
+--   읽기: notices_list() — 누구나, 지운 공지 빼고 최근 순 100개
+--   쓰기: notice_save(token, id|null, 종류, 본문, 중요 공지, 고정 기한) / notice_delete(token, id) — 돼장·도우미 세션만
+--   표는 익명·로그인 사용자 모두 직접 접근 불가(함수로만)
+-- ============================================================
+create table if not exists public.notices (
+  id bigint generated always as identity primary key,
+  kind text not null check (kind in ('운동', '행사', '규칙', '결과·소식')),
+  body text not null check (char_length(body) between 1 and 4000),
+  pinned boolean not null default false,
+  pin_until date,
+  author text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  deleted_at timestamptz
+);
+alter table public.notices enable row level security;
+revoke all on public.notices from public, anon, authenticated;
+
+create or replace function public.notices_list()
+returns table (id bigint, kind text, body text, pinned boolean, pin_until date, created_at timestamptz, updated_at timestamptz)
+language sql stable security definer set search_path = public as $$
+  select n.id, n.kind, n.body, n.pinned, n.pin_until, n.created_at, n.updated_at
+  from public.notices n where n.deleted_at is null
+  order by n.created_at desc, n.id desc limit 100;
+$$;
+
+create or replace function public.notice_save(token uuid, p_id bigint, p_kind text, p_body text, p_pinned boolean, p_pin_until date)
+returns bigint
+language plpgsql security definer set search_path = public as $$
+declare
+  role text := public.live_check(token);
+  b text := btrim(coalesce(p_body, ''));
+  nid bigint;
+begin
+  if role is null or role not in ('admin', 'operator') then raise exception 'unauthorized'; end if;
+  if p_kind is null or p_kind not in ('운동', '행사', '규칙', '결과·소식') then raise exception 'bad_kind'; end if;
+  if char_length(b) = 0 or char_length(b) > 4000 then raise exception 'bad_body'; end if;
+  if p_id is null then
+    insert into public.notices (kind, body, pinned, pin_until, author)
+    values (p_kind, b, coalesce(p_pinned, false), case when p_pinned then p_pin_until end, role)
+    returning id into nid;
+  else
+    update public.notices n set kind = p_kind, body = b, pinned = coalesce(p_pinned, false),
+      pin_until = case when p_pinned then p_pin_until end, updated_at = now()
+    where n.id = p_id and n.deleted_at is null
+    returning n.id into nid;
+    if nid is null then raise exception 'not_found'; end if;
+  end if;
+  return nid;
+end $$;
+
+create or replace function public.notice_delete(token uuid, p_id bigint) returns boolean
+language plpgsql security definer set search_path = public as $$
+declare role text := public.live_check(token);
+begin
+  if role is null or role not in ('admin', 'operator') then raise exception 'unauthorized'; end if;
+  update public.notices n set deleted_at = now() where n.id = p_id and n.deleted_at is null;
+  if not found then raise exception 'not_found'; end if;
+  return true;
+end $$;
+
+revoke all on function public.notices_list(), public.notice_save(uuid, bigint, text, text, boolean, date), public.notice_delete(uuid, bigint) from public;
+grant execute on function public.notices_list(), public.notice_save(uuid, bigint, text, text, boolean, date), public.notice_delete(uuid, bigint) to anon, authenticated;

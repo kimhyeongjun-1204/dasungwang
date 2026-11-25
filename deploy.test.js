@@ -706,6 +706,21 @@ test('schema.sql 운동 신청: 표는 아무도 못 읽고 명단은 signups_li
   assert.ok(/values \(1, 24\), \(2, 18\), \(3, 24\), \(4, 18\), \(5, 24\)/.test(sql));
   assert.ok(/pg_advisory_xact_lock\(hashtext\('signup:' \|\| d\)\)/.test(sql), '같은 날 동시 신청은 차례대로');
 });
+test('앱 공지: 돼장·도우미만 쓰기(밴드 글쓰기처럼), 홈 진행 중인 공지에 앱 공지 먼저 (2026-11-25)', () => {
+  const rm = fs.readFileSync(path.join(__dirname, 'remote.js'), 'utf8');
+  assert.ok(/noticesList: function \(\) \{ return rpc\('notices_list', \{\}\)/.test(rm), 'remote.noticesList 없음');
+  assert.ok(/noticeSave: function \(token, id, kind, body, pinned, until\) \{ return rpc\('notice_save', \{ token: token, p_id: id, p_kind: kind, p_body: body, p_pinned: pinned, p_pin_until: until \}\)/.test(rm), 'remote.noticeSave 인자');
+  assert.ok(/noticeDelete: function \(token, id\) \{ return rpc\('notice_delete', \{ token: token, p_id: id \}\)/.test(rm), 'remote.noticeDelete 없음');
+  const home = appSrc.match(/function viewHome\(\) \{[\s\S]*?\n  \}\n/)[0];
+  assert.ok(/Club\.homeNotices\(/.test(home), '홈이 앱 공지를 안 보여 줌');
+  assert.ok(/\(ui\.admin \|\| ui\.op\) \? '<button class="btn sm primary nw-open" data-act="nw-open">/.test(home), '홈 공지 쓰기 버튼은 돼장·도우미만');
+  const sh = appSrc.match(/function noticeSheet\(\) \{[\s\S]*?\n  \}\n/);
+  assert.ok(sh, '공지 쓰기 화면(noticeSheet) 없음');
+  for (const w of ['새로운 소식을 남겨보세요.', '자주 쓰는 글', 'data-act="nw-tpl"', 'data-act="nw-kind"', 'id="nw-pin"', 'id="nw-until"', 'data-act="nw-post"', '첫 줄이 공지 목록의 제목']) assert.ok(sh[0].includes(w), '공지 쓰기 화면에 ' + w + ' 없음');
+  assert.ok(/html \+= noticeSheet\(\);/.test(appSrc), 'render가 공지 화면을 안 붙임');
+  assert.ok(/remote\.noticeSave\(token, /.test(appSrc) && /remote\.noticeDelete\(token, /.test(appSrc), '게시·지우기가 서버 함수를 안 부름');
+  assert.ok(/data-act="nw-open"/.test(appSrc.match(/function viewAdmin\(\) \{[\s\S]*?\n  \}\n/)[0]), '관리 화면에도 공지 쓰기');
+});
 test('service worker: index.html network-first, supabase는 캐시 안 함', () => {
   const sw = fs.readFileSync(path.join(__dirname, 'dist', 'sw.js'), 'utf8');
   const cached = [];

@@ -162,6 +162,12 @@ const vapid = (() => {
 })();
 const pushDb = { subs: new Map(), log: new Set() };  // endpoint → {player_id, p256dh, auth}
 const isOp = t => db.sessions.has(t) || db.ops.has(t);
+const N = { id: 0, list: [] };
+if (process.env.MOCK_NOTICES) {
+  const t0 = new Date(now() - 2 * 864e5).toISOString(), t1 = new Date(now() - 3600e3).toISOString();
+  N.list.push({ id: ++N.id, kind: '규칙', body: '셔틀콕 제출 안내\n남 3개 · 여 2개 · 수지구장 레슨자 1개', pinned: false, pin_until: null, created_at: t0, updated_at: t0 });
+  N.list.push({ id: ++N.id, kind: '행사', body: '🏸 청백전 & 치킨데이\n11.27(금) 성남오리초\n끝나고 자담치킨!', pinned: true, pin_until: '2026-11-27', created_at: t1, updated_at: t1 });
+}
 const RPC = {
   push_subscribe: (a, res) => {
     if (!(db.state.players || []).some(p => p.id === a.p_player && p.active !== false)) return fail(res, 'bad_player');
@@ -288,6 +294,18 @@ const RPC = {
   // ---- 진행 PIN (schema.sql operator_login / live_check / set_operator_pin / live_action 흉내, 만료 시각은 생략) ----
   operator_login: (a, res) => { if (!db.opPin) return fail(res, 'no_op_pin'); if (a.pin !== db.opPin) return send(res, 200, 'null'); const t = crypto.randomUUID(); db.ops.add(t); send(res, 200, JSON.stringify(t)); },
   live_check: (a, res) => send(res, 200, JSON.stringify(db.sessions.has(a.token) ? 'admin' : db.ops.has(a.token) ? 'operator' : null)),
+  // ---- 공지 (schema.sql notices_list / notice_save / notice_delete 흉내). MOCK_NOTICES=1이면 예시 공지 2개로 시작 ----
+  notices_list: (a, res) => send(res, 200, JSON.stringify(N.list.filter(n => !n.deleted).sort((x, y) => (x.created_at < y.created_at ? 1 : x.created_at > y.created_at ? -1 : y.id - x.id)).slice(0, 100).map(({ deleted, author, ...n }) => n))),
+  notice_save: (a, res) => {
+    if (!isOp(a.token)) return fail(res, 'unauthorized');
+    if (!['운동', '행사', '규칙', '결과·소식'].includes(a.p_kind)) return fail(res, 'bad_kind');
+    const b = String(a.p_body || '').trim(); if (!b || b.length > 4000) return fail(res, 'bad_body');
+    const t = new Date(now()).toISOString();
+    if (a.p_id == null) { const n = { id: ++N.id, kind: a.p_kind, body: b, pinned: !!a.p_pinned, pin_until: a.p_pinned ? a.p_pin_until || null : null, created_at: t, updated_at: t }; N.list.push(n); return send(res, 200, String(n.id)); }
+    const n = N.list.find(x => x.id === +a.p_id && !x.deleted); if (!n) return fail(res, 'not_found');
+    Object.assign(n, { kind: a.p_kind, body: b, pinned: !!a.p_pinned, pin_until: a.p_pinned ? a.p_pin_until || null : null, updated_at: t }); send(res, 200, String(n.id));
+  },
+  notice_delete: (a, res) => { if (!isOp(a.token)) return fail(res, 'unauthorized'); const n = N.list.find(x => x.id === +a.p_id && !x.deleted); if (!n) return fail(res, 'not_found'); n.deleted = true; send(res, 200, 'true'); },
   set_operator_pin: (a, res) => {
     if (!db.sessions.has(a.token)) return fail(res, 'unauthorized');
     if (a.new_pin != null && !/^\d{4}$/.test(a.new_pin)) return fail(res, 'bad_new_pin');

@@ -1151,5 +1151,30 @@ test('signupDay: 신청 완료·대기 수, 남은 자리, 내 상태(본인·�
   assert.strictEqual(c.mine, null);
   assert.deepStrictEqual(L.signupDay(Object.assign({}, row, { cap: 5 }), 'a').left, 3);
 });
+// ---- 앱 공지 (2026-11-25): 제목(첫 줄), 홈에 보일 공지(중요 공지 기한·최근 14일), 자주 쓰는 글 ----
+test('noticeTitle: 첫 줄(빈 줄 건너뜀), 60자 넘으면 자름', () => {
+  const f = needC('noticeTitle');
+  assert.strictEqual(f('\n  11.30~12.4 배드민턴위크 🏸 \n둘째 줄'), '11.30~12.4 배드민턴위크 🏸');
+  assert.strictEqual(f('가'.repeat(70)).length, 61, '60자 + …');
+  assert.strictEqual(f(''), '(제목 없음)');
+});
+test('homeNotices: 기한 안 지난 중요 공지 먼저, 그다음 최근 14일 공지(최근 순), 지난 중요 공지는 일반으로', () => {
+  const list = [
+    { id: 1, body: 'a', pinned: true, pin_until: '2026-12-04', created_at: '2026-11-20T01:00:00Z' },
+    { id: 2, body: 'b', pinned: false, pin_until: null, created_at: '2026-11-24T01:00:00Z' },
+    { id: 3, body: 'c', pinned: false, pin_until: null, created_at: '2026-11-01T01:00:00Z' },
+    { id: 4, body: 'd', pinned: true, pin_until: '2026-11-20', created_at: '2026-11-15T01:00:00Z' },
+    { id: 5, body: 'e', pinned: true, pin_until: null, created_at: '2026-10-01T01:00:00Z' }
+  ];
+  const r = needC('homeNotices')('2026-11-25', list);
+  assert.deepStrictEqual(r.map(n => n.id + (n.pin ? 'P' : '')), ['1P', '5P', '2', '4']);
+});
+test('weekTemplate: 오늘 다음 월~금 배드민턴위크 글, 운동 · 중요 공지 · 금요일까지', () => {
+  const t = needC('weekTemplate')('2026-11-25');
+  assert.strictEqual(t.kind, '운동');
+  assert.ok(t.pinned && t.until === '2026-12-04', JSON.stringify(t));
+  assert.ok(/^11\.30\(월\)~12\.4\(금\) 배드민턴위크/.test(t.body) && /밴드 참가신청서/.test(t.body), t.body);
+  assert.strictEqual(CL.weekTemplate('2026-11-29').until, '2026-12-04', '일요일엔 바로 다음 날 시작하는 주');
+});
 
 console.log(`\n${passed} passed`);
