@@ -569,6 +569,12 @@ test('앱 알림 안내(안드로이드)에서 사진 안내 guide.html로 가�
   const gd = appSrc.match(/function pushGuide\(\) \{[\s\S]*?\n  \}\n/);
   assert.ok(gd && /href="guide\.html"/.test(gd[0]), 'pushGuide에 guide.html 링크 없음');
 });
+test('알림 카드 "카톡처럼 화면 위에 뜨게 하려면?" → 안드로이드는 사진 안내 guide.html을 바로 엶, 아이폰만 앱 안 글 안내 (2026-11-25)', () => {
+  const c = appSrc.match(/function pushCard\(short\) \{[\s\S]*?\n  \}\n/);
+  assert.ok(c, 'pushCard 없음');
+  assert.ok(/<a [^>]*href="guide\.html"[^>]*>카톡처럼 화면 위에 뜨게 하려면\?<\/a>/.test(c[0]), '안드로이드 링크가 guide.html로 바로 가지 않음');
+  assert.ok(/push\.ios \? '<button[^']*data-act="push-help"/.test(c[0]), '아이폰은 앱 안 안내(push-help)로');
+});
 test('service worker: index.html network-first, supabase는 캐시 안 함', () => {
   const sw = fs.readFileSync(path.join(__dirname, 'dist', 'sw.js'), 'utf8');
   const cached = [];
