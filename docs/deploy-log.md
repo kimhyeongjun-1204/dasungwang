@@ -1480,3 +1480,17 @@ $ (구현 뒤) logic 136 · deploy 57 · tourney 17 · push 5 passed
   - 11/25, 처음 여는 사람 → 같음
   - 11/26, 마지막 탭 홈 → 클럽 홈 / 마지막 탭 기록 → 기록
   - 페이지 오류 없음
+
+## 66. 예측 탭 '내 예측 하기' 버튼이 하단 탭 뒤에 깔림 — 고침 (브랜치 fix/plan-cta-above-nav, 2026-11-25)
+- 신고(김형준 2026-11-25 12:51, 경기날): 예측 버튼이 사라짐
+- 원인: #23에서 하단 탭(.bnav, bottom: 0, z-index 9)을 넣을 때 .plan-cta(bottom: 0, z-index 9)를 안 올림 → CSS 뒤에 나오는 .bnav가 위에 그려져 버튼을 덮음 (오답 노트 27)
+- 고침: .plan-cta를 bottom: calc(60px + safe-area)로, 본문 아래 여백 128 → 150px (버튼 + 탭 높이만큼)
+```
+$ node deploy.test.js   (테스트 먼저)
+  FAIL 하단 탭(.bnav)에 가려지는 고정 버튼 없음 … → .plan-cta가 하단 탭 뒤(bottom: 0)에 깔림
+$ (고친 뒤) deploy 58 · logic 136 · tourney 17 · push 5 passed
+```
+- 가짜 서버(MOCK_DEMO + MOCK_TODAY: 편성 공개된 주를 오늘로), 브라우저 시계 11/25 12:55, 예측 탭:
+  - main 빌드: 360·1024px 모두 버튼 가운데를 찍으면 .bnav (버튼 아래 750px, 탭 위 699px) → 재현
+  - 고친 빌드: 360·1024px 모두 버튼이 맨 위(버튼 아래 690px), 눌러서 예측 화면(.pe-head) 열림, 페이지 오류 없음
+- 사진: docs/screenshots/plan-cta/before_after_360.jpg
