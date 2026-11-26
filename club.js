@@ -4,6 +4,8 @@
 var Club = (function () {
   'use strict';
   var BAND = 'https://band.us/band/86304160';
+  // 채팅은 밴드에서 (돼장 2026-11-26). 채팅방 주소(/chat/방ID)는 PC 웹에서만 열리고 휴대폰에서는 '참여할 수 없는 채팅방'이라 밴드 홈으로 연결
+  var CHAT = BAND;
 
   // kind: 운동 / 행사 / 규칙. until: 이 날까지 보임(null = 늘 보임). from: 이 날부터 보임
   var NOTICES = [
@@ -43,6 +45,6 @@ var Club = (function () {
   }
   function postUrl(post) { return BAND + '/post/' + post; }
 
-  return { BAND: BAND, NOTICES: NOTICES, SIGNUPS: SIGNUPS, EVENTS: EVENTS, activeNotices: activeNotices, currentSignup: currentSignup, upcoming: upcoming, postUrl: postUrl };
+  return { BAND: BAND, CHAT: CHAT, NOTICES: NOTICES, SIGNUPS: SIGNUPS, EVENTS: EVENTS, activeNotices: activeNotices, currentSignup: currentSignup, upcoming: upcoming, postUrl: postUrl };
 })();
 if (typeof module !== 'undefined') module.exports = Club;
