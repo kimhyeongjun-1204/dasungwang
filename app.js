@@ -202,7 +202,7 @@
     if (!remote || !remote.noticesList) return;
     remote.noticesList().then(function (list) { notices.list = list; notices.err = false; render(); }, function () { notices.err = true; render(); });
   }
-  function nwFrom(t) { return { id: null, kind: t.kind, body: t.body, pinned: !!t.pinned, until: t.until || '', tplBody: t.body, armed: null, busy: false, err: '' }; }
+  function nwFrom(t) { return { id: null, kind: t.kind, body: t.body, pinned: !!t.pinned, until: t.until || '', tplBody: t.body, armed: null, busy: false, err: '', push: true }; }
   function noticeSheet() {
     var n = ui.nw;
     if (!n) return noticeDetail();
@@ -220,10 +220,11 @@
       '<p class="small muted">첫 줄이 공지 목록의 제목이 돼요.</p>' +
       '<div class="card nw-opts"><label class="nw-opt" for="nw-pin"><span><b>중요 공지 (맨 위 고정)</b><small>기한이 지나면 자동으로 풀려요</small></span>' +
       '<input type="checkbox" id="nw-pin" data-act="nw-pin"' + (n.pinned ? ' checked' : '') + '></label>' +
+      (n.id ? '' : '<label class="nw-opt" for="nw-push"><span><b>회원에게 알림 보내기</b><small>알림을 켠 회원 휴대폰에 "📢 새 공지"로 떠요</small></span><input type="checkbox" id="nw-push" data-act="nw-push"' + (n.push ? ' checked' : '') + '></label>') +
       (n.pinned ? '<label class="nw-opt" for="nw-until"><span>고정 기한 <small>비우면 직접 풀 때까지</small></span><input type="date" id="nw-until" data-act="nw-until" value="' + esc(n.until || '') + '"></label>' : '') + '</div>' +
       (n.err ? '<p class="small nw-err" role="alert">' + esc(n.err) + '</p>' : '') +
       '<div class="pc-btns lv-yesno"><button class="btn primary" data-act="nw-post"' + (n.busy ? ' disabled' : '') + '>게시</button><button class="btn" data-act="nw-close">취소</button></div>' +
-      '<p class="small muted">회원 알림 보내기·사진·투표는 다음 단계에서 붙일 예정이에요.</p></div></div>';
+      '<p class="small muted">사진·투표는 다음 단계에서 붙일 예정이에요.</p></div></div>';
   }
   function noticeDetail() {
     var d = ui.nd, n = d && (notices.list || []).filter(function (x) { return String(x.id) === String(d.id); })[0];
@@ -2025,8 +2026,10 @@
         if (!ui.nw.body.trim()) { ui.nw.err = NW_ERR.bad_body; render(); break; }
         ui.nw.busy = true; ui.nw.err = ''; render();
         (function (n) {
-          remote.noticeSave(token, n.id, n.kind, n.body, n.pinned, n.pinned && n.until ? n.until : null).then(function () {
-            ui.nw = null; ui.tab = 'home'; loadNotices(); toast(n.id ? '공지를 고쳤어요.' : '공지를 올렸어요. 홈에서 보여요.');
+          remote.noticeSave(token, n.id, n.kind, n.body, n.pinned, n.pinned && n.until ? n.until : null).then(function (nid) {
+            var sendPush = !n.id && n.push && vapidKey() && nid;
+            if (sendPush) remote.notifyNotice(token, +nid).catch(function () { });
+            ui.nw = null; ui.tab = 'home'; loadNotices(); toast(n.id ? '공지를 고쳤어요.' : '공지를 올렸어요.' + (sendPush ? ' 알림도 보냈어요.' : ' 홈에서 보여요.'));
           }, function (e) { n.busy = false; n.err = NW_ERR[e && e.code] || '올리지 못했어요. 인터넷 연결을 확인하고 다시 눌러 주세요.'; render(); });
         })(ui.nw);
         break;
@@ -2206,6 +2209,7 @@
       case 'sg-adm-pick': ui.sgPick[el.getAttribute('data-v')] = el.value; break;
       case 'nw-pin': if (ui.nw) { var b0 = document.getElementById('nw-body'); if (b0) ui.nw.body = b0.value; ui.nw.pinned = el.checked; render(); } break;
       case 'nw-until': if (ui.nw) ui.nw.until = el.value; break;
+      case 'nw-push': if (ui.nw) ui.nw.push = el.checked; break;
       case 'pa-player': if (ui.pred.adm) ui.pred.adm.player = el.value; break;
       case 'pa-mode': if (ui.pred.adm) ui.pred.adm.mode = el.value; break;
       case 'pa-pick': if (ui.pred.adm) ui.pred.adm.picks[+el.getAttribute('data-i')] = el.value; break;

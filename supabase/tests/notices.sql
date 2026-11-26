@@ -41,6 +41,12 @@ select pg_temp.eq('익명 지우기 거절', $q$select public.notice_delete('444
 select pg_temp.eq('도우미 지우기', $q$select public.notice_delete('22222222-2222-2222-2222-222222222222', (select id from public.notices where kind = '규칙'))::text$q$, 'true');
 select pg_temp.eq('지운 뒤 목록 수', $q$select count(*)::text from public.notices_list()$q$, '2');
 select pg_temp.eq('지운 공지 고치기', $q$select public.notice_save('11111111-1111-1111-1111-111111111111', (select id from public.notices where kind = '규칙'), '규칙', 'x', false, null)::text$q$, 'ERR not_found');
+-- 새 공지 알림 (2026-11-26): 돼장·도우미 토큰으로 한 번만, 구독한 모든 기기, 지운 공지는 안 보냄
+insert into public.push_subs (endpoint, player_id, p256dh, auth) values ('https://push.example/a', 'a', 'K', 'A'), ('https://push.example/b', 'b', 'K', 'A');
+select pg_temp.eq('알림 대상(토큰 없이)', $q$select count(*)::text from public.notice_push_targets('44444444-4444-4444-4444-444444444444', (select id from public.notices where kind = '운동'))$q$, 'ERR unauthorized');
+select pg_temp.eq('알림 대상: 구독 기기 전부 + 제목', $q$select string_agg(replace(endpoint, 'https://push.example/', '') || ':' || title, ',' order by endpoint) from public.notice_push_targets('11111111-1111-1111-1111-111111111111', (select id from public.notices where kind = '운동'))$q$, 'a:11.30~12.4 배드민턴위크,b:11.30~12.4 배드민턴위크');
+select pg_temp.eq('같은 공지 두 번째는 없음', $q$select count(*)::text from public.notice_push_targets('22222222-2222-2222-2222-222222222222', (select id from public.notices where kind = '운동'))$q$, '0');
+select pg_temp.eq('지운 공지는 없음', $q$select count(*)::text from public.notice_push_targets('11111111-1111-1111-1111-111111111111', (select id from public.notices where kind = '규칙'))$q$, '0');
 -- 표 직접 접근은 막힘 (익명)
 set local role anon;
 select pg_temp.eq('익명 표 읽기 막힘', $q$select count(*)::text from public.notices$q$, 'ERR permission denied for table notices');

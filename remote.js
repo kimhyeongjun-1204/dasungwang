@@ -112,6 +112,7 @@ var Remote = (function () {
       adminSignupAdd: function (token, d, pid) { return rpc('admin_signup_add', { token: token, d: d, pid: pid }); },
       adminSignupRemove: function (token, d, sid) { return rpc('admin_signup_remove', { token: token, d: d, sid: sid }); },
       // 자리 나서 자동으로 들어간 사람에게 알림 (Edge Function notify kind=signup, 대상은 DB가 한 번만 꺼내 줌)
+      notifyNotice: function (token, id) { return call(client.functions.invoke('notify', { body: { kind: 'notice', token: token, id: id } })); },
       notifySignup: function () { return call(client.functions.invoke('notify', { body: { kind: 'signup' } })); },
 
       // ---- 돼블스플랜 ----

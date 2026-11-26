@@ -1112,3 +1112,25 @@ end $$;
 
 revoke all on function public.notices_list(), public.notice_save(uuid, bigint, text, text, boolean, date), public.notice_delete(uuid, bigint) from public;
 grant execute on function public.notices_list(), public.notice_save(uuid, bigint, text, text, boolean, date), public.notice_delete(uuid, bigint) to anon, authenticated;
+
+-- 새 공지 알림 (2026-11-26): 돼장·도우미가 공지를 올리며 '회원에게 알림 보내기'를 켜면 Edge Function notify(kind=notice)가 부름.
+-- 구독한 모든 기기 + 제목(첫 줄 60자). 같은 공지는 한 번만(notice_push), 지운 공지는 안 보냄
+create table if not exists public.notice_push (
+  notice_id bigint primary key,
+  at timestamptz not null default now()
+);
+alter table public.notice_push enable row level security;
+revoke all on public.notice_push from anon, authenticated;
+create or replace function public.notice_push_targets(token uuid, p_id bigint)
+returns table (endpoint text, p256dh text, auth text, title text)
+language plpgsql security definer set search_path = public as $$
+declare t text;
+begin
+  if public.live_check(token) is null then raise exception 'unauthorized'; end if;
+  select left(btrim(coalesce((select l from regexp_split_to_table(n.body, E'\n') l where btrim(l) <> '' limit 1), '')), 60) into t
+    from public.notices n where n.id = p_id and n.deleted_at is null;
+  if t is null then return; end if;
+  insert into public.notice_push (notice_id) values (p_id) on conflict do nothing;
+  if not found then return; end if;
+  return query select p.endpoint, p.p256dh, p.auth, t from public.push_subs p;
+end $$;

@@ -1173,7 +1173,7 @@ test('weekTemplate: 오늘 다음 월~금 배드민턴위크 글, 운동 · 중�
   const t = needC('weekTemplate')('2026-11-25');
   assert.strictEqual(t.kind, '운동');
   assert.ok(t.pinned && t.until === '2026-12-04', JSON.stringify(t));
-  assert.ok(/^11\.30\(월\)~12\.4\(금\) 배드민턴위크/.test(t.body) && /밴드 참가신청서/.test(t.body), t.body);
+  assert.ok(/^11\.30\(월\)~12\.4\(금\) 배드민턴위크/.test(t.body) && /참가 탭/.test(t.body) && !/밴드 참가신청서/.test(t.body), t.body);   // 2026-11-26: 신청은 앱 참가 탭
   assert.strictEqual(CL.weekTemplate('2026-11-29').until, '2026-12-04', '일요일엔 바로 다음 날 시작하는 주');
 });
 

@@ -721,6 +721,14 @@ test('앱 공지: 돼장·도우미만 쓰기(밴드 글쓰기처럼), 홈 진�
   assert.ok(/remote\.noticeSave\(token, /.test(appSrc) && /remote\.noticeDelete\(token, /.test(appSrc), '게시·지우기가 서버 함수를 안 부름');
   assert.ok(/data-act="nw-open"/.test(appSrc.match(/function viewAdmin\(\) \{[\s\S]*?\n  \}\n/)[0]), '관리 화면에도 공지 쓰기');
 });
+test('새 공지 알림: 공지 쓰기에 "회원에게 알림 보내기"(새 글 기본 켬), 올린 뒤 notify kind=notice (2026-11-26)', () => {
+  const sh = appSrc.match(/function noticeSheet\(\) \{[\s\S]*?\n  \}\n/)[0];
+  assert.ok(/id="nw-push"/.test(sh) && /회원에게 알림 보내기/.test(sh), '알림 보내기 선택');
+  assert.ok(/push: true/.test(appSrc.match(/function nwFrom\([^)]*\) \{[^\n]*\}/)[0]), '새 글은 기본으로 알림');
+  assert.ok(/remote\.notifyNotice\(token, /.test(appSrc), '올린 뒤 알림');
+  const rm = fs.readFileSync(path.join(__dirname, 'remote.js'), 'utf8');
+  assert.ok(/notifyNotice: function \(token, id\) \{ return call\(client\.functions\.invoke\('notify', \{ body: \{ kind: 'notice', token: token, id: id \} \}\)\); \}/.test(rm));
+});
 test('service worker: index.html network-first, supabase는 캐시 안 함', () => {
   const sw = fs.readFileSync(path.join(__dirname, 'dist', 'sw.js'), 'utf8');
   const cached = [];

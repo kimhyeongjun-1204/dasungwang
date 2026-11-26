@@ -71,7 +71,7 @@ var Club = (function () {
     var mon = addDays(today, ((8 - dow) % 7) || 7), fri = addDays(mon, 4);
     return {
       kind: '운동', pinned: true, until: fri,
-      body: mdw(mon) + '~' + mdw(fri) + ' 배드민턴위크 🏸\n이번 주도 다 같이 즐겁게 운동해요!\n참가 신청과 대기는 밴드 참가신청서에서 해 주세요.'
+      body: mdw(mon) + '~' + mdw(fri) + ' 배드민턴위크 🏸\n이번 주도 다 같이 즐겁게 운동해요!\n신청은 앱 참가 탭에서 해 주세요. 정원이 차면 대기 순서대로 자동으로 들어가요.'
     };
   }
   var TEMPLATES = {

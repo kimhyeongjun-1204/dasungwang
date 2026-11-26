@@ -1609,3 +1609,21 @@ $ node logic.test.js; node deploy.test.js; node push.test.mjs   (테스트 먼�
 - 고친 것(화면 확인 중): 360px에서 주 버튼 날짜가 두 줄로 깨짐 → '이번 주' / 날짜를 위아래로
 - 아직 정하지 않은 것(김형준·돼장): 신청·취소 마감 시각(지금은 당일까지 취소 가능), 게스트 규칙(지금은 회원 1명당 하루 3명, 정원에 포함)
 - 사진: docs/screenshots/signups/
+
+## 73. 공지 마무리: #29를 이관 작업 위로 옮기고 새 공지 알림 (브랜치 feat/notices-v2, #32 위에, 2026-11-26)
+- 요청(김형준 2026-11-26 17:32): 밴드 이관 3순위. #29(feat/notices, main 기준)를 #31·#32 위로 cherry-pick(69번 내용 그대로) → 충돌 6개 파일 정리
+  - app.js: 관리 메뉴(회원 + 📢 공지 쓰기 둘 다), change 핸들러(#29의 이름 고르기 'me'는 #31에서 없앴으므로 빼고 nw-pin·nw-until만), input 핸들러(비밀번호 펼침 + 공지 본문)
+  - 나머지(css·schema·테스트·이 로그)는 둘 다 덧붙인 것이라 둘 다 살림. 69번은 70번 앞에
+  - 정리하면서 테스트 두 곳의 닫는 `});`가 빠져 문법 오류 → 바로 고침(테스트 결과로 확인)
+- 새로 한 것:
+  - **새 공지 알림**: 공지 쓰기에 '회원에게 알림 보내기'(새 글은 기본 켬). 올리면 Edge Function notify(kind=notice, 돼장·도우미 토큰) → DB `notice_push_targets`가 구독한 모든 기기 + 제목(첫 줄 60자)을 돌려줌. 같은 공지는 `notice_push` 표로 한 번만, 지운 공지는 안 보냄
+  - '운동 신청 안내' 자주 쓰는 글: "밴드 참가신청서에서" → "앱 참가 탭에서 … 정원이 차면 대기 순서대로 자동으로"
+- **배포 순서**: #31 → #32 → 이 PR. 운영 DB에 schema.sql '앱 공지'와 '새 공지 알림' 부분, notify 새 코드
+```
+$ psql < supabase/tests/notices.sql   (알림 4줄 먼저 FAIL → 구현 뒤)
+  ok 25 (토큰 없이 거절, 구독 기기 a·b + 제목 '11.30~12.4 배드민턴위크', 두 번째는 0, 지운 공지 0)
+$ logic 150 · deploy 68 · tourney 17 · push 8 passed / members 43 · signups 44 · notices 25 ok, live_action·push FAIL 0
+```
+- 역검증: 한 번만 막기(notice_push) 빼기 → SQL FAIL '두 번째 2 ≠ 0', 올린 뒤 알림 호출 빼기 → deploy FAIL. 되돌리고 통과
+- 가짜 서버(MOCK_NOTICES, 로그인한 회원 기기에서 돼장 PIN) 360·1024px: 운동 신청 안내 글 → 알림 켬 기본 → 게시 → "공지를 올렸어요. 알림도 보냈어요.", 가짜 서버 '[새 공지 알림] 11.30(월)~12.4(금) 배드민턴위크 🏸' + notify 응답 ok, 홈 진행 중인 공지 맨 위, 페이지 오류 0·가로 넘침 없음
+- 사진: docs/screenshots/notices/compose_push_360.jpg

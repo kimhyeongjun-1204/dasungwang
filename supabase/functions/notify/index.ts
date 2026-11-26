@@ -1,4 +1,5 @@
 // 경기가 코트에 들어가면 그 경기 4명과, 그 경기를 예측한 사람에게 웹 푸시를 보냄 (사용자 요청 2026-11-23)
+// kind=notice (2026-11-26): 돼장·도우미가 새 공지를 올리면 구독한 모든 기기에 '📢 새 공지'(notice_push_targets, 공지마다 한 번)
 // kind=signup (2026-11-26): 운동 대기에서 자리가 나 자동으로 들어간 회원에게 '자리 났어요'. 대상은 DB 함수 signup_notices_take가 정하고 한 번만 꺼내 줌
 // 배포: Supabase 대시보드 › Edge Functions › 이름 notify 로 이 파일 붙여 넣기
 // 비밀값: VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY(웹 푸시 키, npx web-push generate-vapid-keys), VAPID_SUBJECT(사이트 주소)
@@ -99,32 +100,34 @@ export function signupMessage(t: { kind: string; day: string }) {
     : { title: w + "요일 운동 자리 났어요", body: "대기에서 신청 완료로 바뀌었어요 (" + md + ")" };
 }
 
+export function noticeMessage(t: { title: string }) { return { title: "📢 새 공지", body: t.title }; }
+
 type Deps = { fetch: typeof fetch; env: Record<string, string | undefined>; now: number };
 export async function handle(req: Request, deps: Deps): Promise<Response> {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   let body: Record<string, unknown> = {};
   try { body = await req.json(); } catch { /* 아래에서 거절 */ }
-  const token = body.token, week = body.week, match = body.match, isSignup = body.kind === "signup";
-  if (!isSignup && (typeof token !== "string" || typeof week !== "string" || typeof match !== "string")) return reply({ ok: false, code: "bad_request" });
+  const token = body.token, week = body.week, match = body.match, isSignup = body.kind === "signup", isNotice = body.kind === "notice", nid = body.id;
+  if (isNotice ? (typeof token !== "string" || typeof nid !== "number") : !isSignup && (typeof token !== "string" || typeof week !== "string" || typeof match !== "string")) return reply({ ok: false, code: "bad_request" });
   const env = deps.env;
   if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY || !env.SUPABASE_URL) return reply({ ok: false, code: "no_vapid" });
   const vapid = { publicKey: env.VAPID_PUBLIC_KEY, privateKey: env.VAPID_PRIVATE_KEY, subject: env.VAPID_SUBJECT || "https://kimhyeongjun-1204.github.io/dasungwang/" };
   const apikey = req.headers.get("apikey") ?? "";
   const rpc = (name: string, args: unknown) =>
     deps.fetch(env.SUPABASE_URL + "/rest/v1/rpc/" + name, { method: "POST", headers: { apikey, "Content-Type": "application/json" }, body: JSON.stringify(args) });
-  const r = isSignup ? await rpc("signup_notices_take", {}) : await rpc("push_targets", { token, p_week: week, p_match: match });
+  const r = isSignup ? await rpc("signup_notices_take", {}) : isNotice ? await rpc("notice_push_targets", { token, p_id: nid }) : await rpc("push_targets", { token, p_week: week, p_match: match });
   if (!r.ok) {
     let code = "error";
     try { code = (await r.json()).message || code; } catch { /* 그대로 */ }
     return reply({ ok: false, code });
   }
-  const targets = await r.json() as { endpoint: string; p256dh: string; auth: string; kind: string; court: number; team_a: string; team_b: string; day: string }[];
+  const targets = await r.json() as { endpoint: string; p256dh: string; auth: string; kind: string; court: number; team_a: string; team_b: string; day: string; title: string }[];
   let sent = 0, failed = 0;
   const gone: string[] = [];
   for (const t of targets) {
     try {
-      const msg = isSignup ? signupMessage(t) : pushMessage(t);
-      const payload = enc.encode(JSON.stringify({ title: msg.title, body: msg.body, tag: isSignup ? "signup-" + t.day : "court-" + match, url: "./" }));
+      const msg = isSignup ? signupMessage(t) : isNotice ? noticeMessage(t) : pushMessage(t);
+      const payload = enc.encode(JSON.stringify({ title: msg.title, body: msg.body, tag: isSignup ? "signup-" + t.day : isNotice ? "notice-" + nid : "court-" + match, url: "./" }));
       const res = await deps.fetch(t.endpoint, {
         method: "POST",
         headers: {

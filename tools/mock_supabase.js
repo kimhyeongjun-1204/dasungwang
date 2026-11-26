@@ -305,6 +305,14 @@ const RPC = {
     const n = N.list.find(x => x.id === +a.p_id && !x.deleted); if (!n) return fail(res, 'not_found');
     Object.assign(n, { kind: a.p_kind, body: b, pinned: !!a.p_pinned, pin_until: a.p_pinned ? a.p_pin_until || null : null, updated_at: t }); send(res, 200, String(n.id));
   },
+  notice_push_targets: (a, res) => {
+    if (!isOp(a.token)) return fail(res, 'unauthorized');
+    const n = N.list.find(x => x.id === +a.p_id && !x.deleted); N.pushed = N.pushed || new Set();
+    if (!n || N.pushed.has(n.id)) return send(res, 200, '[]'); N.pushed.add(n.id);
+    const title = (n.body.split('\n').find(l => l.trim()) || '').trim().slice(0, 60);
+    console.log('[새 공지 알림]', title, '→ 구독', pushDb.subs.size, '대');
+    send(res, 200, JSON.stringify([...pushDb.subs].map(([endpoint, s2]) => ({ endpoint, p256dh: s2.p256dh, auth: s2.auth, title }))));
+  },
   notice_delete: (a, res) => { if (!isOp(a.token)) return fail(res, 'unauthorized'); const n = N.list.find(x => x.id === +a.p_id && !x.deleted); if (!n) return fail(res, 'not_found'); n.deleted = true; send(res, 200, 'true'); },
   set_operator_pin: (a, res) => {
     if (!db.sessions.has(a.token)) return fail(res, 'unauthorized');
