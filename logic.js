@@ -966,8 +966,42 @@ var Logic = (function () {
     return { status: status, done: done, total: ds.length, first: ds[0] || null, last: ds[ds.length - 1] || null, next: next, myTier: myTier };
   }
 
+  // ---- 회원 로그인·회원 관리 (2026-11-26) ----
+  var GRADES = ['캐비어', '랍스터', '소갈비', '양갈비', '돼지갈비', '닭갈비'];
+  function gradeGroup(g) { var i = GRADES.indexOf(g); return i < 0 ? null : ['A', 'B', 'C'][i >> 1]; }
+  // 로그인 화면: 조마다 활동 회원만 가나다순
+  function loginGroups(players, groups) {
+    return groups.map(function (g) {
+      return { id: g.id, members: players.filter(function (p) { return p.group === g.id && p.active !== false; })
+        .sort(function (a, b) { return a.name.localeCompare(b.name, 'ko'); }).map(function (p) { return { id: p.id, name: p.name }; }) };
+    });
+  }
+  // 돼장 회원 관리: e = { id?(없으면 새 회원), name?, grade?, active? }. 급수를 주면 조가 바로 바뀜. work.players를 직접 고침
+  function memberEdit(work, e, newId) {
+    var ps = work.players, p = null;
+    if (e.id) { p = ps.filter(function (x) { return x.id === e.id; })[0]; if (!p) return { errors: ['없는 회원이에요.'] }; }
+    if (!p || e.name !== undefined) {
+      var nm = String(e.name || '').trim();
+      if (!nm) return { errors: ['이름을 적어 주세요.'] };
+      if (ps.some(function (x) { return x !== p && x.name === nm; })) return { errors: ['같은 이름이 이미 있어요.'] };
+      e = Object.assign({}, e, { name: nm });
+    }
+    if (!p || e.grade !== undefined) { if (!gradeGroup(e.grade)) return { errors: ['급수를 골라 주세요.'] }; }
+    if (!p) { ps.push({ id: newId, name: e.name, group: gradeGroup(e.grade), grade: e.grade }); return { errors: [] }; }
+    if (e.name !== undefined) p.name = e.name;
+    if (e.grade !== undefined) { p.grade = e.grade; p.group = gradeGroup(e.grade); }
+    if (e.active === false) p.active = false; else if (e.active === true) delete p.active;
+    return { errors: [] };
+  }
+  function pinError(a, b) {
+    if (!/^[0-9]{4}$/.test(String(a || ''))) return '숫자 4자리로 적어 주세요.';
+    if (b !== undefined && a !== b) return '두 번 적은 비밀번호가 달라요.';
+    return null;
+  }
+
   return {
     homeSummary: homeSummary,
+    GRADES: GRADES, gradeGroup: gradeGroup, loginGroups: loginGroups, memberEdit: memberEdit, pinError: pinError,
     startTab: startTab,
     LIVE: LIVE, typicalMinutes: typicalMinutes, courtEta: courtEta, courtSlots: courtSlots, courtLabel: courtLabel, setExtraCourt: setExtraCourt, liveBoard: liveBoard, shortNames: shortNames, startMatch: startMatch, finishMatch: finishMatch, cancelMatch: cancelMatch, myLive: myLive,
     meRecord: meRecord, matchStarted: matchStarted, livePrediction: livePrediction, predictionRecord: predictionRecord,

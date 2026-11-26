@@ -8,6 +8,8 @@ var Remote = (function () {
     // 경기 진행 자리 비움 (schema.sql set_availability)
     'not_today', 'not_attending', 'admin_locked', 'bad_status', 'bad_minutes',
     // 진행 PIN·코트 동작 (schema.sql operator_login / set_operator_pin / change_pin / live_action)
+    // 회원 로그인 (schema.sql member_*)
+    'pin_exists', 'wrong_pin',
     'no_op_pin', 'same_as_admin', 'same_as_operator', 'no_week', 'no_match', 'bad_court', 'court_busy', 'player_busy', 'already_done', 'not_on_court', 'bad_action'];
 
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
@@ -80,6 +82,17 @@ var Remote = (function () {
           return { plan: d.plan || {}, explanation: d.explanation || '', usage: d.usage || null };
         });
       },
+
+      // ---- 회원 로그인 (조 → 이름 → 비밀번호) ----
+      memberHasPin: function (pid) { return rpc('member_has_pin', { pid: pid }).then(function (r) { return r === true; }); },
+      memberSetPin: function (pid, pin) { return rpc('member_set_pin', { pid: pid, pin: pin }); },
+      // {token} / {error:'wrong', left} / {error:'locked', until}
+      memberLogin: function (pid, pin) { return rpc('member_login', { pid: pid, pin: pin }); },
+      memberCheck: function (token) { return rpc('member_check', { token: token }).then(function (r) { return r || null; }); },
+      memberChangePin: function (token, oldPin, newPin) { return rpc('member_change_pin', { token: token, old_pin: oldPin, new_pin: newPin }); },
+      memberLogout: function (token) { return rpc('member_logout', { token: token }); },
+      adminMemberPins: function (token) { return rpc('admin_member_pins', { token: token }).then(function (r) { return r || []; }); },
+      adminResetMemberPin: function (token, pid) { return rpc('admin_reset_member_pin', { token: token, pid: pid }).then(function (r) { return r === true; }); },
 
       // ---- 돼블스플랜 ----
       // 이름 없는 집계·피드·마감 비율은 누구나, 누가 골랐는지(predictions)는 DB가 마감된 주만 돌려줌

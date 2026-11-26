@@ -910,3 +910,37 @@ button.lv-row:disabled { cursor: default; opacity: .7; }
 .chip.k-run { background: var(--navy-50); color: var(--navy); }
 .chip.k-ev { background: var(--yellow-50); color: #8A5300; }
 .chip.k-rule { background: var(--line-2); color: #3E4659; }
+
+/* ---------- 회원 로그인: 조 → 이름 → 비밀번호 (2026-11-26) ---------- */
+.lg { display: grid; gap: 12px; margin-top: 24px; padding: 20px 16px; }
+.lg-club { font-size: 13px; font-weight: 700; color: var(--text-2); }
+.lg h1 { margin: 0; font-size: 22px; font-weight: 900; color: var(--navy); }
+.lg-groups { display: grid; gap: 10px; }
+.lg-group { display: grid; grid-template-columns: 92px minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 84px; padding: 8px 14px; border: 1.5px solid var(--line); border-radius: 16px; background: var(--surface); color: var(--text); text-align: left; font-size: 17px; }
+.lg-group b { font-weight: 900; word-break: keep-all; }
+.lg-group small { color: var(--text-2); font-size: 13px; }
+.lg-faces { display: flex; align-items: flex-end; overflow: hidden; }
+.lg-faces .ch { --chh: 50px; margin-bottom: 0; }
+.lg-faces .ch + .ch { margin-left: -10px; }
+.lg-back { justify-self: start; }
+.lg-names { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.lg-names button { min-height: 48px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--text); font-size: 16px; font-weight: 700; }
+.lg-form { display: grid; gap: 10px; }
+.lg-form .row { flex-wrap: nowrap; }
+.lg-form .btn { min-height: 48px; }
+.lg-msg { color: var(--hell-text); margin: 0; }
+.mpin summary { cursor: pointer; font-weight: 700; }
+/* 돼장 회원 관리 */
+.mb-list { padding: 4px 14px; display: grid; }
+.mb-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-height: 54px; padding: 8px 0; border: 0; border-bottom: 1px solid var(--line-2); background: none; color: var(--text); text-align: left; font-size: 15px; }
+.mb-row:last-child { border-bottom: 0; }
+.mb-row small { flex-basis: 100%; order: 3; }
+.mb-row > span[aria-hidden] { margin-left: auto; color: var(--text-2); }
+.chip.warn { background: var(--danger-50); color: var(--hell-text); }
+.mb-grades { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.mb-grades button { display: flex; align-items: center; justify-content: center; gap: 4px; min-height: 52px; border: 1.5px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--text); font-size: 14px; font-weight: 700; }
+.mb-grades button[aria-checked="true"] { border-color: var(--navy); background: var(--navy-50); }
+.mb-grades .ch { --chh: 30px; margin-bottom: 0; filter: none; }
+.mb-to { margin: 0; color: var(--navy); background: var(--navy-50); border-radius: 10px; padding: 8px 12px; }
+.mb-sheet { display: grid; gap: 10px; }
+.mb-sheet input { height: 46px; padding: 0 12px; border: 1px solid var(--line); border-radius: 12px; font: inherit; font-size: 16px; color: var(--text); background: var(--surface); }
