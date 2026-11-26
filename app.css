@@ -895,6 +895,9 @@ button.lv-row:disabled { cursor: default; opacity: .7; }
 .hm-day.today { border: 1.5px solid var(--navy); background: var(--navy-50); } .hm-day.today em { color: var(--navy); }
 .hm-day.past { opacity: .5; }
 .hm-band { text-decoration: none; }
+.hm-chat { display: flex; align-items: center; gap: 8px; min-height: 48px; margin: 0 0 12px; padding: 0 14px; border-radius: 14px; background: #15803D; color: #FFFFFF; text-decoration: none; font-size: 15px; }
+.hm-chat b { flex: 1; }
+.hm-chat small { font-size: 12px; opacity: .92; white-space: nowrap; }
 .hm-evs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .ev-mini { display: grid; gap: 4px; align-content: start; padding: 14px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); color: var(--text); text-decoration: none; box-shadow: var(--shadow); min-width: 0; }
 .ev-mini .ev-dday { font-size: 12px; font-weight: 800; color: var(--hell-text); }

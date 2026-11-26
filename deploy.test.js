@@ -630,6 +630,12 @@ test('클럽 홈: 참가 신청은 예시 + 밴드 안내, 진행 중 공지·�
   assert.ok(bl && /target="_blank" rel="noopener"/.test(bl[0]) && /bandLink\(/.test(h), '밴드 링크는 새 창(bandLink)으로');
   assert.ok(/data-act="tab" data-v="week"/.test(h), '다승왕전 카드(→ 이번 주) 그대로');
 });
+test('클럽 홈: 밴드 채팅(라뚱) 바로가기 — 채팅 기능은 만들지 않고 밴드로 연결 (2026-11-26)', () => {
+  const h = appSrc.match(/function viewHome\(\) \{[\s\S]*?\n  \}\n/)[0];
+  assert.ok(/href="' \+ Club\.CHAT \+ '" target="_blank" rel="noopener"/.test(h), '홈에 밴드 채팅 새 창 링크 없음');
+  assert.ok(/밴드 채팅/.test(h), '버튼 글자');
+  assert.ok(h.indexOf('Club.CHAT') < h.indexOf('진행 중</h2>'), '밴드 채팅은 진행 중 카드보다 위(참가 카드 아래)');
+});
 test('service worker: index.html network-first, supabase는 캐시 안 함', () => {
   const sw = fs.readFileSync(path.join(__dirname, 'dist', 'sw.js'), 'utf8');
   const cached = [];

@@ -204,6 +204,7 @@
         '<p class="small">앱에서 바로 신청하는 기능은 준비 중이에요. 위 칸은 <b>예시</b>이고, 참가 신청과 대기는 지금처럼 <b>밴드 참가신청서</b>에서 해 주세요.</p>' +
         bandLink(su.post, 'btn primary hm-band', '밴드 참가신청서 열기 ›') + '</section>';
     }
+    out += '<a class="hm-chat" href="' + Club.CHAT + '" target="_blank" rel="noopener"><span aria-hidden="true">💬</span><b>밴드 채팅 · 라뚱</b><small>단톡방은 밴드에서 ›</small></a>';
     var st = h.status === 'live' ? '● 시즌 진행 중' : h.status === 'upcoming' ? '시즌 시작 전' : '시즌 종료';
     var nextTxt = h.next ? (h.next === t ? '오늘' : '이번 주') + ' ' + md(h.next) + '(수) 17:30' : '시즌이 끝났어요';
     var tier = /^(hell|heaven|mid)$/.test(h.myTier || '') ? ' · 내 배정 <b class="' + h.myTier + '">' + TIER_LABEL[h.myTier] + '</b>' : '';
