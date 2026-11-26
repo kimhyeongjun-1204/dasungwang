@@ -87,5 +87,29 @@ await test('handle: 대상 조회 → 기기마다 전송, 404·410은 지운다
   assert.deepStrictEqual(await nokey.json(), { ok: false, code: 'no_vapid' });
 });
 
+await test('signupMessage: 대기에서 자리 나면 요일·날짜, 게스트는 데려온 사람에게 (2026-11-26)', () => {
+  assert.deepStrictEqual(N.signupMessage({ kind: 'in', day: '2026-12-02' }), { title: '수요일 운동 자리 났어요', body: '대기에서 신청 완료로 바뀌었어요 (12/2 수)' });
+  assert.deepStrictEqual(N.signupMessage({ kind: 'guest_in', day: '2026-11-30' }), { title: '월요일 운동 게스트 자리 났어요', body: '데려온 게스트가 신청 완료로 바뀌었어요 (11/30 월)' });
+});
+await test('handle kind=signup: 토큰 없이 signup_notices_take로 꺼내 보내고, 410은 push_unsubscribe', async () => {
+  const k = crypto.createECDH('prime256v1'); k.generateKeys();
+  const env = { SUPABASE_URL: 'https://x.supabase.co', VAPID_PUBLIC_KEY: k.getPublicKey().toString('base64url'), VAPID_PRIVATE_KEY: k.getPrivateKey().toString('base64url') };
+  const ua = crypto.createECDH('prime256v1'); ua.generateKeys();
+  const sub = (e) => ({ endpoint: e, p256dh: ua.getPublicKey().toString('base64url'), auth: crypto.randomBytes(16).toString('base64url'), kind: 'in', day: '2026-12-02' });
+  const calls = [];
+  const fakeFetch = async (url, init) => {
+    calls.push([url, init && init.body]);
+    if (url.endsWith('/rpc/signup_notices_take')) return new Response(JSON.stringify([sub('https://push.example/ok'), sub('https://push.example/gone')]), { status: 200 });
+    if (url.endsWith('/rpc/push_unsubscribe')) return new Response('null', { status: 200 });
+    if (url === 'https://push.example/ok') return new Response('', { status: 201 });
+    if (url === 'https://push.example/gone') return new Response('', { status: 410 });
+    return new Response('', { status: 500 });
+  };
+  const req = new Request('https://x/notify', { method: 'POST', headers: { apikey: 'pub' }, body: JSON.stringify({ kind: 'signup' }) });
+  assert.deepStrictEqual(await (await N.handle(req, { fetch: fakeFetch, env, now: Date.now() })).json(), { ok: true, sent: 1, gone: 1, failed: 0 });
+  assert.ok(!calls.some(c => c[0].endsWith('/rpc/push_targets')), '경기 알림 대상은 안 부름');
+  assert.deepStrictEqual(JSON.parse(calls.find(c => c[0].endsWith('/rpc/push_unsubscribe'))[1]), { p_endpoint: 'https://push.example/gone' });
+});
+
 console.log(pass + ' passed' + (fail ? ', ' + fail + ' FAILED' : ''));
 if (fail) process.exit(1);

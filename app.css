@@ -851,7 +851,7 @@ button.lv-row:disabled { cursor: default; opacity: .7; }
 
 /* ---- 클럽 홈 틀 (2026-11-24): 하단 탭 + 홈 카드 ---- */
 .bnav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 9; background: var(--surface); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom, 0px); box-shadow: 0 -2px 10px rgb(32 38 79 / .06); }
-.bnav .in { max-width: 720px; margin: 0 auto; display: grid; grid-template-columns: repeat(3, 1fr); }
+.bnav .in { max-width: 720px; margin: 0 auto; display: grid; grid-template-columns: repeat(4, 1fr); }
 .bnav button { border: 0; background: none; height: 60px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; font-size: 12px; font-weight: 500; color: var(--text-2); position: relative; }
 .bnav button i { font-style: normal; font-size: 20px; line-height: 1.1; filter: grayscale(1); opacity: .6; }
 .bnav button[aria-current="page"] { color: var(--navy); font-weight: 800; }
@@ -944,3 +944,44 @@ button.lv-row:disabled { cursor: default; opacity: .7; }
 .mb-to { margin: 0; color: var(--navy); background: var(--navy-50); border-radius: 10px; padding: 8px 12px; }
 .mb-sheet { display: grid; gap: 10px; }
 .mb-sheet input { height: 46px; padding: 0 12px; border: 1px solid var(--line); border-radius: 12px; font: inherit; font-size: 16px; color: var(--text); background: var(--surface); }
+
+/* ---------- 운동 참가 신청 (2026-11-26) ---------- */
+.sg-weeks { width: 100%; }
+.sg-weeks button { flex: 1; display: grid; justify-items: center; gap: 1px; line-height: 1.25; }
+.sg-weeks button small { font-size: 12px; opacity: .8; }
+.sg-day { display: grid; gap: 8px; padding: 12px 14px; }
+.sg-day.sg-mine { border-color: var(--navy); box-shadow: inset 0 0 0 1px var(--navy); }
+.sg-day.sg-dim { opacity: .62; }
+.sg-head { display: flex; align-items: baseline; gap: 8px; }
+.sg-head .chip { margin-left: auto; font-size: 12px; padding: 3px 9px; }
+.sg-dow { font-size: 18px; font-weight: 900; }
+.chip.sg-in { background: var(--navy); color: #fff; }
+.chip.sg-wait { background: var(--yellow-50); color: #7A5600; border-color: #E8B23A; }
+.chip.sg-full { background: var(--danger-50); color: var(--hell-text); }
+.chip.sg-left { background: var(--win-50); color: var(--win-text); }
+.chip.sg-off { background: var(--surface-2); color: var(--text-2); border-color: var(--line); }
+.sg-bar { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 700; }
+.sg-track { flex: 1; height: 8px; border-radius: 4px; background: var(--line-2); overflow: hidden; }
+.sg-track i { display: block; height: 100%; border-radius: 4px; background: var(--navy); }
+.sg-track i.full { background: #E8B23A; }
+.sg-memo { margin: 0; font-size: 13px; color: var(--navy); background: var(--navy-50); border-radius: 8px; padding: 6px 10px; }
+.sg-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+.sg-btns .sg-main { flex: 1 1 120px; min-height: 44px; font-size: 15px; font-weight: 900; }
+.btn.sg-waitbtn { background: var(--yellow-50); border: 1.5px solid #E8B23A; color: #7A5600; }
+.sg-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; font-size: 14px; }
+.sg-list li { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 2px 4px; border-bottom: 1px solid var(--line-2); }
+.sg-list li > .num { min-width: 46px; font-size: 12px; font-weight: 700; color: var(--text-2); }
+.sg-list li.wait > .num { color: #7A5600; }
+.sg-list li.me { font-weight: 900; }
+.sg-list li .btn { margin-left: auto; }
+.sg-myg { display: flex; flex-wrap: wrap; gap: 6px; }
+.sg-myg .chip { font-size: 12px; padding: 3px 8px; gap: 4px; }
+.linkbtn { border: 0; background: none; padding: 0 2px; font: inherit; color: var(--text-2); cursor: pointer; min-width: 24px; min-height: 24px; }
+.sg-gform, .sg-add { align-items: flex-end; flex-wrap: wrap; }
+.sg-gform .f, .sg-add .f { flex: 1 1 160px; }
+.sg-dform { display: grid; gap: 8px; padding-top: 4px; border-top: 1px dashed var(--line); }
+.sg-chk { flex-direction: row !important; align-items: center; gap: 6px; }
+.sg-defs .f { flex: 1 1 52px; }
+.sg-defs input { width: 100%; }
+.hm-day.mine-in { border: 1.5px solid var(--navy); background: var(--navy); color: #fff; } .hm-day.mine-in small, .hm-day.mine-in em { color: #fff; }
+.hm-day.mine-wait { border: 1.5px solid #E8B23A; background: var(--yellow-50); } .hm-day.mine-wait em { color: #7A5600; }

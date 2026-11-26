@@ -372,10 +372,10 @@ test('CI: 뚱뚱배 순수 함수 테스트(tourney.test.js)도 통과해야 배
   const wf = fs.readFileSync(path.join(__dirname, '.github', 'workflows', 'pages.yml'), 'utf8');
   assert.ok(/run: node tourney\.test\.js/.test(wf), 'CI에서 tourney.test.js를 안 돌림');
 });
-test('클럽 홈 틀: 하단 탭 홈·다승왕·기록, 다승왕전 안쪽 탭은 예전처럼 이번 주·순위·예측·내 기록·관리 (2026-11-24, 2026-11-25 사용자 요청으로 내 기록·관리 되돌림)', () => {
+test('클럽 홈 틀: 하단 탭 홈·참가·다승왕·기록(2026-11-26 참가 추가), 다승왕전 안쪽 탭은 예전처럼 이번 주·순위·예측·내 기록·관리 (2026-11-24, 2026-11-25 사용자 요청으로 내 기록·관리 되돌림)', () => {
   const nav = appSrc.match(/function bottomNav\(\) \{[\s\S]*?\n  \}\n/);
   assert.ok(nav, '하단 탭(bottomNav) 없음');
-  assert.ok(/\[\['home', '홈', [^\]]*\], \['week', '다승왕', [^\]]*\], \['records', '기록', [^\]]*\]\]/.test(nav[0]), '하단 탭은 홈·다승왕·기록 세 개');
+  assert.ok(/\[\['home', '홈', [^\]]*\], \['signup', '참가', [^\]]*\], \['week', '다승왕', [^\]]*\], \['records', '기록', [^\]]*\]\]/.test(nav[0]), '하단 탭은 홈·참가·다승왕·기록 네 개');
   assert.ok(!/\['me', '내 기록'/.test(nav[0]) && !/\['admin', '관리'/.test(nav[0]), '내 기록·관리는 하단 탭이 아니라 다승왕 안쪽 탭');
   const hd = appSrc.match(/function header\(\) \{[\s\S]*?\n  \}\n/)[0];
   assert.ok(/\[\['week', '이번 주'\], \['rank', '순위'\], \['plan', '예측'\], \['me', '내 기록'\], \['admin', '관리'\]\]/.test(hd), '다승왕전 안쪽 탭은 이번 주·순위·예측·내 기록·관리');
@@ -615,7 +615,7 @@ test('하단 탭(.bnav)에 가려지는 고정 버튼 없음: 예측 하기(.pla
     assert.ok(/bottom: calc\(60px \+ env\(safe-area-inset-bottom, 0px\)\)/.test(r), sel + '가 하단 탭 뒤(bottom: 0)에 깔림');
   }
 });
-test('클럽 홈: 참가 신청은 예시 + 밴드 안내, 진행 중 공지·행사(청백전·뚠뚠배)·일정은 club.js에서 (2026-11-25)', () => {
+test('클럽 홈: 참가 카드는 앱 신청 현황(2026-11-26, 예시+밴드 안내에서 바뀜), 진행 중 공지·행사(청백전·뚠뚠배)·일정은 club.js에서 (2026-11-25)', () => {
   execFileSync(process.execPath, [path.join(__dirname, 'build.js')], { stdio: 'pipe' });
   const html = fs.readFileSync(path.join(__dirname, 'dist', 'index.html'), 'utf8');
   const ic = html.indexOf('<script id="app-club">'), ia = html.indexOf('<script id="app-js">');
@@ -623,9 +623,8 @@ test('클럽 홈: 참가 신청은 예시 + 밴드 안내, 진행 중 공지·�
   const home = appSrc.match(/function viewHome\(\) \{[\s\S]*?\n  \}\n/);
   assert.ok(home, 'viewHome 없음');
   const h = home[0];
-  assert.ok(/Club\.currentSignup\(/.test(h) && /Club\.activeNotices\(/.test(h) && /Club\.upcoming\(/.test(h) && /Club\.EVENTS/.test(h), 'club.js 데이터를 안 씀');
-  assert.ok(/예시/.test(h) && /밴드 참가신청서/.test(h), '참가 신청이 예시이고 밴드에서 한다는 안내 없음');
-  assert.ok(!/data-act="(join|apply|signup)/.test(h), '홈에 앱 신청 버튼이 있으면 안 됨(아직 밴드에서)');
+  assert.ok(/Club\.activeNotices\(/.test(h) && /Club\.upcoming\(/.test(h) && /Club\.EVENTS/.test(h), 'club.js 데이터를 안 씀');
+  assert.ok(!/예시/.test(h) && /L\.signupDay\(/.test(h), '참가 카드는 예시가 아니라 실제 신청 현황');
   const bl = appSrc.match(/function bandLink\([^)]*\) \{[^\n]*\}/);
   assert.ok(bl && /target="_blank" rel="noopener"/.test(bl[0]) && /bandLink\(/.test(h), '밴드 링크는 새 창(bandLink)으로');
   assert.ok(/data-act="tab" data-v="week"/.test(h), '다승왕전 카드(→ 이번 주) 그대로');
@@ -675,6 +674,37 @@ test('돼장 회원 관리: 관리 메뉴에 회원, 새 회원·급수·쉬는 
   assert.ok(/L\.GRADES/.test(v[0]) && /mb-save/.test(v[0]) && /mb-reset/.test(v[0]) && /mb-active/.test(v[0]), '급수·저장·초기화·쉬는 회원');
   assert.ok(/remote\.adminResetMemberPin\(/.test(appSrc) && /remote\.adminMemberPins\(/.test(appSrc));
   assert.ok(/L\.memberEdit\(/.test(appSrc));
+});
+test('api 운동 신청: RPC 이름·인자 (2026-11-26)', async () => {
+  const calls = [];
+  const names = ['signups_list', 'signup_apply', 'signup_cancel', 'signup_guest', 'signup_guest_cancel', 'admin_set_day', 'admin_set_default_cap', 'admin_signup_add', 'admin_signup_remove'];
+  const c = fakeClient(Object.fromEntries(names.map(n => [n, a => { calls.push(n + ' ' + JSON.stringify(a)); return { data: n === 'signups_list' ? [] : n.endsWith('apply') ? { status: 'in', no: 1 } : [], error: null }; }])));
+  const a = need().api(c);
+  await a.signupsList('2026-11-30', '2026-12-04'); await a.signupApply('T', '2026-11-30'); await a.signupCancel('T', '2026-11-30');
+  await a.signupGuest('T', '2026-11-30', '손님'); await a.signupGuestCancel('T', 7);
+  await a.adminSetDay('A', '2026-11-30', 20, '메모', false); await a.adminSetDefaultCap('A', 1, 22); await a.adminSignupAdd('A', '2026-11-30', 'p1'); await a.adminSignupRemove('A', '2026-11-30', 7);
+  assert.deepStrictEqual(calls, ['signups_list {"d_from":"2026-11-30","d_to":"2026-12-04"}', 'signup_apply {"token":"T","d":"2026-11-30"}', 'signup_cancel {"token":"T","d":"2026-11-30"}',
+    'signup_guest {"token":"T","d":"2026-11-30","p_name":"손님"}', 'signup_guest_cancel {"token":"T","sid":7}', 'admin_set_day {"token":"A","d":"2026-11-30","p_cap":20,"p_memo":"메모","p_closed":false}',
+    'admin_set_default_cap {"token":"A","p_dow":1,"p_cap":22}', 'admin_signup_add {"token":"A","d":"2026-11-30","pid":"p1"}', 'admin_signup_remove {"token":"A","d":"2026-11-30","sid":7}']);
+  await assert.rejects(need().api(fakeClient({ signup_apply: () => ({ data: null, error: { message: 'closed_day' } }) })).signupApply('T', 'x'), e => e.code === 'closed_day');
+});
+test('운동 신청 화면: 하단 탭 참가, 요일 카드(신청·대기·취소·게스트·명단), 돼장 정원·명단 고치기, 자리 나면 알림 (2026-11-26)', () => {
+  assert.ok(/\['signup', '참가', /.test(appSrc), '하단 탭에 참가');
+  const v0 = appSrc.match(/function viewSignup\(\) \{[\s\S]*?\n  \}\n/), card = appSrc.match(/function sgCard\([^)]*\) \{[\s\S]*?\n  \}\n/);
+  assert.ok(v0 && card, 'viewSignup·sgCard 없음');
+  const v = [v0[0] + card[0]];
+  ['sg-apply', 'sg-cancel', 'sg-guest', 'sg-list', 'sg-week'].forEach(a => assert.ok(v[0].indexOf('data-act="' + a) >= 0 || v[0].indexOf(a) >= 0, a + ' 없음'));
+  assert.ok(/L\.signupDay\(/.test(v[0]) && /L\.signupWeeks\(/.test(appSrc));
+  assert.ok(/sg-day-save/.test(appSrc) && /sg-adm-add/.test(appSrc) && /sg-adm-rm/.test(appSrc), '돼장: 그날 정원·메모·쉬는 날, 명단 넣기·빼기');
+  assert.ok(/remote\.notifySignup\(/.test(appSrc), '자리 난 사람 알림(Edge Function notify kind=signup)');
+  const home = appSrc.match(/function viewHome\(\) \{[\s\S]*?\n  \}\n/)[0];
+  assert.ok(/data-act="tab" data-v="signup"/.test(home), '홈 참가 카드 → 참가 탭');
+});
+test('schema.sql 운동 신청: 표는 아무도 못 읽고 명단은 signups_list로만, 기본 정원 월수금 24·화목 18 (2026-11-26)', () => {
+  const sql = fs.readFileSync(path.join(__dirname, 'supabase', 'schema.sql'), 'utf8');
+  assert.ok(/revoke all on public\.workout_default, public\.workout_day, public\.signup, public\.signup_notice from anon, authenticated/.test(sql));
+  assert.ok(/values \(1, 24\), \(2, 18\), \(3, 24\), \(4, 18\), \(5, 24\)/.test(sql));
+  assert.ok(/pg_advisory_xact_lock\(hashtext\('signup:' \|\| d\)\)/.test(sql), '같은 날 동시 신청은 차례대로');
 });
 test('service worker: index.html network-first, supabase는 캐시 안 함', () => {
   const sw = fs.readFileSync(path.join(__dirname, 'dist', 'sw.js'), 'utf8');

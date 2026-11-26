@@ -34,6 +34,30 @@ const members = { pins: new Map(), sessions: new Map() };
 const activeP = pid => (db.state.players || []).some(p => p.id === pid && p.active !== false);
 const memberSession = pid => { const t = crypto.randomUUID(); members.sessions.set(t, pid); return t; };
 
+// ---- 운동 참가 신청 (schema.sql signup_* 흉내). 날짜 '오늘'은 서버 시계(MOCK_NOW) 기준 KST ----
+const SG = { defaults: [24, 18, 24, 18, 24], days: {}, rows: [], notices: [], id: 0 };
+const isoDow = d => { const x = new Date(d + 'T00:00:00Z').getUTCDay(); return x === 0 ? 7 : x; };
+const addD = (d, n) => { const x = new Date(d + 'T00:00:00Z'); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
+const sgCap = d => isoDow(d) <= 5 ? ((SG.days[d] && SG.days[d].cap) || SG.defaults[isoDow(d) - 1]) : null;
+const sgOpen = d => { const t = kstDay(now()); return isoDow(d) <= 5 && d >= t && d <= addD(t, 13) && !(SG.days[d] && SG.days[d].closed); };
+const sgRows = d => { const cap = sgCap(d) || 0; return SG.rows.filter(r => r.day === d).map((r, i) => Object.assign({}, r, { pos: i + 1, status: i < cap ? 'in' : 'wait', no: i < cap ? i + 1 : i + 1 - cap })); };
+const sgInIds = d => sgRows(d).filter(r => r.status === 'in').map(r => r.id);
+const sgPromote = (d, before) => {
+  const out = [];
+  for (const r of sgRows(d)) if (r.status === 'in' && !before.includes(r.id)) { SG.notices.push({ day: d, player_id: r.player_id || r.host_id, kind: r.player_id ? 'in' : 'guest_in' }); out.push(r.player_id || 'g:' + r.guest_name); }
+  if (out.length) console.log('[자리 났어요]', d, out.join(', '));
+  return out;
+};
+const sgStatus = (d, id) => { const r = sgRows(d).find(x => x.id === id); return { status: r.status, no: r.no }; };
+// MOCK_SIGNUPS=1: 다음 주 월 15명·화 6명·수 24명+대기 3명·목 6명·금 3명 (밴드 11/30 주 숫자와 비슷하게)
+const sgSeed = () => {
+  if (!process.env.MOCK_SIGNUPS) return;
+  const t = kstDay(now()), dw = isoDow(t), mon = addD(t, 8 - dw), act = (db.state.players || []).filter(p => p.active !== false);
+  [15, 6, 27, 6, 3].forEach((n, k) => { for (let i = 0; i < n; i++) { const p = act[(i * 7 + k * 3) % act.length]; const d = addD(mon, k); if (!SG.rows.some(r => r.day === d && r.player_id === p.id)) SG.rows.push({ id: ++SG.id, day: d, player_id: p.id, host_id: p.id }); } });
+  SG.days[addD(mon, 2)] = { cap: null, memo: '다승왕전 날 · 랜덤빵 제공', closed: false };
+};
+const memberOf = t => { const pid = members.sessions.get(t); return pid && activeP(pid) ? pid : null; };
+
 // ---- 돼블스플랜: schema.sql의 테이블·함수를 메모리에서 흉내 ----
 const P = { predictions: [], prediction_counts: [], prediction_events: [], prediction_close: [], availability: [], eventId: 0 };
 const deadline = d => Date.parse(d + 'T17:30:00+09:00');
@@ -197,6 +221,66 @@ const RPC = {
     if (!db.sessions.has(a.token)) return fail(res, 'unauthorized');
     for (const [t, pid] of members.sessions) if (pid === a.pid) members.sessions.delete(t);
     send(res, 200, String(members.pins.delete(a.pid)));
+  },
+  signups_list: (a, res) => {
+    const out = [];
+    for (let d = a.d_from; d <= a.d_to; d = addD(d, 1)) if (isoDow(d) <= 5) out.push({ day: d, cap: sgCap(d), memo: (SG.days[d] || {}).memo || null, closed: !!(SG.days[d] || {}).closed, open: sgOpen(d),
+      entries: sgRows(d).map(r => ({ id: r.id, player_id: r.player_id || null, guest: r.guest_name || null, host_id: r.host_id, by_admin: !!r.by_admin, pos: r.pos, status: r.status, no: r.no })) });
+    send(res, 200, JSON.stringify(out));
+  },
+  workout_defaults: (a, res) => send(res, 200, JSON.stringify(SG.defaults)),
+  signup_apply: (a, res) => {
+    const pid = memberOf(a.token); if (!pid) return fail(res, 'unauthorized');
+    if (!sgOpen(a.d)) return fail(res, 'closed_day');
+    if (SG.rows.some(r => r.day === a.d && r.player_id === pid)) return fail(res, 'already');
+    const id = ++SG.id; SG.rows.push({ id, day: a.d, player_id: pid, host_id: pid }); send(res, 200, JSON.stringify(sgStatus(a.d, id)));
+  },
+  signup_guest: (a, res) => {
+    const pid = memberOf(a.token); if (!pid) return fail(res, 'unauthorized');
+    if (!sgOpen(a.d)) return fail(res, 'closed_day');
+    const nm = String(a.p_name || '').trim(); if (!nm || nm.length > 20) return fail(res, 'bad_name');
+    if (SG.rows.filter(r => r.day === a.d && r.host_id === pid && r.guest_name).length >= 3) return fail(res, 'too_many_guests');
+    const id = ++SG.id; SG.rows.push({ id, day: a.d, guest_name: nm, host_id: pid }); send(res, 200, JSON.stringify(sgStatus(a.d, id)));
+  },
+  signup_cancel: (a, res) => {
+    const pid = memberOf(a.token); if (!pid) return fail(res, 'unauthorized');
+    if (a.d < kstDay(now())) return fail(res, 'closed_day');
+    const before = sgInIds(a.d), i = SG.rows.findIndex(r => r.day === a.d && r.player_id === pid); if (i < 0) return fail(res, 'not_signed');
+    SG.rows.splice(i, 1); send(res, 200, JSON.stringify(sgPromote(a.d, before)));
+  },
+  signup_guest_cancel: (a, res) => {
+    const pid = memberOf(a.token); if (!pid) return fail(res, 'unauthorized');
+    const i = SG.rows.findIndex(r => r.id === a.sid && r.guest_name); if (i < 0) return fail(res, 'not_signed');
+    if (SG.rows[i].host_id !== pid) return fail(res, 'not_yours');
+    const d = SG.rows[i].day, before = sgInIds(d); SG.rows.splice(i, 1); send(res, 200, JSON.stringify(sgPromote(d, before)));
+  },
+  admin_set_day: (a, res) => {
+    if (!db.sessions.has(a.token)) return fail(res, 'unauthorized');
+    if (isoDow(a.d) > 5) return fail(res, 'bad_day');
+    if (a.p_cap != null && !(a.p_cap >= 1 && a.p_cap <= 99)) return fail(res, 'bad_cap');
+    const before = sgInIds(a.d); SG.days[a.d] = { cap: a.p_cap, memo: String(a.p_memo || '').trim() || null, closed: !!a.p_closed };
+    send(res, 200, JSON.stringify(sgPromote(a.d, before)));
+  },
+  admin_set_default_cap: (a, res) => {
+    if (!db.sessions.has(a.token)) return fail(res, 'unauthorized');
+    if (!(a.p_dow >= 1 && a.p_dow <= 5)) return fail(res, 'bad_day'); if (!(a.p_cap >= 1 && a.p_cap <= 99)) return fail(res, 'bad_cap');
+    SG.defaults[a.p_dow - 1] = a.p_cap; send(res, 200, 'null');
+  },
+  admin_signup_add: (a, res) => {
+    if (!db.sessions.has(a.token)) return fail(res, 'unauthorized');
+    if (!activeP(a.pid)) return fail(res, 'bad_player');
+    if (SG.rows.some(r => r.day === a.d && r.player_id === a.pid)) return fail(res, 'already');
+    const id = ++SG.id; SG.rows.push({ id, day: a.d, player_id: a.pid, host_id: a.pid, by_admin: true }); send(res, 200, JSON.stringify(sgStatus(a.d, id)));
+  },
+  admin_signup_remove: (a, res) => {
+    if (!db.sessions.has(a.token)) return fail(res, 'unauthorized');
+    const before = sgInIds(a.d), i = SG.rows.findIndex(r => r.id === a.sid && r.day === a.d); if (i < 0) return fail(res, 'not_signed');
+    SG.rows.splice(i, 1); send(res, 200, JSON.stringify(sgPromote(a.d, before)));
+  },
+  signup_notices_take: (a, res) => {
+    const out = [];
+    for (const n of SG.notices.splice(0)) for (const [endpoint, s2] of pushDb.subs) if (s2.player_id === n.player_id) out.push({ endpoint, p256dh: s2.p256dh, auth: s2.auth, kind: n.kind, day: n.day });
+    send(res, 200, JSON.stringify(out));
   },
   admin_login: (a, res) => { if (a.pin !== db.pin) return send(res, 200, 'null'); const t = crypto.randomUUID(); db.sessions.add(t); send(res, 200, JSON.stringify(t)); },
   admin_check: (a, res) => send(res, 200, String(db.sessions.has(a.token))),
@@ -369,5 +453,5 @@ http.createServer((req, res) => {
   const f = path.join(dist, u.pathname === '/' ? 'index.html' : path.normalize(u.pathname).replace(/^[\\/]+/, ''));
   if (!f.startsWith(dist) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) return send(res, 404, 'not found', 'text/plain');
   send(res, 200, fs.readFileSync(f), TYPES[path.extname(f)] || 'application/octet-stream');
-}).listen(PORT, () => console.log('mock supabase + dist on http://localhost:' + PORT + ' (PIN 1234)' +
+}).listen(PORT, () => sgSeed() || console.log('mock supabase + dist on http://localhost:' + PORT + ' (PIN 1234)' +
   (clockOffset ? ' · 서버 시계 ' + new Date(now()).toISOString() : '') + (demo ? ' · 돼블스플랜 데모 예측 ' + P.predictions.length + '건' : '')));

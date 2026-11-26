@@ -999,8 +999,32 @@ var Logic = (function () {
     return null;
   }
 
+  // ---- 운동 참가 신청 (2026-11-26) ----
+  function addDays(d, n) { var x = new Date(d + 'T00:00:00Z'); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); }
+  // 이번 주·다음 주 월~금. 토·일이면 다가오는 주부터 (신청은 서버가 오늘~13일 뒤만 받음)
+  function signupWeeks(today) {
+    var dow = new Date(today + 'T00:00:00Z').getUTCDay(), weekend = dow === 0 || dow === 6;
+    var mon = addDays(today, weekend ? (dow === 6 ? 2 : 1) : 1 - dow);
+    return [0, 1].map(function (k) {
+      var f = addDays(mon, 7 * k);
+      return { from: f, to: addDays(f, 4), label: weekend ? (k ? '다다음 주' : '다음 주') : (k ? '다음 주' : '이번 주') };
+    });
+  }
+  // 하루 명단(signups_list 한 줄) → 신청 완료·대기 수, 남은 자리, 내 상태, 내가 데려온 게스트
+  function signupDay(row, pid) {
+    var es = row.entries || [], inC = 0, waitC = 0, mine = null, guests = [];
+    es.forEach(function (e) {
+      if (e.status === 'in') inC++; else waitC++;
+      if (pid && e.player_id === pid) mine = { id: e.id, status: e.status, no: e.no, ahead: e.status === 'wait' ? e.no - 1 : 0 };
+      if (pid && !e.player_id && e.host_id === pid) guests.push(e);
+    });
+    var cap = row.cap || 0;
+    return { inCount: inC, waitCount: waitC, left: Math.max(0, cap - inC), full: inC >= cap, mine: mine, guests: guests };
+  }
+
   return {
     homeSummary: homeSummary,
+    signupWeeks: signupWeeks, signupDay: signupDay,
     GRADES: GRADES, gradeGroup: gradeGroup, loginGroups: loginGroups, memberEdit: memberEdit, pinError: pinError,
     startTab: startTab,
     LIVE: LIVE, typicalMinutes: typicalMinutes, courtEta: courtEta, courtSlots: courtSlots, courtLabel: courtLabel, setExtraCourt: setExtraCourt, liveBoard: liveBoard, shortNames: shortNames, startMatch: startMatch, finishMatch: finishMatch, cancelMatch: cancelMatch, myLive: myLive,

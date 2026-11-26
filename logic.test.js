@@ -1133,4 +1133,23 @@ test('pinInput: 4자리 숫자만, 두 번 입력이 같아야 함', () => {
   assert.strictEqual(L.pinError('1234', '1234'), null);
 });
 
+// ---- 운동 참가 신청 (2026-11-26) ----
+test('signupWeeks: 이번 주·다음 주 월~금 (주말에 열면 다음 주가 "이번 주")', () => {
+  assert.deepStrictEqual(L.signupWeeks('2026-11-26'), [{ from: '2026-11-23', to: '2026-11-27', label: '이번 주' }, { from: '2026-11-30', to: '2026-12-04', label: '다음 주' }]);
+  assert.deepStrictEqual(L.signupWeeks('2026-11-29').map(w => w.from), ['2026-11-30', '2026-12-07']);
+  assert.deepStrictEqual(L.signupWeeks('2026-11-28').map(w => w.from), ['2026-11-30', '2026-12-07']);
+});
+test('signupDay: 신청 완료·대기 수, 남은 자리, 내 상태(본인·내 게스트)', () => {
+  const row = { day: '2026-11-30', cap: 2, open: true, closed: false, entries: [
+    { id: 1, player_id: 'a', host_id: 'a', status: 'in', no: 1, pos: 1 }, { id: 2, guest: '손님', host_id: 'b', status: 'in', no: 2, pos: 2 },
+    { id: 3, player_id: 'b', host_id: 'b', status: 'wait', no: 1, pos: 3 }] };
+  const b = L.signupDay(row, 'b');
+  assert.deepStrictEqual([b.inCount, b.waitCount, b.left, b.full], [2, 1, 0, true]);
+  assert.deepStrictEqual(b.mine, { id: 3, status: 'wait', no: 1, ahead: 0 });
+  assert.deepStrictEqual(b.guests.map(g => g.guest + ':' + g.status), ['손님:in']);
+  const c = L.signupDay(row, 'c');
+  assert.strictEqual(c.mine, null);
+  assert.deepStrictEqual(L.signupDay(Object.assign({}, row, { cap: 5 }), 'a').left, 3);
+});
+
 console.log(`\n${passed} passed`);
