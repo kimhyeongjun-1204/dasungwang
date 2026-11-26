@@ -111,5 +111,24 @@ await test('handle kind=signup: 토큰 없이 signup_notices_take로 꺼내 보�
   assert.deepStrictEqual(JSON.parse(calls.find(c => c[0].endsWith('/rpc/push_unsubscribe'))[1]), { p_endpoint: 'https://push.example/gone' });
 });
 
+await test('handle kind=notice: 돼장·도우미 토큰으로 notice_push_targets, "📢 새 공지" + 제목 (2026-11-26)', async () => {
+  const k = crypto.createECDH('prime256v1'); k.generateKeys();
+  const env = { SUPABASE_URL: 'https://x.supabase.co', VAPID_PUBLIC_KEY: k.getPublicKey().toString('base64url'), VAPID_PRIVATE_KEY: k.getPrivateKey().toString('base64url') };
+  const ua = crypto.createECDH('prime256v1'); ua.generateKeys();
+  const calls = [];
+  const fakeFetch = async (url, init) => {
+    calls.push([url, init && init.body]);
+    if (url.endsWith('/rpc/notice_push_targets')) return new Response(JSON.stringify([{ endpoint: 'https://push.example/ok', p256dh: ua.getPublicKey().toString('base64url'), auth: crypto.randomBytes(16).toString('base64url'), title: '11.30~12.4 배드민턴위크' }]), { status: 200 });
+    if (url === 'https://push.example/ok') return new Response('', { status: 201 });
+    return new Response('', { status: 500 });
+  };
+  const req = new Request('https://x/notify', { method: 'POST', headers: { apikey: 'pub' }, body: JSON.stringify({ kind: 'notice', token: 't', id: 5 }) });
+  assert.deepStrictEqual(await (await N.handle(req, { fetch: fakeFetch, env, now: Date.now() })).json(), { ok: true, sent: 1, gone: 0, failed: 0 });
+  assert.deepStrictEqual(JSON.parse(calls.find(c => c[0].endsWith('/rpc/notice_push_targets'))[1]), { token: 't', p_id: 5 });
+  assert.deepStrictEqual(N.noticeMessage({ title: '11.30~12.4 배드민턴위크' }), { title: '📢 새 공지', body: '11.30~12.4 배드민턴위크' });
+  const bad = await N.handle(new Request('https://x/notify', { method: 'POST', body: JSON.stringify({ kind: 'notice' }) }), { fetch: fakeFetch, env, now: Date.now() });
+  assert.deepStrictEqual(await bad.json(), { ok: false, code: 'bad_request' });
+});
+
 console.log(pass + ' passed' + (fail ? ', ' + fail + ' FAILED' : ''));
 if (fail) process.exit(1);

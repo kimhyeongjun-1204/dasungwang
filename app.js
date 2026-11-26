@@ -195,6 +195,51 @@
   function clubBar(title) {
     return '<div class="clubbar"><span class="club-logo">' + esc(work.settings.club || '라켓뚱보단') + '</span>' + (title ? '<h1 class="club-title">' + esc(title) + '</h1>' : '') + '</div>';
   }
+  // ---- 앱 공지 (2026-11-25): 돼장·도우미가 밴드 글쓰기처럼 쓰고, 홈 '진행 중인 공지'에 먼저 보임 ----
+  var notices = { list: null, err: false };
+  var NW_ERR = { unauthorized: '돼장·도우미 로그인이 풀렸어요. 관리 탭에서 PIN을 다시 넣어 주세요.', bad_body: '내용을 써 주세요. (4000자까지)', bad_kind: '게시판을 골라 주세요.', not_found: '이미 지워진 공지예요.' };
+  function loadNotices() {
+    if (!remote || !remote.noticesList) return;
+    remote.noticesList().then(function (list) { notices.list = list; notices.err = false; render(); }, function () { notices.err = true; render(); });
+  }
+  function nwFrom(t) { return { id: null, kind: t.kind, body: t.body, pinned: !!t.pinned, until: t.until || '', tplBody: t.body, armed: null, busy: false, err: '', push: true }; }
+  function noticeSheet() {
+    var n = ui.nw;
+    if (!n) return noticeDetail();
+    var tpls = [['week', '운동 신청 안내'], ['event', '행사 안내'], ['result', '결과 발표'], ['rule', '규칙 안내'], ['blank', '빈 글']];
+    return '<div class="nw" role="dialog" aria-modal="true" aria-labelledby="nw-h"><div class="nw-top"><button class="nw-x" data-act="nw-close" aria-label="닫기">✕</button>' +
+      '<h2 id="nw-h">' + (n.id ? '공지 고치기' : '공지 쓰기') + '</h2><button class="btn sm primary" data-act="nw-post"' + (n.busy ? ' disabled' : '') + '>' + (n.busy ? '올리는 중…' : '게시') + '</button></div>' +
+      '<div class="nw-in">' +
+      (n.id ? '' : '<p class="nw-lbl">자주 쓰는 글로 시작</p><div class="nw-tpls">' + tpls.map(function (t) {
+        return '<button class="nw-tpl" data-act="nw-tpl" data-v="' + t[0] + '" aria-pressed="' + (n.armed === t[0]) + '">' + t[1] + '</button>';
+      }).join('') + '</div>') +
+      '<p class="nw-lbl">게시판</p><div class="seg nw-kinds" role="group" aria-label="게시판">' + Club.KINDS.map(function (k) {
+        return '<button data-act="nw-kind" data-v="' + k + '" aria-pressed="' + (n.kind === k) + '">' + k + '</button>';
+      }).join('') + '</div>' +
+      '<label class="nw-body" for="nw-body"><span class="sr-only">내용</span><textarea id="nw-body" rows="9" maxlength="4000" placeholder="새로운 소식을 남겨보세요.">' + esc(n.body) + '</textarea></label>' +
+      '<p class="small muted">첫 줄이 공지 목록의 제목이 돼요.</p>' +
+      '<div class="card nw-opts"><label class="nw-opt" for="nw-pin"><span><b>중요 공지 (맨 위 고정)</b><small>기한이 지나면 자동으로 풀려요</small></span>' +
+      '<input type="checkbox" id="nw-pin" data-act="nw-pin"' + (n.pinned ? ' checked' : '') + '></label>' +
+      (n.id ? '' : '<label class="nw-opt" for="nw-push"><span><b>회원에게 알림 보내기</b><small>알림을 켠 회원 휴대폰에 "📢 새 공지"로 떠요</small></span><input type="checkbox" id="nw-push" data-act="nw-push"' + (n.push ? ' checked' : '') + '></label>') +
+      (n.pinned ? '<label class="nw-opt" for="nw-until"><span>고정 기한 <small>비우면 직접 풀 때까지</small></span><input type="date" id="nw-until" data-act="nw-until" value="' + esc(n.until || '') + '"></label>' : '') + '</div>' +
+      (n.err ? '<p class="small nw-err" role="alert">' + esc(n.err) + '</p>' : '') +
+      '<div class="pc-btns lv-yesno"><button class="btn primary" data-act="nw-post"' + (n.busy ? ' disabled' : '') + '>게시</button><button class="btn" data-act="nw-close">취소</button></div>' +
+      '<p class="small muted">사진·투표는 다음 단계에서 붙일 예정이에요.</p></div></div>';
+  }
+  function noticeDetail() {
+    var d = ui.nd, n = d && (notices.list || []).filter(function (x) { return String(x.id) === String(d.id); })[0];
+    if (!d) return '';
+    if (!n) return '<div class="pc-back" data-act="nd-close" aria-hidden="true"></div><section class="pc-sheet nd-sheet" role="dialog" aria-modal="true"><h3>공지를 찾지 못했어요</h3><div class="pc-btns one"><button class="btn" data-act="nd-close">닫기</button></div></section>';
+    var KC = { '운동': 'k-run', '행사': 'k-ev', '규칙': 'k-rule' }, can = ui.admin || ui.op;
+    var meta = md(Club.kstDate(n.created_at)) + (n.updated_at && n.updated_at !== n.created_at ? ' · 고침' : '') + (n.pinned ? ' · 📌 중요' + (n.pin_until ? ' (' + md(n.pin_until) + '까지)' : '') : '');
+    return '<div class="pc-back" data-act="nd-close" aria-hidden="true"></div><section class="pc-sheet nd-sheet" role="dialog" aria-modal="true" aria-labelledby="nd-h">' +
+      '<p class="nd-meta"><span class="chip ' + (KC[n.kind] || 'k-res') + '">' + esc(n.kind) + '</span> <span class="small muted num">' + meta + '</span></p>' +
+      '<h3 id="nd-h" class="sr-only">' + esc(Club.noticeTitle(n.body)) + '</h3><div class="nd-body">' + esc(n.body) + '</div>' +
+      (can && d.confirm ? '<p class="small"><b>이 공지를 지울까요?</b> 회원 화면에서 바로 사라져요.</p><div class="pc-btns lv-yesno"><button class="btn danger" data-act="nd-del-ok">네, 지우기</button><button class="btn" data-act="nd-del-no">취소</button></div>'
+        : '<div class="pc-btns' + (can ? '' : ' one') + '">' + (can ? '<button class="btn" data-act="nw-edit">고치기</button><button class="btn danger" data-act="nd-del">지우기</button>' : '') + '<button class="btn" data-act="nd-close">닫기</button></div>') +
+      '</section>';
+  }
+
   // 클럽 홈 (2026-11-25): 운동 참가(예시 · 신청은 밴드) → 진행 중(다승왕전·행사) → 진행 중인 공지 → 다가오는 일정. 밴드 정보는 club.js
   var DOW = '일월화수목금토';
   function dowOf(d) { return DOW[new Date(d + 'T00:00:00Z').getUTCDay()]; }
@@ -230,10 +275,18 @@
         '<small class="num">' + md(e.date) + (e.noDow ? '' : '(' + dowOf(e.date) + ')') + ' · ' + esc(e.place) + '</small><span class="ev-link">밴드에서 보기 ›</span>');
     }).join('') + '</div>';
     var ns = Club.activeNotices(t), KCLS = { '운동': 'k-run', '행사': 'k-ev', '규칙': 'k-rule' };
-    if (ns.length) out += '<h2 class="home-h">진행 중인 공지 <span class="small muted">누르면 밴드 원문</span></h2><div class="card hm-notices">' + ns.map(function (x) {
-      return bandLink(x.post, 'hm-n', '<span class="chip ' + (KCLS[x.kind] || 'k-rule') + '">' + esc(x.kind) + '</span><span class="hm-nt"><b>' + esc(x.title) + '</b>' +
-        (x.sub ? '<small>' + esc(x.sub) + '</small>' : '') + '</span><span class="hm-go" aria-hidden="true">›</span>');
-    }).join('') + '</div>';
+    var apps = notices.list ? Club.homeNotices(t, notices.list) : [], canW = ui.admin || ui.op;
+    if (ns.length || apps.length || canW) out += '<div class="hm-nh"><h2 class="home-h">진행 중인 공지</h2>' +
+      ((ui.admin || ui.op) ? '<button class="btn sm primary nw-open" data-act="nw-open">＋ 공지 쓰기</button>' : '') + '</div><div class="card hm-notices">' +
+      apps.map(function (x) {
+        var sub = '앱 공지 · ' + md(Club.kstDate(x.created_at)) + (x.pin && x.pin_until ? ' · ' + md(x.pin_until) + '까지 고정' : '');
+        return '<button class="hm-n" data-act="nd-open" data-v="' + esc(String(x.id)) + '"><span class="chip ' + (KCLS[x.kind] || 'k-res') + '">' + esc(x.kind) + '</span><span class="hm-nt"><b>' + (x.pin ? '📌 ' : '') +
+          esc(Club.noticeTitle(x.body)) + '</b><small>' + sub + '</small></span><span class="hm-go" aria-hidden="true">›</span></button>';
+      }).join('') +
+      ns.map(function (x) {
+        return bandLink(x.post, 'hm-n', '<span class="chip ' + (KCLS[x.kind] || 'k-rule') + '">' + esc(x.kind) + '</span><span class="hm-nt"><b>' + esc(x.title) + '</b>' +
+          '<small>' + (x.sub ? esc(x.sub) + ' · ' : '') + '밴드</small></span><span class="hm-go" aria-hidden="true">›</span>');
+      }).join('') + (!apps.length && !ns.length ? '<p class="small muted">진행 중인 공지가 없어요.</p>' : '') + '</div>';
     var up = Club.upcoming(t, L.seasonDays(work.settings), Club.EVENTS, 4);
     if (up.length) {
       out += '<h2 class="home-h">다가오는 일정</h2><div class="card sched">' + up.map(function (u) {
@@ -1466,13 +1519,13 @@
   function viewAdmin() {
     if (ui.op) return '<div class="card lockcard"><div class="pig" aria-hidden="true"></div><h2>진행 도우미로 들어와 있어요</h2>' +
       '<p class="muted small">이번 주 탭의 <b>경기 진행</b>(코트 넣기·이김·빼기, 지금 못 하는 사람)만 할 수 있어요. 이 기기에서 계속 유지되고, 돼장이 진행 PIN을 바꾸거나 끄면 잠겨요.</p>' +
-      '<div class="row" style="justify-content:center"><button class="btn primary" data-act="tab" data-v="week">경기 진행으로</button><button class="btn" data-act="lock">잠그기</button></div>' +
+      '<div class="row" style="justify-content:center"><button class="btn primary" data-act="tab" data-v="week">경기 진행으로</button><button class="btn" data-act="nw-open">📢 공지 쓰기</button><button class="btn" data-act="lock">잠그기</button></div>' +
       '<p class="muted small">돼장 PIN으로 들어가려면 잠근 뒤 다시 입력하세요.</p></div>';
     if (!ui.admin) return viewLock();
     var out = '<div class="row" style="justify-content:space-between"><div class="seg" role="group" aria-label="관리 메뉴">' +
       [['plan', '참석·편성'], ['members', '회원'], ['seeds', '실력 순위'], ['pred', '예측'], ['settings', '설정']].map(function (s) {
         return '<button data-act="sec" data-v="' + s[0] + '" aria-pressed="' + (ui.sec === s[0]) + '">' + s[1] + '</button>';
-      }).join('') + '</div><button class="btn sm" data-act="lock">잠그기</button></div>';
+      }).join('') + '</div><span class="row"><button class="btn sm" data-act="nw-open">📢 공지 쓰기</button><button class="btn sm" data-act="lock">잠그기</button></span></div>';
     if (ui.sec === 'members') return out + viewMembers();
     if (ui.sec === 'seeds') return out + viewSeeds();
     if (ui.sec === 'settings') return out + viewSettings();
@@ -1831,6 +1884,7 @@
         (ui.busy ? '' : '<span class="row"><button class="btn sm" data-act="revert">되돌리기</button><button class="btn sm primary" data-act="save">저장</button></span>') + '</div></div>';
     }
     html += reportOverlay();
+    html += noticeSheet();
     if (ui.toast) html += '<div class="toast" role="status">' + esc(ui.toast) + '</div>';
     app.innerHTML = html;
     if (focusId) { var f = document.getElementById(focusId); if (f && f.focus) try { f.focus({ preventScroll: true }); } catch (e) { } }
@@ -1956,6 +2010,42 @@
       case 'lv-ask-win': ui.lvSheet = { kind: 'win', m: el.getAttribute('data-m'), side: el.getAttribute('data-side') }; render(); break;
       case 'lv-ask-cancel': ui.lvSheet = { kind: 'cancel', m: el.getAttribute('data-m') }; render(); break;
       case 'lv-close': ui.lvSheet = null; render(); break;
+      case 'nw-open': if (!(ui.admin || ui.op)) { ui.tab = 'admin'; render(); break; } ui.nd = null; ui.nw = nwFrom({ kind: '운동', body: '', pinned: false, until: '' }); render(); break;
+      case 'nw-close': ui.nw = null; render(); break;
+      case 'nw-kind': if (ui.nw) { ui.nw.kind = v; render(); } break;
+      case 'nw-tpl':
+        if (!ui.nw) break;
+        var tb = (document.getElementById('nw-body') || {}).value; if (tb != null) ui.nw.body = tb;
+        if (ui.nw.body.trim() && ui.nw.body !== ui.nw.tplBody && ui.nw.armed !== v) { ui.nw.armed = v; ui.nw.err = '쓰던 내용이 있어요. 지우고 이 글로 바꾸려면 한 번 더 누르세요.'; render(); break; }
+        var tp = v === 'week' ? Club.weekTemplate(todayKST()) : v === 'blank' ? { kind: ui.nw.kind, body: '', pinned: false, until: '' } : Club.TEMPLATES[v];
+        if (tp) ui.nw = nwFrom(tp);
+        render(); break;
+      case 'nw-post':
+        if (!ui.nw || ui.nw.busy) break;
+        var nb = (document.getElementById('nw-body') || {}).value; if (nb != null) ui.nw.body = nb;
+        if (!ui.nw.body.trim()) { ui.nw.err = NW_ERR.bad_body; render(); break; }
+        ui.nw.busy = true; ui.nw.err = ''; render();
+        (function (n) {
+          remote.noticeSave(token, n.id, n.kind, n.body, n.pinned, n.pinned && n.until ? n.until : null).then(function (nid) {
+            var sendPush = !n.id && n.push && vapidKey() && nid;
+            if (sendPush) remote.notifyNotice(token, +nid).catch(function () { });
+            ui.nw = null; ui.tab = 'home'; loadNotices(); toast(n.id ? '공지를 고쳤어요.' : '공지를 올렸어요.' + (sendPush ? ' 알림도 보냈어요.' : ' 홈에서 보여요.'));
+          }, function (e) { n.busy = false; n.err = NW_ERR[e && e.code] || '올리지 못했어요. 인터넷 연결을 확인하고 다시 눌러 주세요.'; render(); });
+        })(ui.nw);
+        break;
+      case 'nd-open': ui.nd = { id: v, confirm: false }; render(); break;
+      case 'nd-close': ui.nd = null; render(); break;
+      case 'nd-del': if (ui.nd) { ui.nd.confirm = true; render(); } break;
+      case 'nd-del-no': if (ui.nd) { ui.nd.confirm = false; render(); } break;
+      case 'nd-del-ok':
+        if (!ui.nd) break;
+        remote.noticeDelete(token, +ui.nd.id).then(function () { ui.nd = null; loadNotices(); toast('공지를 지웠어요.'); },
+          function (e) { ui.nd = null; toast(NW_ERR[e && e.code] || '지우지 못했어요. 다시 해 주세요.'); });
+        break;
+      case 'nw-edit':
+        var en = ui.nd && (notices.list || []).filter(function (x) { return String(x.id) === String(ui.nd.id); })[0];
+        if (en) { ui.nw = nwFrom({ kind: en.kind, body: en.body, pinned: en.pinned, until: en.pin_until || '' }); ui.nw.id = en.id; ui.nd = null; }
+        render(); break;
       case 'lv-start': ui.lvSheet = null; liveEdit(function (w, t) { return L.startMatch(w, el.getAttribute('data-m'), +el.getAttribute('data-c'), t, L.courtSlots(work.settings, w)); }, 'start', el.getAttribute('data-m'), +el.getAttribute('data-c'), null, '코트에 넣었어요.'); break;
       case 'lv-win': ui.lvSheet = null; liveEdit(function (w, t) { return L.finishMatch(w, el.getAttribute('data-m'), el.getAttribute('data-side'), t); }, 'finish', el.getAttribute('data-m'), null, el.getAttribute('data-side'), '결과를 저장했어요.'); break;
       case 'lv-cancel': ui.lvSheet = null; liveEdit(function (w) { return L.cancelMatch(w, el.getAttribute('data-m')); }, 'cancel', el.getAttribute('data-m'), null, null, '코트에서 뺐어요.'); break;
@@ -2117,6 +2207,9 @@
     var m, P = pm();
     switch (act) {
       case 'sg-adm-pick': ui.sgPick[el.getAttribute('data-v')] = el.value; break;
+      case 'nw-pin': if (ui.nw) { var b0 = document.getElementById('nw-body'); if (b0) ui.nw.body = b0.value; ui.nw.pinned = el.checked; render(); } break;
+      case 'nw-until': if (ui.nw) ui.nw.until = el.value; break;
+      case 'nw-push': if (ui.nw) ui.nw.push = el.checked; break;
       case 'pa-player': if (ui.pred.adm) ui.pred.adm.player = el.value; break;
       case 'pa-mode': if (ui.pred.adm) ui.pred.adm.mode = el.value; break;
       case 'pa-pick': if (ui.pred.adm) ui.pred.adm.picks[+el.getAttribute('data-i')] = el.value; break;
@@ -2146,7 +2239,7 @@
   });
   // 비밀번호 바꾸기 펼침 상태: 토스트 등으로 다시 그려도 접히지 않게
   document.addEventListener('toggle', function (ev) { if (ev.target.classList && ev.target.classList.contains('mpin')) ui.mpinOpen = ev.target.open; }, true);
-  document.addEventListener('input', function (ev) { if (ev.target.id === 'paste') ui.paste = ev.target.value; if (ev.target.id === 'seed-text') ui.seedText[ui.seedGroup] = ev.target.value; if (ev.target.id === 'ai-text') ui.ai.text = ev.target.value; });
+  document.addEventListener('input', function (ev) { if (ev.target.id === 'nw-body' && ui.nw) { ui.nw.body = ev.target.value; return; } if (ev.target.id === 'paste') ui.paste = ev.target.value; if (ev.target.id === 'seed-text') ui.seedText[ui.seedGroup] = ev.target.value; if (ev.target.id === 'ai-text') ui.ai.text = ev.target.value; });
 
   document.addEventListener('submit', function (ev) {
     ev.preventDefault();
@@ -2247,6 +2340,7 @@
     // 첫 화면: 다승왕전 경기날이면 바로 그날 '이번 주' (왼쪽 위 ‹ 홈으로 클럽 홈), 아니면 보던 탭 (2026-11-25)
     ui.tab = L.startTab(LS.get(KEY.tab), todayKST(), seasonDates());
     if (ui.tab === 'week' && seasonDates().indexOf(todayKST()) >= 0) ui.week = todayKST();
+    loadNotices();
     var sess = R.loadSession(LS, Date.now());
     token = sess ? sess.token : null;
     ui.admin = !!sess && sess.role === 'admin'; ui.op = !!sess && sess.role === 'operator';
