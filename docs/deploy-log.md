@@ -1541,3 +1541,6 @@ $ (구현 뒤) logic 141 · deploy 60 · tourney 17 · push 5 passed
 - 가짜 서버(MOCK_DEMO), 시계 11/26 16:00, 360·390·1024px: 버튼 높이 48px, 오른쪽 글자 한 줄, 참가 카드 바로 다음, href …/chat/CsyJ3P · target _blank · rel noopener, 가로 넘침·페이지 오류 없음
 - 아직 확인 안 함: 휴대폰(밴드 앱 설치)에서 이 주소가 밴드 앱의 라뚱 방으로 바로 넘어가는지 → 배포 뒤 실제 폰으로 확인
 - 사진: docs/screenshots/band-chat/home_360.jpg
+- **고침(2026-11-26 16:21 김형준 확인)**: 채팅방 주소 `/chat/CsyJ3P`를 김형준이 열어 보니 "참여할 수 없는 채팅방"이라고 뜸. PC Chrome 웹에서는 열렸지만 그 밖에서는 안 열림 → 버튼을 **밴드 홈**(`CHAT = BAND`)으로 바꾸고, 오른쪽 글자는 "밴드에서 채팅 누르기 ›"로 바꿈
+  - 테스트를 먼저 새 요구로 바꾸고 FAIL 확인(logic: 주소가 밴드 홈이 아님 / deploy: 안내 글자 없음) → logic 141 · deploy 60 · tourney 17 · push 5 passed
+  - 가짜 서버 360·390·1024px: href https://band.us/band/86304160, 버튼 높이 48px, 글자 한 줄, 가로 넘침·오류 없음 (사진 다시 찍음)

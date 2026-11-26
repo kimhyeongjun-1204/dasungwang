@@ -633,7 +633,7 @@ test('클럽 홈: 참가 신청은 예시 + 밴드 안내, 진행 중 공지·�
 test('클럽 홈: 밴드 채팅(라뚱) 바로가기 — 채팅 기능은 만들지 않고 밴드로 연결 (2026-11-26)', () => {
   const h = appSrc.match(/function viewHome\(\) \{[\s\S]*?\n  \}\n/)[0];
   assert.ok(/href="' \+ Club\.CHAT \+ '" target="_blank" rel="noopener"/.test(h), '홈에 밴드 채팅 새 창 링크 없음');
-  assert.ok(/밴드 채팅/.test(h), '버튼 글자');
+  assert.ok(/밴드 채팅/.test(h) && /밴드에서 채팅/.test(h), '버튼 글자: 밴드를 열고 채팅을 누르라는 안내');
   assert.ok(h.indexOf('Club.CHAT') < h.indexOf('진행 중</h2>'), '밴드 채팅은 진행 중 카드보다 위(참가 카드 아래)');
 });
 test('service worker: index.html network-first, supabase는 캐시 안 함', () => {

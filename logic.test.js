@@ -1094,8 +1094,10 @@ test('club.js 데이터: 진행 중 공지마다 밴드 글 번호, 2025년 비�
   assert.ok(cb && cb.date === '2026-11-27' && new Date(cb.date + 'T00:00:00Z').getUTCDay() === 5 && !cb.noDow, '청백전은 11/27(금) (사용자 확인 2026-11-25)');
 });
 
-test('club.js 밴드 채팅: 단체방 라뚱 주소 (돼장 결정 2026-11-26 — 채팅은 밴드, 앱은 연결만)', () => {
-  assert.strictEqual(CL.CHAT, CL.BAND + '/chat/CsyJ3P', '라뚱 단체 채팅방 주소');
+test('club.js 밴드 채팅: 밴드 홈으로 연결 (돼장 결정 2026-11-26 — 채팅은 밴드, 앱은 연결만)', () => {
+  // 채팅방 주소(/chat/CsyJ3P)는 PC 웹에서만 열리고 휴대폰에서는 "참여할 수 없는 채팅방" (김형준 확인 2026-11-26 16:21)
+  assert.strictEqual(CL.CHAT, CL.BAND, '휴대폰에서 열리는 밴드 홈 주소');
+  assert.ok(!/\/chat\//.test(CL.CHAT), '채팅방 주소는 휴대폰에서 안 열림');
 });
 
 console.log(`\n${passed} passed`);
