@@ -1541,7 +1541,7 @@
         return '<button' + (/^[ABC]$/.test(x[0]) ? ' class="g' + x[0] + '"' : '') + ' data-act="mb-group" data-v="' + x[0] + '" aria-pressed="' + (mb.group === x[0]) + '">' + esc(x[1]) + ' <span class="num">' + cnt(x[0]) + '</span></button>';
       }).join('') + '</div><button class="btn primary" data-act="mb-new">＋ 새 회원</button></div>';
     out += '<div class="card mb-list">' + (list.length ? list.map(function (p) {
-      return '<button class="mb-row" data-act="mb-edit" data-p="' + p.id + '"><b>' + esc(p.name) + '</b><span class="chip">' + esc(p.grade || '급수 미정') + '</span>' +
+      return '<button class="mb-row" data-act="mb-edit" data-p="' + p.id + '"><b>' + esc(p.name) + '</b>' + (p.gender ? '<span class="mb-sex s' + p.gender + '">' + (p.gender === 'F' ? '여' : p.gender === 'M' ? '남' : '') + '</span>' : '') + '<span class="chip">' + esc(p.grade || '급수 미정') + '</span>' +
         '<small class="muted">' + esc(gname(p.group)) + '조 · ' + (mb.pins === null ? '…' : pins.indexOf(p.id) >= 0 ? '비밀번호 있음' : '아직 로그인 안 함') + '</small>' +
         (p.active === false ? '<span class="chip warn">쉬는 회원</span>' : '') + '<span aria-hidden="true">›</span></button>';
     }).join('') : '<p class="muted">이 조에 회원이 없어요.</p>') + '</div>';
@@ -1555,6 +1555,8 @@
         '<p class="small muted mb-lbl">급수 (회원 등급)</p><div class="mb-grades" role="radiogroup" aria-label="급수">' + L.GRADES.map(function (gr, i) {
           return '<button role="radio" aria-checked="' + (e.grade === gr) + '" data-act="mb-grade" data-v="' + gr + '"><i class="ch ch-' + ['cv', 'lb', 'bf', 'lm', 'pk', 'ck'][i] + '" aria-hidden="true"></i>' + gr + '</button>';
         }).join('') + '</div>' +
+        '<p class="small muted mb-lbl">성별</p><div class="sgm-gender mb-sexes" role="radiogroup" aria-label="성별">' + [['M', '남'], ['F', '여']].map(function (x) {
+          return '<button type="button" role="radio" aria-checked="' + (e.gender === x[0]) + '" data-act="mb-sex" data-v="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>' +
         '<p class="small muted mb-lbl">다승왕·대회에서 뛰는 조 <span>· 급수와 조는 따로예요</span></p><div class="gsel mb-gsel" role="radiogroup" aria-label="조">' + groups().map(function (g) {
           return '<button role="radio" class="g' + g.id + '" aria-checked="' + (e.group === g.id) + '" aria-pressed="' + (e.group === g.id) + '" data-act="mb-gsel" data-v="' + g.id + '">' + esc(g.name) + '</button>';
         }).join('') + '</div>' +
@@ -2054,21 +2056,23 @@
       case 'lg-name': lgPick(el.getAttribute('data-p')); break;
       case 'lg-back': ui.lg.step = v; if (v === 'group') ui.lg.gid = null; ui.lg.pid = null; ui.lg.msg = ''; render(); break;
       case 'mb-group': ui.mb.group = v; render(); break;
-      case 'mb-new': ui.mb.edit = { id: null, name: '', grade: null, group: null, groupSet: false }; ui.mb.ask = null; render(); var nf = document.getElementById('mb-name'); if (nf) nf.focus(); break;
-      case 'mb-edit': P = pm()[el.getAttribute('data-p')]; ui.mb.edit = { id: P.id, name: P.name, grade: P.grade || null, group: P.group, groupSet: true }; ui.mb.ask = null; render(); break;
+      case 'mb-new': ui.mb.edit = { id: null, name: '', grade: null, group: null, groupSet: false, gender: null }; ui.mb.ask = null; render(); var nf = document.getElementById('mb-name'); if (nf) nf.focus(); break;
+      case 'mb-edit': P = pm()[el.getAttribute('data-p')]; ui.mb.edit = { id: P.id, name: P.name, grade: P.grade || null, group: P.group, groupSet: true, gender: P.gender || null }; ui.mb.ask = null; render(); break;
       case 'mb-close': ui.mb.edit = null; ui.mb.ask = null; render(); break;
       case 'mb-grade':   // 새 회원은 조를 아직 안 골랐으면 급수로 추천한 조를 미리 골라 둠(바꿀 수 있음). 기존 회원은 급수만 바뀜
         ui.mb.edit.name = (document.getElementById('mb-name') || {}).value || ui.mb.edit.name; ui.mb.edit.grade = v;
         if (!ui.mb.edit.groupSet) ui.mb.edit.group = L.gradeGroup(v);
         render(); break;
+      case 'mb-sex': ui.mb.edit.name = (document.getElementById('mb-name') || {}).value || ui.mb.edit.name; ui.mb.edit.gender = ui.mb.edit.gender === v ? null : v; render(); break;   // 성별: 다시 누르면 모름
       case 'mb-gsel': ui.mb.edit.name = (document.getElementById('mb-name') || {}).value || ui.mb.edit.name; ui.mb.edit.group = v; ui.mb.edit.groupSet = true; render(); break;
       case 'mb-save':
         var me2 = ui.mb.edit, nm2 = (document.getElementById('mb-name') || {}).value;
-        if (!me2.id) { if (mbApply({ name: nm2, grade: me2.grade, group: me2.group || undefined }, String(nm2).trim() + ' 님을 추가했어요.') && me2.group) ui.mb.group = me2.group; }
+        if (!me2.id) { if (mbApply({ name: nm2, grade: me2.grade, group: me2.group || undefined, gender: me2.gender || undefined }, String(nm2).trim() + ' 님을 추가했어요.') && me2.group) ui.mb.group = me2.group; }
         else {
           var was = pm()[me2.id], ed = { id: me2.id, name: nm2 };
           if (me2.grade && me2.grade !== was.grade) ed.grade = me2.grade;
           if (me2.group && me2.group !== was.group) ed.group = me2.group;
+          if ((me2.gender || null) !== (was.gender || null)) ed.gender = me2.gender || null;
           if (mbApply(ed, ed.group ? String(nm2).trim() + ' 님을 ' + gname(ed.group) + '조로 옮겼어요.' : '저장했어요.') && ed.group) ui.mb.group = ed.group;
         }
         break;

@@ -1094,3 +1094,8 @@ button.lv-row:disabled { cursor: default; opacity: .7; }
 .ar-list .face { width: 32px; height: 32px; }
 .ar-list b { flex: 1; font-size: 15px; } .ar-n { font-weight: 900; color: var(--navy); }
 .my-rank { margin: 6px 0 0; color: var(--navy); }
+
+/* 회원 성별 (2026-11-27) */
+.mb-sex { font-size: 11px; font-weight: 900; border-radius: 999px; padding: 1px 6px; color: #fff; }
+.mb-sex.sM { background: #3E7BD9; } .mb-sex.sF { background: #D9497A; }
+.mb-sexes { max-width: 240px; }

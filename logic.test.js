@@ -1247,4 +1247,18 @@ test('attendRank: 이달의 출석왕 — 지난 날 신청 완료만 셈(대기
   assert.deepStrictEqual(L.attendRank([], '2026-11-27'), []);
 });
 
+test('memberEdit 성별: 남 M · 여 F · 모름(빈칸이면 지움), 다른 값은 거절 (2026-11-27 김형준)', () => {
+  const w = { players: [{ id: 'a', name: '가가', group: 'A', grade: '캐비어' }] };
+  assert.deepStrictEqual(L.memberEdit(w, { id: 'a', gender: 'F' }).errors, []);
+  assert.strictEqual(w.players[0].gender, 'F');
+  assert.deepStrictEqual(L.memberEdit(w, { id: 'a', gender: 'X' }).errors, ['성별은 남·여 중에서 골라 주세요.']);
+  assert.strictEqual(w.players[0].gender, 'F', '틀린 값은 안 바뀜');
+  assert.deepStrictEqual(L.memberEdit(w, { id: 'a', gender: null }).errors, []);
+  assert.ok(!('gender' in w.players[0]), '모름이면 칸을 지움');
+  assert.deepStrictEqual(L.memberEdit(w, { name: '나나', grade: '소갈비', gender: 'M' }, 'b').errors, []);
+  assert.strictEqual(w.players[1].gender, 'M', '새 회원도 성별');
+  assert.deepStrictEqual(L.memberEdit(w, { name: '다다', grade: '소갈비' }, 'c').errors, []);
+  assert.ok(!('gender' in w.players[2]), '안 고르면 칸 없음');
+});
+
 console.log(`\n${passed} passed`);
