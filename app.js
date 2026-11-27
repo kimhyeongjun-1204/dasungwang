@@ -1272,7 +1272,6 @@
   // 자리가 나서 들어간 사람이 있으면 알림 (실패해도 신청에는 영향 없음)
   function sgPromoted(list) { if (list && list.length && vapidKey()) remote.notifySignup().catch(function () { }); }
   var GRADE_CH = { '캐비어': 'cv', '랍스터': 'lb', '소갈비': 'bf', '양갈비': 'lm', '돼지갈비': 'pk', '닭갈비': 'ck' };
-  function sgName(e, P) { return e.player_id ? ((P[e.player_id] || {}).name || '?') : (e.guest || '게스트') + ' (게스트·' + ((P[e.host_id] || {}).name || '?') + ')'; }
   // 참가자 목록: 밴드 참가신청서의 '참가자' 팝업처럼 가운데 창. 급수 아이콘 + 이름(급수) + 신청 일시, 오른쪽에 순서·대기 (2026-11-27)
   function sgListModal(d, row, P, adm) {
     var all = row.entries || [], sd = L.signupDay(row, ui.me), tab = ui.sgTab || 'all', es = L.sgFilter(all, P, tab);
@@ -1288,7 +1287,8 @@
         var face = p ? (ch ? '<i class="face face-' + ch + '" aria-hidden="true"></i>' : '<span class="sgm-ini" aria-hidden="true">' + esc((p.name || '?').slice(0, 1)) + '</span>') :
           '<span class="sgm-ini guest g' + (e.gender === 'F' ? 'f' : 'm') + '" aria-hidden="true">' + (e.gender === 'F' ? '여' : '남') + '</span>';
         var nm = p ? esc(p.name || '?') + (p.grade ? '<small>(' + esc(p.grade) + ')</small>' : '') :
-          esc(e.guest || '게스트') + '<small>(게스트·' + (e.gender === 'F' ? '여' : '남') + ' · ' + esc((P[e.host_id] || {}).name || '?') + ' 데려옴)</small>';
+          (function () { var gl = (e.gender === 'F' ? '여' : '남') + '게스트', by = esc((P[e.host_id] || {}).name || '?') + ' 추가';   // "남게스트 · 김형준 추가" (14:17)
+            return e.guest ? esc(e.guest) + '<small>(' + gl + ' · ' + by + ')</small>' : gl + ' <small>· ' + by + '</small>'; })();
         return '<li class="' + (e.status === 'in' ? 'in' : 'wait') + (e.player_id && e.player_id === ui.me ? ' me' : '') + '"><span class="sgm-face">' + face + '</span>' +
           '<span class="sgm-who"><b>' + nm + (e.by_admin ? ' <small class="muted">돼장 넣음</small>' : '') + '</b><small class="num">' + L.bandTime(e.at) + '</small></span>' +
           '<span class="sgm-no num">' + (e.status === 'in' ? e.no : '대기 ' + e.no) + '</span>' +

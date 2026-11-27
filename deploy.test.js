@@ -770,6 +770,11 @@ test('참가 카드: 밴드처럼 체크 버튼으로 신청, "15/22 ›" 누르
   assert.ok(!/동그라미를 체크하면|대기 순서대로 자동으로/.test(appSrc), '참가 탭 맨 위 안내문 없음 (14:06)');
   assert.ok(/case 'sg-ltab':/.test(appSrc) && /case 'sg-list': ui\.sgList = v; ui\.sgTab = 'all'/.test(appSrc), '탭 바꾸기, 열 때는 전체');
 });
+test('참가자 창 게스트 줄: "남게스트 · 김형준 추가" 식 (2026-11-27 김형준 14:17)', () => {
+  const pl = appSrc.match(/function sgListModal\([^)]*\) \{[\s\S]*?\n  \}\n/)[0];
+  assert.ok(!/데려옴/.test(appSrc) && !/\(게스트·/.test(pl), '예전 "(게스트·남 · 데려옴)" 없음');
+  assert.ok(/'남게스트'|게스트' \+|\+ '게스트/.test(pl) && /' 추가/.test(pl), '남/여게스트 · 데려온 사람 추가');
+});
 test('service worker: index.html network-first, supabase는 캐시 안 함', () => {
   const sw = fs.readFileSync(path.join(__dirname, 'dist', 'sw.js'), 'utf8');
   const cached = [];
