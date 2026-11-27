@@ -1860,3 +1860,5 @@ $ node logic.test.js; node deploy.test.js   (테스트 먼저 FAIL 2건 확인 �
   - SQL Editor에 넣고 SHA-256 4625e46d…8348(만든 파일과 같음), 291줄 → 실행 → signups_list 11/2~12/4가 밴드와 같음(11/27은 쉬는 날 0/24). SQL은 실제 회원 id라 저장소에 안 올림
 - **회원 역할 SQL(#39)**: GitHub raw(feat/member-roles)의 묶음 → SHA-256 083bade7…9e4a 확인 → 'destructive operations' 경고(함수 안 delete) → 실행. 공개 키로 확인: member_role_session·admin_operators·admin_set_operator 가짜 토큰 → unauthorized(함수 있음) · club_role 표 직접 읽기 401 · app_state rev 508 그대로
 - **머지**: #39 merge(c8bc0e5) → #40에 main 합침(deploy-log만 충돌, 92·93 둘 다 남김) → 테스트 전부 통과 → #40 merge(f07bdbb) → #41 base를 main으로, main 합침(충돌 없음) → logic 155 · deploy 81 · tourney 17 · push 7 / roles 27 · members 43 · signups 49 → #41 merge
+- #41 merge(869a4a0) → GitHub Pages c8bc0e5·f07bdbb·869a4a0 모두 success → 실제 사이트 index.html에 새 코드(대기 신청하기·내 정보 달력·출석왕·회원 역할·홈 내 이름·끝난 주 숨기기) 들어감, 관리 PIN 입력 칸 없음
+- 운영 데이터로 계산한 11월 출석(11/2~11/26, 신청 완료만): 45명, 1위 김진호 17 · 2위 박복균 14 · 3위 김예슬 12 · 4위 이은미 11 · 공동 5위 조영재·박희수 10
