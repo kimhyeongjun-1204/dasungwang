@@ -968,6 +968,18 @@ var Logic = (function () {
   // ---- 회원 로그인·회원 관리 (2026-11-26) ----
   var GRADES = ['캐비어', '랍스터', '소갈비', '양갈비', '돼지갈비', '닭갈비'];
   function gradeGroup(g) { var i = GRADES.indexOf(g); return i < 0 ? null : ['A', 'B', 'C'][i >> 1]; }
+  // 참가자 창 탭: 전체(신청 순) + 두 급수씩 묶음 3개(얼굴 두 개). 묶음 안은 급수 높은 순, 같은 급수는 신청 순.
+  // 게스트·급수 없는 사람은 전체에만 (2026-11-27 김형준 14:24)
+  var SG_TABS = [{ id: 'all', label: '전체' }, { id: 'A', label: '캐비어·랍스터', faces: ['cv', 'lb'] }, { id: 'B', label: '소갈비·양갈비', faces: ['bf', 'lm'] }, { id: 'C', label: '돼지갈비·닭갈비', faces: ['pk', 'ck'] }];
+  // 폰 뒤로 가기 한 번에 할 일: 팝업이 열려 있으면 닫기 → 홈이 아니면 홈으로 → 홈이면 null(앱 밖으로) (2026-11-27)
+  function backStep(u) { return u.sgList || u.sgGuest ? 'modal' : u.tab && u.tab !== 'home' ? 'home' : null; }
+  function sgFilter(es, P, tab) {
+    if (!tab || tab === 'all') return es.slice();
+    var gi = function (e) { return GRADES.indexOf(P[e.player_id].grade); };
+    return es.map(function (e, i) { return { e: e, i: i }; })
+      .filter(function (x) { return x.e.player_id && P[x.e.player_id] && gradeGroup(P[x.e.player_id].grade) === tab; })
+      .sort(function (x, y) { return gi(x.e) - gi(y.e) || x.i - y.i; }).map(function (x) { return x.e; });
+  }
   // 로그인 화면: 조마다 활동 회원만 가나다순
   function loginGroups(players, groups) {
     return groups.map(function (g) {
@@ -1003,9 +1015,41 @@ var Logic = (function () {
     return null;
   }
 
+  // ---- 운동 참가 신청 (2026-11-26) ----
+  function addDays(d, n) { var x = new Date(d + 'T00:00:00Z'); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); }
+  // 이번 주·다음 주 월~금. 토·일이면 다가오는 주부터 (신청은 서버가 오늘~13일 뒤만 받음)
+  function signupWeeks(today) {
+    var dow = new Date(today + 'T00:00:00Z').getUTCDay(), weekend = dow === 0 || dow === 6;
+    var mon = addDays(today, weekend ? (dow === 6 ? 2 : 1) : 1 - dow);
+    return [0, 1].map(function (k) {
+      var f = addDays(mon, 7 * k);
+      return { from: f, to: addDays(f, 4), label: weekend ? (k ? '다다음 주' : '다음 주') : (k ? '다음 주' : '이번 주') };
+    });
+  }
+  // 하루 명단(signups_list 한 줄) → 신청 완료·대기 수, 남은 자리, 내 상태, 내가 데려온 게스트
+  function signupDay(row, pid) {
+    var es = row.entries || [], inC = 0, waitC = 0, mine = null, guests = [];
+    es.forEach(function (e) {
+      if (e.status === 'in') inC++; else waitC++;
+      if (pid && e.player_id === pid) mine = { id: e.id, status: e.status, no: e.no, ahead: e.status === 'wait' ? e.no - 1 : 0 };
+      if (pid && !e.player_id && e.host_id === pid) guests.push(e);
+    });
+    var cap = row.cap || 0;
+    return { inCount: inC, waitCount: waitC, left: Math.max(0, cap - inC), full: inC >= cap, mine: mine, guests: guests };
+  }
+
+  // 신청 일시를 밴드처럼: "2026년 11월 26일 오후 2:38" (KST) (2026-11-27)
+  function bandTime(iso) {
+    if (!iso) return '';
+    var d = new Date(new Date(iso).getTime() + 9 * 3600e3), h = d.getUTCHours(), m = d.getUTCMinutes();
+    return d.getUTCFullYear() + '년 ' + (d.getUTCMonth() + 1) + '월 ' + d.getUTCDate() + '일 ' + (h < 12 ? '오전 ' : '오후 ') + (h % 12 || 12) + ':' + ('0' + m).slice(-2);
+  }
+
   return {
     homeSummary: homeSummary,
-    GRADES: GRADES, gradeGroup: gradeGroup, loginGroups: loginGroups, memberEdit: memberEdit, pinError: pinError,
+    bandTime: bandTime,
+    signupWeeks: signupWeeks, signupDay: signupDay,
+    GRADES: GRADES, gradeGroup: gradeGroup, SG_TABS: SG_TABS, sgFilter: sgFilter, backStep: backStep, loginGroups: loginGroups, memberEdit: memberEdit, pinError: pinError,
     startTab: startTab,
     LIVE: LIVE, typicalMinutes: typicalMinutes, courtEta: courtEta, courtSlots: courtSlots, courtLabel: courtLabel, setExtraCourt: setExtraCourt, liveBoard: liveBoard, shortNames: shortNames, startMatch: startMatch, finishMatch: finishMatch, cancelMatch: cancelMatch, myLive: myLive,
     meRecord: meRecord, matchStarted: matchStarted, livePrediction: livePrediction, predictionRecord: predictionRecord,

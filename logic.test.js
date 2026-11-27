@@ -1150,4 +1150,52 @@ test('club.js heroEvent: 행사 당일이고 따로 페이지(live)가 있으면
   assert.strictEqual(CL.heroEvent('2026-12-18'), null, 'live 없는 뚠뚠배는 아님');
 });
 
+// ---- 운동 참가 신청 (2026-11-26) ----
+test('signupWeeks: 이번 주·다음 주 월~금 (주말에 열면 다음 주가 "이번 주")', () => {
+  assert.deepStrictEqual(L.signupWeeks('2026-11-26'), [{ from: '2026-11-23', to: '2026-11-27', label: '이번 주' }, { from: '2026-11-30', to: '2026-12-04', label: '다음 주' }]);
+  assert.deepStrictEqual(L.signupWeeks('2026-11-29').map(w => w.from), ['2026-11-30', '2026-12-07']);
+  assert.deepStrictEqual(L.signupWeeks('2026-11-28').map(w => w.from), ['2026-11-30', '2026-12-07']);
+});
+test('signupDay: 신청 완료·대기 수, 남은 자리, 내 상태(본인·내 게스트)', () => {
+  const row = { day: '2026-11-30', cap: 2, open: true, closed: false, entries: [
+    { id: 1, player_id: 'a', host_id: 'a', status: 'in', no: 1, pos: 1 }, { id: 2, guest: '손님', host_id: 'b', status: 'in', no: 2, pos: 2 },
+    { id: 3, player_id: 'b', host_id: 'b', status: 'wait', no: 1, pos: 3 }] };
+  const b = L.signupDay(row, 'b');
+  assert.deepStrictEqual([b.inCount, b.waitCount, b.left, b.full], [2, 1, 0, true]);
+  assert.deepStrictEqual(b.mine, { id: 3, status: 'wait', no: 1, ahead: 0 });
+  assert.deepStrictEqual(b.guests.map(g => g.guest + ':' + g.status), ['손님:in']);
+  const c = L.signupDay(row, 'c');
+  assert.strictEqual(c.mine, null);
+  assert.deepStrictEqual(L.signupDay(Object.assign({}, row, { cap: 5 }), 'a').left, 3);
+});
+
+test('bandTime: 신청 일시를 밴드처럼 "2026년 11월 26일 오후 2:38" (KST)', () => {
+  assert.strictEqual(L.bandTime('2026-11-26T05:38:12.5+00:00'), '2026년 11월 26일 오후 2:38');
+  assert.strictEqual(L.bandTime('2026-11-23T01:30:00Z'), '2026년 11월 23일 오전 10:30');
+  assert.strictEqual(L.bandTime('2026-11-22T15:05:00Z'), '2026년 11월 23일 오전 12:05');
+  assert.strictEqual(L.bandTime('2026-11-23T03:00:00Z'), '2026년 11월 23일 오후 12:00');
+  assert.strictEqual(L.bandTime(null), '');
+});
+
+test('sgFilter: 참가자 탭 — 전체 + 두 급수씩 묶음 3개, 묶음 안은 급수 높은 순(같은 급수는 신청 순) (2026-11-27 김형준 14:24)', () => {
+  assert.deepStrictEqual(L.SG_TABS.map(t => t.id + ':' + t.label + ':' + (t.faces || []).join('+')), ['all:전체:', 'A:캐비어·랍스터:cv+lb', 'B:소갈비·양갈비:bf+lm', 'C:돼지갈비·닭갈비:pk+ck']);
+  const P = { a: { grade: '캐비어' }, b: { grade: '양갈비' }, c: { grade: '닭갈비' }, d: { grade: '랍스터' }, e: {}, f: { grade: '캐비어' }, g: { grade: '소갈비' }, h: { grade: '돼지갈비' } };
+  const es = [{ id: 1, player_id: 'd' }, { id: 2, player_id: 'b' }, { id: 3, player_id: null, guest: '친구' }, { id: 4, player_id: 'c' }, { id: 5, player_id: 'a' }, { id: 6, player_id: 'e' }, { id: 7, player_id: 'zz' }, { id: 8, player_id: 'f' }, { id: 9, player_id: 'g' }, { id: 10, player_id: 'h' }];
+  const ids = tab => L.sgFilter(es, P, tab).map(e => e.id);
+  assert.deepStrictEqual(ids('all'), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], '전체는 신청 순 그대로');
+  assert.deepStrictEqual(ids('A'), [5, 8, 1], '캐비어(신청 순) → 랍스터');
+  assert.deepStrictEqual(ids('B'), [9, 2], '소갈비 → 양갈비');
+  assert.deepStrictEqual(ids('C'), [10, 4], '돼지갈비 → 닭갈비');
+  assert.deepStrictEqual(ids(undefined), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], '탭 없으면 전체');
+});
+
+test('backStep: 폰 뒤로 가기 한 번 = 팝업 닫기 → 홈으로 → (홈이면) 앱 밖 (2026-11-27 김형준)', () => {
+  assert.strictEqual(L.backStep({ tab: 'signup', sgList: '2026-12-01' }), 'modal');
+  assert.strictEqual(L.backStep({ tab: 'signup', sgGuest: '2026-12-01' }), 'modal');
+  assert.strictEqual(L.backStep({ tab: 'signup' }), 'home');
+  assert.strictEqual(L.backStep({ tab: 'rank' }), 'home');
+  assert.strictEqual(L.backStep({ tab: 'records', sgList: null, sgGuest: null }), 'home');
+  assert.strictEqual(L.backStep({ tab: 'home' }), null);
+});
+
 console.log(`\n${passed} passed`);

@@ -10,6 +10,8 @@ var Remote = (function () {
     // 진행 PIN·코트 동작 (schema.sql operator_login / set_operator_pin / change_pin / live_action)
     // 회원 로그인 (schema.sql member_*)
     'pin_exists', 'wrong_pin',
+    // 운동 신청 (schema.sql signup_*)
+    'closed_day', 'already', 'not_signed', 'not_yours', 'bad_name', 'bad_gender', 'too_many_guests', 'bad_cap', 'bad_day',
     'no_op_pin', 'same_as_admin', 'same_as_operator', 'no_week', 'no_match', 'bad_court', 'court_busy', 'player_busy', 'already_done', 'not_on_court', 'bad_action'];
 
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
@@ -93,6 +95,20 @@ var Remote = (function () {
       memberLogout: function (token) { return rpc('member_logout', { token: token }); },
       adminMemberPins: function (token) { return rpc('admin_member_pins', { token: token }).then(function (r) { return r || []; }); },
       adminResetMemberPin: function (token, pid) { return rpc('admin_reset_member_pin', { token: token, pid: pid }).then(function (r) { return r === true; }); },
+
+      // ---- 운동 참가 신청·대기·정원 ----
+      signupsList: function (from, to) { return rpc('signups_list', { d_from: from, d_to: to }).then(function (r) { return r || []; }); },
+      signupApply: function (token, d) { return rpc('signup_apply', { token: token, d: d }); },
+      signupCancel: function (token, d) { return rpc('signup_cancel', { token: token, d: d }); },
+      signupGuest: function (token, d, name, gender) { return rpc('signup_guest', { token: token, d: d, p_name: name, p_gender: gender }); },
+      signupGuestCancel: function (token, sid) { return rpc('signup_guest_cancel', { token: token, sid: sid }); },
+      adminSetDay: function (token, d, cap, memo, closed) { return rpc('admin_set_day', { token: token, d: d, p_cap: cap, p_memo: memo, p_closed: closed }); },
+      workoutDefaults: function () { return rpc('workout_defaults', {}).then(function (r) { return r || []; }); },
+      adminSetDefaultCap: function (token, dow, cap) { return rpc('admin_set_default_cap', { token: token, p_dow: dow, p_cap: cap }); },
+      adminSignupAdd: function (token, d, pid) { return rpc('admin_signup_add', { token: token, d: d, pid: pid }); },
+      adminSignupRemove: function (token, d, sid) { return rpc('admin_signup_remove', { token: token, d: d, sid: sid }); },
+      // 자리 나서 자동으로 들어간 사람에게 알림 (Edge Function notify kind=signup, 대상은 DB가 한 번만 꺼내 줌)
+      notifySignup: function () { return call(client.functions.invoke('notify', { body: { kind: 'signup' } })); },
 
       // ---- 돼블스플랜 ----
       // 이름 없는 집계·피드·마감 비율은 누구나, 누가 골랐는지(predictions)는 DB가 마감된 주만 돌려줌
