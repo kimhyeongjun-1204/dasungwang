@@ -630,6 +630,12 @@ test('클럽 홈: 참가 신청은 예시 + 밴드 안내, 진행 중 공지·�
   assert.ok(bl && /target="_blank" rel="noopener"/.test(bl[0]) && /bandLink\(/.test(h), '밴드 링크는 새 창(bandLink)으로');
   assert.ok(/data-act="tab" data-v="week"/.test(h), '다승왕전 카드(→ 이번 주) 그대로');
 });
+test('클럽 홈 행사 카드: live 링크가 있으면 "실시간 점수판" 새 창 + 밴드 공지 링크 따로 (2026-11-27)', () => {
+  const h = appSrc.match(/function viewHome\(\) \{[\s\S]*?\n  \}\n/)[0];
+  assert.ok(/e\.live/.test(h) && /href="' \+ esc\(e\.live\) \+ '" target="_blank" rel="noopener"/.test(h), '실시간 점수판 새 창 링크');
+  assert.ok(/실시간 점수판/.test(h), '버튼 글자');
+  assert.ok(/if \(e\.live\) return '<div class="ev-mini ev-live">'/.test(h), 'live 있는 행사만 링크 두 개를 담는 div (a 안에 a 금지)');
+});
 test('service worker: index.html network-first, supabase는 캐시 안 함', () => {
   const sw = fs.readFileSync(path.join(__dirname, 'dist', 'sw.js'), 'utf8');
   const cached = [];

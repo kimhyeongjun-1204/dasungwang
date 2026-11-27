@@ -217,8 +217,12 @@
     var evs = Club.EVENTS.filter(function (e) { return e.date >= t; });
     if (evs.length) out += '<div class="hm-evs">' + evs.map(function (e) {
       var n = Math.round((Date.parse(e.date) - Date.parse(t)) / 864e5);
-      return bandLink(e.post, 'ev-mini', '<span class="ev-dday">' + (n ? 'D-' + n : 'D-DAY') + '</span><b>' + esc(e.name) + '</b>' +
-        '<small class="num">' + md(e.date) + (e.noDow ? '' : '(' + dowOf(e.date) + ')') + ' · ' + esc(e.place) + '</small><span class="ev-link">밴드에서 보기 ›</span>');
+      var info = '<span class="ev-dday">' + (n ? 'D-' + n : 'D-DAY') + '</span><b>' + esc(e.name) + '</b>' +
+        '<small class="num">' + md(e.date) + (e.noDow ? '' : '(' + dowOf(e.date) + ')') + ' · ' + esc(e.place) + '</small>';
+      // 실시간 점수판이 따로 있는 행사(청백전, 다른 회원이 만든 페이지): 점수판 새 창 + 밴드 공지 (a 안에 a를 못 넣어서 div)
+      if (e.live) return '<div class="ev-mini ev-live">' + info + '<a class="btn primary ev-livebtn" href="' + esc(e.live) + '" target="_blank" rel="noopener">📺 실시간 점수판</a>' +
+        bandLink(e.post, 'ev-link', '밴드 공지 보기 ›') + '</div>';
+      return bandLink(e.post, 'ev-mini', info + '<span class="ev-link">밴드에서 보기 ›</span>');
     }).join('') + '</div>';
     var ns = Club.activeNotices(t), KCLS = { '운동': 'k-run', '행사': 'k-ev', '규칙': 'k-rule' };
     if (ns.length) out += '<h2 class="home-h">진행 중인 공지 <span class="small muted">누르면 밴드 원문</span></h2><div class="card hm-notices">' + ns.map(function (x) {
