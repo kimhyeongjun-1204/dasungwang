@@ -2329,13 +2329,12 @@
     token = sess ? sess.token : null;
     ui.admin = !!sess && sess.role === 'admin'; ui.op = !!sess && sess.role === 'operator';
     // 회원 로그인: 기억한 토큰이 있으면 먼저 그대로 열고 서버에서 확인(초기화·쉬는 회원이면 다시 로그인).
-    // 토큰은 없지만 예전에 고른 이름이 있으면(로그인 생기기 전 사용자) 그 이름의 비밀번호 단계부터
+    // 토큰이 없으면 늘 '조 고르기'부터. 예전에 고른 이름(로그인 생기기 전 ddw-me)으로 바로 그 사람 비밀번호 단계에 가면
+    // 같이 쓰던 폰·PC에서 남의 이름으로 비밀번호를 만들게 됨 (2026-11-27 김형준: "로그인하면 바로 주성모님으로 뜸")
     member.token = LS.get(MKEY);
     var meP = pm()[ui.me];
     member.ok = !!(member.token && meP && meP.active !== false);
-    if (!member.ok && meP && meP.active !== false) { ui.lg.gid = meP.group; ui.lg.step = 'name'; }
     render();
-    if (!member.ok && meP && meP.active !== false) lgPick(meP.id);
     if (member.token) remote.memberCheck(member.token).then(function (pid) {
       if (!pid) { memberOut('다시 로그인해 주세요.'); return; }
       if (pid !== ui.me || !member.ok) { ui.me = pid; LS.set(KEY.me, pid); member.ok = true; render(); }
