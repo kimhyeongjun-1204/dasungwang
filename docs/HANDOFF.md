@@ -1,0 +1,100 @@
+# 인수인계 — 라켓뚱보단 클럽 앱 (2026-11-27 15시 기준)
+
+다음 작업자(다른 AI)가 이 파일 하나로 상황을 잡고 이어서 일할 수 있게 정리한 문서예요.
+더 자세한 이력은 `docs/deploy-log.md`(실행한 것과 결과), 실수 기록은 `docs/wrong-answers.md`에 있어요.
+
+## 1. 무엇을 만드는 중인가
+- 배드민턴 클럽 **라켓뚱보단**(회원 약 58명, 조 A 캐비어·랍스터 / B 소갈비·양갈비 / C 돼지갈비·닭갈비) 전용 웹앱(PWA)
+- 원래는 수요일 **돼지지옥 다승왕전**(편성·결과·순위·돼블스플랜 예측) 앱 → 지금은 **밴드에서 클럽 운영을 옮겨 오는 중**
+  - 우선순위(김형준 결정): ① 회원 로그인 ② 요일별 운동 참가 신청 ③ 공지. 채팅은 밴드에 남기고 앱은 링크만(돼장 결정)
+- 사람
+  - **김형준**: 개발·운영 담당(사용자). 앱 회원 명단에는 김형준(p006)
+  - **김성곤(p005)**: 돼장(클럽장). 실제 운영 결정권자
+- 급수(등급)와 조는 **따로**예요. 급수가 랍스터여도 소갈비·양갈비 조에서 뛸 수 있음(회원 관리에서 급수·조를 따로 고름)
+
+## 2. 주소
+| 무엇 | 주소 |
+|---|---|
+| 저장소 | https://github.com/kimhyeongjun-1204/dasungwang (기본 브랜치 main) |
+| 실제 앱 | https://kimhyeongjun-1204.github.io/dasungwang/ |
+| Supabase | 프로젝트 id `ovnagheqsygclposiemh` (서울). 대시보드 SQL Editor로 DB 변경 |
+| 미리보기(이제 안 씀) | 저장소 kimhyeongjun-1204/dasungwang-preview → 지워도 됨 |
+| 밴드 | https://band.us/band/86304160 (참가신청서·공지가 여기 있음) |
+
+## 3. 구조
+- 프레임워크 없음(바닐라 JS). `logic.js`(순수 로직, 테스트 쉬움) · `app.js`(화면·이벤트) · `remote.js`(Supabase RPC) · `club.js`(밴드 공지·행사 정보) · `tourney.js`(대회)
+- `node build.js` → `dist/`(index.html 하나에 다 넣음 + sw.js·manifest·아이콘). main에 push하면 GitHub Actions가 테스트 → 빌드 → Pages 배포
+- DB: `supabase/schema.sql`이 전부(여러 번 돌려도 같게 작성). 표는 anon이 직접 못 읽고 **security definer RPC**로만. `app_state` 1행에 다승왕 데이터(명단·주차·설정, rev로 충돌 방지)
+- 회원 로그인: 조 → 이름 → 비밀번호 4자리(bcrypt). 세션 365일, 토큰은 localStorage `ddw-mtok`. 5번 틀리면 10분 잠금
+- 운동 참가: 월~금, 기본 정원 월·수·금 24 / 화·목 18, 그 주 그날만 바꾸기(`workout_day`). 신청 순서대로 정원까지 '신청', 나머지 '대기 n'(저장 안 하고 계산). 취소·정원 늘림으로 자리 나면 자동 입장 + 알림 대기열. 게스트는 누구나 추가(이름 선택·성별 필수)
+- Edge Function `notify`(웹 푸시), `rematch`(돼장 요청 → Claude로 편성 수정)
+- 가짜 서버 `tools/mock_supabase.js`로 화면 확인(아래 5번)
+
+## 4. 지금 상태 (2026-11-27 15시)
+### 배포된 것 (main)
+- #31 회원 로그인, #32 운동 참가 신청(밴드식 체크 버튼·"15/22 ›"·참가자 창 급수 탭·게스트 팝업·뒤로 가기), #38 로그인 때 예전 이름으로 바로 가지 않기
+- 홈: 청백전 큰 카드(오늘 11/27만), 다승왕, 진행 중 공지(밴드 링크)
+
+### 운영 DB
+- 회원 로그인 + 참가 신청 SQL 들어감(`supabase/migrations_2026-11-27_member_signups.sql`의 예전 판, SHA-256 `d15eebf6…`)
+- **11/30 주 신청 55줄을 밴드에서 옮겨 넣음**(월 15/22 · 화 6/18 · 수 24/24 · 목 7/16 · 금 3/20, 신청 시각도 밴드 그대로). 그 뒤 밴드에서 새로 신청·취소한 건 반영 안 됨
+- 비밀번호 만든 회원: 김성곤(p005) · 김형준(p006) · 최서연(p031). **김성곤 것은 누가 만들었는지 불확실**(미리보기 시험 중 PC에서 만들어진 것으로 보임) → 돼장 본인이 모르면 초기화 필요
+
+### 열린 PR
+| PR | 상태 | 할 일 |
+|---|---|---|
+| **#39** 관리 PIN 입력 없앰(돼장·진행 도우미를 회원 로그인으로) | 테스트·검증 끝, 김형준 머지 승인 전 | **운영 SQL 먼저**(`supabase/migrations_2026-11-27b_member_roles.sql`, 68줄, SHA-256 `083bade7…9e4a`) → 그다음 머지. 순서 바뀌면 돼장도 관리 화면에 못 들어감 |
+| #33 공지 쓰기 + 새 공지 알림 | base가 feat/signups(이미 머지됨) | base를 main으로 바꾸고 main과 합치기(충돌 정리) 후 다시 검증. 3순위 기능 |
+| #30 홈에 밴드 채팅 바로가기 | 오래됨 | main과 합쳐 보고 필요하면 정리 |
+| #29 앱 공지 1단계 | #33으로 대체 | 닫아도 됨 |
+
+### 아직 안 정한 것
+- 신청 취소 마감 시각, 게스트 규칙(하루 3명 제한 그대로?), 자리 났을 때 알림을 위한 `notify` 재배포 여부
+
+## 5. 작업 방법
+### 로컬 (Windows, PowerShell)
+```powershell
+git clone https://github.com/kimhyeongjun-1204/dasungwang.git
+cd dasungwang
+node build.js
+node logic.test.js; node deploy.test.js; node tourney.test.js; node push.test.mjs
+```
+- SQL 테스트(로컬 Postgres 16, 빈 DB에서): `psql -d ddw -f supabase/schema.sql` 다음 `psql -qAt -d ddw -f supabase/tests/members.sql`(signups.sql, roles.sql, live_action.sql, push.sql도). 줄마다 `ok …` 또는 `FAIL …`. 전부 rollback이라 아무것도 안 남음 — **운영 DB에서는 절대 돌리지 않기**
+  - signups.sql은 '다음 주 월요일'을 써서, 실제 신청이 들어간 DB 복사본에서는 FAIL이 남(데이터 겹침). 새 DB에서 돌리기
+- 화면 확인: `$env:PORT=8799; $env:MOCK_DEMO=1; $env:MOCK_SIGNUPS=1; $env:MOCK_GRADES=1; $env:MOCK_MEMBER_PINS="p010:1234"; node tools/mock_supabase.js` → http://localhost:8799 (가짜 서버 급수·이름은 가짜. 사진 보낼 때 그렇게 적기). #39 브랜치에서는 `$env:MOCK_ROLES="p010:admin"`으로 돼장 역할도 흉내
+
+### 운영 DB 바꾸는 법 (김형준이 명시적으로 요청했을 때만)
+1. 바꿀 SQL은 schema.sql에 먼저 넣고, 운영용 작은 묶음 파일로 뽑기(deploy.test.js가 schema.sql과 글자까지 같은지 검사)
+2. 운영과 같은 상태의 로컬 DB(#31 전 schema + 지금까지 묶음 + 테스트용 데이터)에 **두 번** 넣어 오류 없는지 확인
+3. Supabase SQL Editor에 넣고, 편집기 내용 SHA-256이 파일과 같은지 확인 → 실행. "destructive operations" 경고는 함수 안 delete·drop function 때문이면 진행
+4. Chrome 자동 번역이 켜져 있으면 대시보드가 깨질 수 있음 → 결과는 공개 키로 RPC를 불러 확인(공개 키는 `config.js`)
+5. `docs/deploy-log.md`에 실행 시각·SHA·확인 결과 적기
+
+### 머지·배포
+- 김형준이 "진행" 또는 "머지"라고 해야 머지. PR 본문에 검증 기록 필수
+- 머지 뒤 GitHub Actions 'Deploy to GitHub Pages' success 확인 → 실제 사이트 index.html에 새 코드가 들어갔는지 확인 → deploy-log에 기록
+
+## 6. 김형준이 정한 작업 규칙 (꼭 지키기)
+- 말투: 자연스러운 반말(존댓말 섞지 않기). 단축키·경로·명령은 **Windows 기준**
+- **테스트 먼저 쓰고 FAIL 확인 → 구현 → 통과**
+- **역검증(일부러 코드를 깨서 테스트가 잡는지)**: 실제로 돌려 본 결과만 기록. 못 잡으면 테스트를 고치고 그 사실도 기록
+- 측정한 값만 문서에. 추측은 추측이라고
+- 바꿀 때마다 `docs/deploy-log.md` 항목, AI가 틀린 건 `docs/wrong-answers.md`(지금 34번까지)
+- 운영 변경은 요청이 있을 때만. 실제 DB에 시험 데이터 넣지 않기
+- **절대 커밋 금지**: `live_state.json`, `seed.local.sql`(실제 데이터·PIN 해시), `.env`. service_role·secret 키는 프론트·저장소 어디에도 두지 않기
+- 실제 회원 비밀번호를 대신 만들거나 입력하지 않기(회원 본인·돼장이 앱에서)
+- 화면 디자인: 돼장 공지 포스터 느낌(남색 #20264F·노랑), 급수 캐릭터 이미지(얼굴 아이콘 `face-cv/lb/bf/lm/pk/ck`, 전신 `ch-…`)
+
+## 7. 알아 둘 함정
+- 미리보기와 실제 앱이 같은 주소(github.io)라 **localStorage를 같이 씀**. 어떤 기기는 다른 사람 이름(ddw-me)이 남아 있음 → #38에서 로그인은 늘 '조 고르기'부터로 고침
+- 흐린(지난 날·쉬는 날) 카드 안에 팝업을 그리면 opacity 때문에 다음 카드 밑으로 깔림 → 팝업은 카드 밖에서 그리기
+- 로컬 Postgres가 꺼지면 SQL 테스트가 `ok 0`으로 조용히 나옴 → 숫자가 0이면 먼저 서버 확인
+- 밴드 참가신청서의 카드 글자는 이름이 잘려 보임 → 정확한 명단은 '참가자' 창(신청 시각 포함)에서 읽기
+- 쌓인 PR(PR의 base가 다른 기능 브랜치)은 squash 말고 merge 방식으로, 앞 PR부터
+
+## 8. 돼장에게 전할 것 (김형준 통해서)
+- 회원들에게 "앱 열고 처음 한 번 비밀번호 4자리 만들기" 안내
+- 운동 없는 날은 그날 카드 '정원·메모'에서 '쉬는 날'
+- 11/30 주는 앱에 옮겨 둠. 지금부터 밴드로 들어오는 신청·취소는 명단 팝업 '명단에 넣기·빼기'로 맞추기(또는 같은 방식으로 다시 옮기기 — 있는 사람은 건너뜀)
+- 12/7 주부터는 밴드 참가신청서를 안 올리면 자연스럽게 앱으로 넘어옴(김형준과 상의 중)
+- #39 머지 뒤: 관리 PIN 대신 돼장 이름으로 로그인하면 관리 탭이 열림. 진행 도우미는 관리 › 설정에서 지정
