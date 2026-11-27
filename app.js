@@ -1456,8 +1456,8 @@
     }
     var g = LG.filter(function (x) { return x.id === lg.gid; })[0] || { members: [] };
     if (lg.step === 'name' || !lg.pid) {
-      // 조 안에서 남자·여자 탭으로 나눠 이름 찾기 쉽게 (2026-11-27 김형준). 성별 모르는 사람이 있으면 '그 밖' 탭
-      var tabs = [['M', '남자'], ['F', '여자']].concat(g.members.some(function (m) { return !m.gender; }) ? [['X', '그 밖']] : []);
+      // 조 안에서 남자·여자 탭으로 나눠 이름 찾기 쉽게 (2026-11-27 김형준). 성별 없는 회원(시험용 '곤자' 등)은 로그인 목록에 안 보임
+      var tabs = [['M', '남자'], ['F', '여자']];
       var cntOf = function (k) { return g.members.filter(function (m) { return (m.gender || 'X') === k; }).length; };
       var sex = lg.sex && tabs.some(function (t) { return t[0] === lg.sex; }) ? lg.sex : (tabs.filter(function (t) { return cntOf(t[0]); })[0] || tabs[0])[0];   // 처음엔 사람이 있는 첫 탭
       return out + '<button class="btn sm lg-back" data-act="lg-back" data-v="group">‹ 조 다시 고르기</button><h1 id="lg-h">' + esc(gname(lg.gid)) + '조 · 내 이름</h1>' +
