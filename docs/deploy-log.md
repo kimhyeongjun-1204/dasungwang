@@ -1580,3 +1580,4 @@ $ node logic.test.js; node deploy.test.js   (테스트 먼저 FAIL 2건 확인 �
   - 데이터 응답이 안 오면 2초 '불러오는 중…' → 15.5초 '불러오는 데 오래 걸려요 · 다시 시도' / 정상이면 16초 뒤에도 그 안내 안 뜸
   - 테스트 데이터를 처음에 settings: {}로 줬더니 시즌 날짜 계산이 끝나지 않아 페이지가 멈춤 → 실제 상태에 오류만 넣는 방식으로 바꿈(앱 코드 문제 아님, 실제 settings엔 시작·끝 날짜가 있음)
 - 사진: docs/screenshots/boot-error/render_error_360.jpg
+- 배포(2026-11-27 10:4x): 김형준 "진행" → #37 squash 머지(33e6e64) → GitHub Pages 배포 success → 실제 사이트(Chrome): 새 시작 코드(오류 화면·15초 안내) 들어감, 홈 정상(청백전 큰 카드, 제목 라켓뚱보단)
