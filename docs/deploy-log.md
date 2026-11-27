@@ -1690,4 +1690,8 @@ $ node logic.test.js; node deploy.test.js   (테스트 먼저 FAIL 2건 확인 �
   - 명단 팝업: "화요일 운동 · 12/1 8/18", 급수 아이콘, 신청 일시, 게스트 줄 / 27명 날은 목록만 스크롤되고 창은 화면 안 / 바깥 누르면 닫힘 / 페이지 오류 0 · 가로 넘침 없음
   - 처음 토스트가 "홍길동(남)를 추가했어요"로 어색 → "홍길동(남) 추가했어요"로 고침
 - 사진: docs/screenshots/signup-modal/guest_360.jpg · list_360.jpg
-- 운영 DB: 새 묶음을 다시 넣어야 머지 뒤 게스트 추가가 동작함(앱이 4개 인자 signup_guest를 부름) — 김형준 허락 뒤 실행
+- **운영 DB SQL 다시 넣기(2026-11-27 13:3x, 김형준 "지금 SQL 진행")**: Claude in Chrome으로 Supabase SQL Editor에 GitHub raw `f2b9d3f`의 묶음을 넣음. 받은 파일과 편집기 내용 모두 SHA-256 `d15eebf6…bd21`(커밋된 파일과 같음), 343줄
+  - "destructive operations" 경고: 이번엔 예전 함수 2개(signup_guest 3개 인자·signup_rows)와 예전 검사 규칙을 지우는 문장 때문(새 모양으로 바꾸려는 것). 표를 지우는 문장은 없음 → 실행
+  - 실행을 누른 직후 대시보드 화면이 'browser extension may have caused an error'로 깨짐(Chrome 자동 번역 탓으로 보임) → 실행됐는지 화면으로는 못 봐서 공개 키 API로 확인
+  - 확인: signup_guest(4개 인자, 가짜 토큰) → 400 unauthorized(함수 있음) · 예전 3개 인자 → 404(없어짐) · signups_list(11/30~12/4) → 정원 24·18·24·18·24 빈 명단 · workout_defaults → [24, 18, 24, 18, 24] · member_has_pin(p010) → false · signup 표 직접 읽기 → 401 · app_state rev 508 그대로
+  - 운영엔 아직 신청이 없어서 gender·at 값은 운영에서 직접 못 봄(로컬 signups 테스트로만 확인). 실제 회원 이름으로 신청을 넣어 보지는 않음
