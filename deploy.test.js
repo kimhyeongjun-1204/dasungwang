@@ -852,6 +852,12 @@ test('홈 오른쪽 위 내 프로필(얼굴·이름)을 누르면 내 정보로
   const cb = appSrc.match(/function clubBar\([^)]*\) \{[\s\S]*?\n  \}\n/)[0];
   assert.ok(/<button class="cb-me" data-act="tab" data-v="my"/.test(cb), '내 프로필 = 내 정보 버튼');
 });
+test('회원 관리 성별: 고치기 창에 남/여, 목록에 남·여 표시 (2026-11-27 김형준)', () => {
+  const vm = appSrc.match(/function viewMembers\(\) \{[\s\S]*?\n  \}\n/)[0];
+  assert.ok(/data-act="mb-sex"/.test(vm) && /role="radiogroup" aria-label="성별"/.test(vm), '고치기 창 성별');
+  assert.ok(/p\.gender === 'F' \? '여' : p\.gender === 'M' \? '남'/.test(vm), '목록에 성별');
+  assert.ok(/case 'mb-sex':/.test(appSrc) && /ed\.gender = /.test(appSrc), '저장할 때 성별');
+});
 test('service worker: index.html network-first, supabase는 캐시 안 함', () => {
   const sw = fs.readFileSync(path.join(__dirname, 'dist', 'sw.js'), 'utf8');
   const cached = [];

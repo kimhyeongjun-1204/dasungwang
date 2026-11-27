@@ -1002,10 +1002,13 @@ var Logic = (function () {
     if (!p || e.grade !== undefined) { if (!gradeGroup(e.grade)) return { errors: ['급수를 골라 주세요.'] }; }
     var grp = e.group !== undefined ? e.group : !p ? gradeGroup(e.grade) : undefined;
     if (grp !== undefined && ['A', 'B', 'C'].indexOf(grp) < 0) return { errors: ['조를 골라 주세요.'] };
-    if (!p) { ps.push({ id: newId, name: e.name, group: grp, grade: e.grade }); return { errors: [] }; }
+    // 성별(2026-11-27): 남 M · 여 F · null이면 모름(칸 지움)
+    if (e.gender !== undefined && e.gender !== null && e.gender !== 'M' && e.gender !== 'F') return { errors: ['성별은 남·여 중에서 골라 주세요.'] };
+    if (!p) { var np = { id: newId, name: e.name, group: grp, grade: e.grade }; if (e.gender) np.gender = e.gender; ps.push(np); return { errors: [] }; }
     if (e.name !== undefined) p.name = e.name;
     if (e.grade !== undefined) p.grade = e.grade;
     if (grp !== undefined) p.group = grp;
+    if (e.gender === 'M' || e.gender === 'F') p.gender = e.gender; else if (e.gender === null) delete p.gender;
     if (e.active === false) p.active = false; else if (e.active === true) delete p.active;
     return { errors: [] };
   }

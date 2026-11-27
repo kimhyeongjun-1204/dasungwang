@@ -1869,3 +1869,9 @@ $ node logic.test.js; node deploy.test.js   (테스트 먼저 FAIL 2건 확인 �
 - 테스트 먼저 FAIL 확인 → deploy 82 · logic 155 · tourney 17 passed. 역검증: 홈으로 가게 바꾸면 deploy FAIL 1
 - 가짜 서버 Playwright 360px: 프로필 81×44 → 누르면 '🙂 내 정보', 하단 탭도 내 정보, 기록 쌓임 → 뒤로 가기 → 홈 / 오류 0
 - 배포(2026-11-27 16:3x, 김형준 "머지"): #42 squash 머지(2e55cac) → GitHub Pages success → 실제 사이트 index.html에 내 프로필 버튼(→ 내 정보) 들어감
+
+## 98. 회원 성별 (2026-11-27)
+- 요청(김형준 17:33~17:42): 성별 데이터 있나 → 없음(회원은 이름·급수·조만, 성별은 게스트만) → 이름으로 나누고 애매한 이름은 김형준이 정해 줌. 곤자는 예측 기능 만들기 전 시험용 가짜 회원이라 뺌
+- 바꾼 것: 회원 명단에 gender(M·F, 없으면 모름). L.memberEdit가 성별을 받고 다른 값은 거절, null이면 칸을 지움. 관리 › 회원 고치기 창에 남/여(다시 누르면 모름), 목록 이름 옆에 남·여 표시
+- 테스트 먼저 FAIL 확인 → logic 156 · deploy 83 · tourney 17 passed. 역검증: 성별 값 검사를 빼면 logic FAIL 1
+- 가짜 서버 Playwright 360px(MOCK_ROLES 돼장): 첫 회원 고치기 → 여 → 저장 "저장했어요." → 목록 '여' 표시, 저장된 값 gender F → 다시 눌러 저장 → 칸 지워짐 / 오류 0
