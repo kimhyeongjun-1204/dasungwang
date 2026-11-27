@@ -47,7 +47,7 @@
     notice: null,
     lg: { step: 'group', gid: null, pid: null, has: null, busy: false, msg: '' },   // 로그인 단계
     mb: { group: 'A', edit: null, pins: null, ask: null },   // 돼장 회원 관리
-    sgWeek: 0, sgList: null, sgTab: 'all', sgGuest: null, sgGender: null, sgAsk: null, sgDay: null, sgPick: {},   // 운동 신청: 주, 명단 펼침, 게스트 입력, 취소 확인, 돼장 그날 고치기
+    sgWeek: 0, sgList: null, sgTab: 'all', sgGuest: null, sgGender: null, sgDay: null, sgPick: {},   // 운동 신청: 주, 명단 펼침, 게스트 입력, 돼장 그날 고치기
   };
   var member = { ok: false, token: null };
   // 운동 참가 신청 (2026-11-26): 이번 주·다음 주 명단(signups_list)을 날짜별로
@@ -1341,7 +1341,6 @@
     if (row.open) btns += '<button class="btn sm" data-act="sg-guest" data-v="' + d + '">＋ 게스트</button>';
     if (adm) btns += '<button class="btn sm" data-act="sg-day-edit" data-v="' + d + '">정원·메모</button>';
     if (btns) out += '<div class="sg-btns">' + btns + '</div>';
-    if (ui.sgAsk === d && mine) out += '<div class="banner warn"><span>' + md(d) + '(' + dowOf(d) + ') ' + (mine.status === 'in' ? '신청' : '대기 ' + mine.no + '번') + '을 취소할까요?</span><span class="row"><button class="btn sm danger" data-act="sg-cancel-yes" data-v="' + d + '">취소하기</button><button class="btn sm" data-act="sg-cancel-no">아니요</button></span></div>';
     if (sd.guests.length) out += '<div class="sg-myg">' + sd.guests.map(function (g) {
       return '<span class="chip">' + esc(g.guest || '게스트') + '(' + (g.gender === 'F' ? '여' : '남') + ') · ' + (g.status === 'in' ? '신청 완료' : '대기 ' + g.no) + (row.open ? ' <button class="linkbtn" data-act="sg-guest-rm" data-id="' + g.id + '" aria-label="' + esc(g.guest || '게스트') + ' 취소">✕</button>' : '') + '</span>';
     }).join('') + '</div>';
@@ -1955,10 +1954,7 @@
       case 'sg-apply':
         remote.signupApply(member.token, v).then(function (r) { toast(r && r.status === 'wait' ? '대기 ' + r.no + '번으로 신청했어요. 자리가 나면 자동으로 들어가요.' : md(v) + '(' + dowOf(v) + ') 신청했어요.'); loadSignups(); }, function (e) { sgFail(e); });
         break;
-      case 'sg-cancel': ui.sgAsk = v; render(); break;
-      case 'sg-cancel-no': ui.sgAsk = null; render(); break;
-      case 'sg-cancel-yes':
-        ui.sgAsk = null;
+      case 'sg-cancel':   // 체크 해제 = 바로 취소, 확인 없음 (김형준 2026-11-27 14:08)
         remote.signupCancel(member.token, v).then(function (pr) { sgPromoted(pr); toast('취소했어요.' + (pr && pr.length ? ' 대기하던 ' + pr.length + '명이 들어갔어요.' : '')); loadSignups(); }, function (e) { sgFail(e); });
         break;
       case 'sg-guest-rm':

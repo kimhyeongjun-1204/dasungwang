@@ -754,7 +754,8 @@ test('참가 명단·게스트: 가운데 팝업(밴드처럼), 급수 아이콘
 });
 test('참가 취소 확인: "다시 신청하면 맨 뒤로 가요" 문구 뺌 (2026-11-27 김형준)', () => {
   assert.ok(!/다시 신청하면 맨 뒤로/.test(appSrc), '문구 없음');
-  assert.ok(/을 취소할까요\?/.test(appSrc), '취소 확인은 그대로');
+  assert.ok(!/을 취소할까요\?/.test(appSrc) && !/sgAsk/.test(appSrc), '체크 해제하면 확인 없이 바로 취소 (14:08)');
+  assert.ok(/case 'sg-cancel':[^\n]*\n\s*remote\.signupCancel\(member\.token, v\)/.test(appSrc), 'sg-cancel이 바로 취소 요청');
 });
 test('참가 카드: 밴드처럼 체크 버튼으로 신청, "15/22 ›" 누르면 명단 / 참가자 창에 급수 탭 (2026-11-27 김형준)', () => {
   const card = appSrc.match(/function sgCard\([^)]*\) \{[\s\S]*?\n  \}\n/)[0], pl = appSrc.match(/function sgListModal\([^)]*\) \{[\s\S]*?\n  \}\n/)[0];
