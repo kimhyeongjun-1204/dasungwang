@@ -7,7 +7,7 @@ const css = read('images.css') + read('app.css');
 const logic = read('logic.js'), remote = read('remote.js'), club = read('club.js'), app = read('app.js');
 for (const [n, s] of [['css', css], ['logic', logic], ['remote', remote], ['club', club], ['app', app]]) if (/<\/script|<\/style/i.test(s)) throw new Error(n + '에 닫는 태그 문자열이 있음');
 
-const TITLE = '라켓뚱보단 다승왕전';
+const TITLE = '라켓뚱보단';
 const THEME = '#20264F';
 const FONT_LINK = '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@500;700;900&display=swap">';
 // supabase-js 버전 고정 + 무결성 해시 (버전을 바꾸면 integrity도 다시 계산)
@@ -24,7 +24,7 @@ const html = '<!doctype html>\n<html lang="ko"><head>' +
   '<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">' +
   '<meta name="mobile-web-app-capable" content="yes">' +
   '<meta name="apple-mobile-web-app-capable" content="yes">' +
-  '<meta name="apple-mobile-web-app-title" content="다승왕">' +
+  '<meta name="apple-mobile-web-app-title" content="라켓뚱보단">' +
   '<meta name="apple-mobile-web-app-status-bar-style" content="default">' +
   FONT_LINK +
   '<style>body{margin:0}</style>' +
