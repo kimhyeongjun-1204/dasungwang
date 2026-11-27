@@ -787,6 +787,11 @@ test('뒤로 가기: 홈 아닌 화면·팝업마다 기록을 쌓고 popstate�
   assert.ok(/data-act="tab" data-v="home"/.test(cb), '참가·기록 화면 맨 위에 홈으로 버튼');
   assert.ok(/<button class="club-logo" data-act="tab" data-v="home"/.test(cb), '왼쪽 위 라켓뚱보단 누르면 홈 (14:20)');
 });
+test('로그인: 토큰 없는 기기는 예전에 고른 이름으로 바로 가지 않고 조 고르기부터 (2026-11-27 김형준 "로그인하면 바로 주성모님으로 뜸")', () => {
+  const boot = appSrc.slice(appSrc.indexOf('member.token = LS.get(MKEY);'), appSrc.indexOf('remote.memberCheck(member.token)'));
+  assert.ok(boot.length > 0 && !/lgPick\(/.test(boot) && !/ui\.lg\.step = 'name'/.test(boot), '처음 열 때 남의 비밀번호 단계로 안 감');
+  assert.ok(/function memberOut\([\s\S]*?lgPick\(p\.id/.test(appSrc), '로그인했던 사람이 풀렸을 때(초기화·만료)만 그 이름 비밀번호 단계로');
+});
 test('service worker: index.html network-first, supabase는 캐시 안 함', () => {
   const sw = fs.readFileSync(path.join(__dirname, 'dist', 'sw.js'), 'utf8');
   const cached = [];
