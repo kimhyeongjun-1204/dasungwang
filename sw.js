@@ -25,7 +25,7 @@ self.addEventListener('fetch', function (e) {
 self.addEventListener('push', function (e) {
   var d = {};
   try { d = e.data ? e.data.json() : {}; } catch (x) { d = { body: e.data ? e.data.text() : '' }; }
-  e.waitUntil(self.registration.showNotification(d.title || '다승왕전', {
+  e.waitUntil(self.registration.showNotification(d.title || '라켓뚱보단', {
     body: d.body || '', tag: d.tag || 'ddw', renotify: true, icon: 'icons/icon-192.png', data: { url: d.url || './' },
   }));
 });

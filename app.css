@@ -901,6 +901,8 @@ button.lv-row:disabled { cursor: default; opacity: .7; }
 .ev-mini b { font-size: 16px; font-weight: 900; line-height: 1.3; }
 .ev-mini small { font-size: 12px; color: var(--text-2); }
 .ev-mini .ev-link { font-size: 12px; font-weight: 700; color: var(--navy); }
+.ev-livebtn { min-height: 40px; margin-top: 4px; padding: 0 8px; font-size: 13px; white-space: nowrap; text-decoration: none; justify-content: center; }
+.ev-live a.ev-link { text-decoration: none; }
 .hm-notices { gap: 0; padding-block: 4px; }
 .hm-n { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line-2); color: var(--text); text-decoration: none; }
 .hm-n:last-child { border-bottom: 0; }
@@ -987,3 +989,25 @@ button.lv-row:disabled { cursor: default; opacity: .7; }
 .sg-defs input { width: 100%; }
 .hm-day.mine-in { border: 1.5px solid var(--navy); background: var(--navy); color: #fff; } .hm-day.mine-in small, .hm-day.mine-in em { color: #fff; }
 .hm-day.mine-wait { border: 1.5px solid #E8B23A; background: var(--yellow-50); } .hm-day.mine-wait em { color: #7A5600; }
+/* ---------- 행사 당일 큰 카드: 청백전 (2026-11-27, 돼장 청백전 공지 포스터 느낌: 하늘색 집중선, 청팀 파랑 · 백팀 흰색, 노란 VS) ---------- */
+.ev-card.cb { position: relative; overflow: hidden; text-decoration: none; justify-items: stretch; gap: 8px; color: #fff;
+  background:
+    repeating-conic-gradient(from 0deg at 50% 42%, rgb(255 255 255 / .18) 0 5deg, transparent 5deg 13deg),
+    radial-gradient(circle at 50% 42%, #E8F6FF 0, #8ECFFF 32%, transparent 62%),
+    linear-gradient(105deg, #1846B8 0 40%, #3E8DF0 50%, #DCEEFF 60%, #F7FBFF 100%); }
+.cb-tags { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.ev-card.cb .ev-tag { background: #E8332C; color: #fff; }
+.cb-vs { display: flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 900; }
+.cb-vs i { font-style: normal; border-radius: 6px; padding: 2px 8px; }
+.cb-vs .cb-blue { background: #1E5BD8; color: #fff; box-shadow: 0 0 0 1.5px #fff; }
+.cb-vs .cb-white { background: #fff; color: #142B6E; box-shadow: 0 0 0 1.5px #142B6E; }
+.cb-vs b { color: #E8332C; font-style: italic; font-size: 15px; -webkit-text-stroke: 3px #FFD23F; paint-order: stroke fill; }
+.cb-title { justify-self: center; font-size: 46px; line-height: 1.05; letter-spacing: 1px; filter: drop-shadow(0 3px 0 rgb(14 30 80 / .45)); }
+.cb-title span { -webkit-text-stroke: 6px #142B6E; paint-order: stroke fill; }
+.cb-title .c1 { color: #2F7BFF; }
+.cb-title .c2 { color: #fff; }
+.cb-title .c3 { color: #FF3B30; }
+.cb-sub { justify-self: center; text-align: center; background: rgb(14 30 80 / .62); border-radius: 999px; padding: 4px 12px; font-weight: 700; opacity: 1; }
+.ev-card.cb .ev-act b { color: #1E5BD8; }
+.ev-mini.dsw-mini { text-align: left; font: inherit; cursor: pointer; border-left: 4px solid #C0503A; }
+.ev-mini.dsw-mini .ev-dday { color: var(--text-2); }
