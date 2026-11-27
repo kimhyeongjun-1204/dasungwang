@@ -1210,4 +1210,41 @@ test('signupOpenWeeks: 남은 날이 없는 주(지난 날·쉬는 날뿐)는 �
   assert.deepStrictEqual(L.signupOpenWeeks(ws, all, '2026-11-27').map(w => w.label), ['이번 주', '다음 주'], '다 닫혀 있으면 빈 화면 대신 그대로');
 });
 
+test('내 정보: monthGrid(달력 칸, 일요일 시작) · myDays(운동함·신청·대기) · myDsw(다승왕전 주별 승패) (2026-11-27 김형준)', () => {
+  const g = L.monthGrid('2026-11');
+  assert.strictEqual(g[0][0], '2026-11-01', '11/1은 일요일');
+  assert.strictEqual(g[g.length - 1].filter(Boolean).pop(), '2026-11-30');
+  assert.ok(g.every(w => w.length === 7));
+  assert.deepStrictEqual(L.monthGrid('2026-12')[0].slice(0, 3), [null, null, '2026-12-01'], '12/1은 화요일');
+  const rows = [
+    { day: '2026-11-25', entries: [{ player_id: 'me', status: 'in' }] },
+    { day: '2026-11-26', entries: [{ player_id: 'me', status: 'wait' }] },
+    { day: '2026-11-27', entries: [{ player_id: 'x', status: 'in' }] },
+    { day: '2026-11-30', entries: [{ player_id: 'me', status: 'in' }] },
+    { day: '2026-12-02', entries: [{ player_id: 'me', status: 'wait', no: 2 }] },
+    { day: '2026-12-03', entries: [{ player_id: null, host_id: 'me', status: 'in' }] }
+  ];
+  assert.deepStrictEqual(L.myDays(rows, 'me', '2026-11-27'), { '2026-11-25': 'done', '2026-11-30': 'plan', '2026-12-02': 'wait' }, '지난 대기는 안 나간 날, 게스트는 내 운동 아님');
+  const st = { weeks: [
+    { date: '2026-11-18', attendees: { me: 'A', y: 'A' }, matches: [{ a: ['me', 'y'], b: ['p', 'q'], win: 'a' }, { a: ['p', 'q'], b: ['me', 'z'], win: 'a' }, { a: ['me', 'z'], b: ['p', 'y'], win: 'a' }] },
+    { date: '2026-11-25', attendees: { y: 'A' }, matches: [{ a: ['y', 'z'], b: ['p', 'q'], win: 'b' }] },
+    { date: '2026-12-02', attendees: { me: 'A' }, matches: [{ a: ['me', 'y'], b: ['p', 'q'] }] }
+  ] };
+  const r = L.myDsw(st, 'me');
+  assert.deepStrictEqual(r.weeks.map(w => w.date + ':' + w.w + '-' + w.l + '-' + w.pending), ['2026-12-02:0-0-1', '2026-11-18:2-1-0'], '최근 주가 위, 안 나간 주는 없음');
+  assert.deepStrictEqual([r.n, r.w, r.l], [2, 2, 1]);
+});
+
+test('attendRank: 이달의 출석왕 — 지난 날 신청 완료만 셈(대기·게스트·오늘 이후 빼고), 같은 수는 같은 순위 (2026-11-27 김형준)', () => {
+  const rows = [
+    { day: '2026-11-02', entries: [{ player_id: 'a', status: 'in' }, { player_id: 'b', status: 'in' }, { player_id: 'c', status: 'wait' }] },
+    { day: '2026-11-03', entries: [{ player_id: 'a', status: 'in' }, { player_id: null, host_id: 'a', status: 'in' }] },
+    { day: '2026-11-04', entries: [{ player_id: 'b', status: 'in' }, { player_id: 'd', status: 'in' }] },
+    { day: '2026-11-27', entries: [{ player_id: 'd', status: 'in' }] },
+    { day: '2026-11-30', entries: [{ player_id: 'd', status: 'in' }] }
+  ];
+  assert.deepStrictEqual(L.attendRank(rows, '2026-11-27').map(r => r.rank + ':' + r.pid + ':' + r.n), ['1:a:2', '1:b:2', '3:d:1']);
+  assert.deepStrictEqual(L.attendRank([], '2026-11-27'), []);
+});
+
 console.log(`\n${passed} passed`);
