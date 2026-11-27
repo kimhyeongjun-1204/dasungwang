@@ -1654,3 +1654,12 @@ $ node logic.test.js; node deploy.test.js   (테스트 먼저 FAIL 2건 확인 �
   - 테스트 데이터를 처음에 settings: {}로 줬더니 시즌 날짜 계산이 끝나지 않아 페이지가 멈춤 → 실제 상태에 오류만 넣는 방식으로 바꿈(앱 코드 문제 아님, 실제 settings엔 시작·끝 날짜가 있음)
 - 사진: docs/screenshots/boot-error/render_error_360.jpg
 - 배포(2026-11-27 10:4x): 김형준 "진행" → #37 squash 머지(33e6e64) → GitHub Pages 배포 success → 실제 사이트(Chrome): 새 시작 코드(오류 화면·15초 안내) 들어감, 홈 정상(청백전 큰 카드, 제목 라켓뚱보단)
+
+## 78. #31·#32 운영 반영 준비 (2026-11-27)
+- 요청(김형준 11:38): 로그인과 요일별 참가 기능을 최우선으로
+- 최신 main(#34~#37: 청백전 링크·큰 카드, 늘 홈, 앱 이름, 시작 오류 화면)을 feat/member-login → feat/signups로 merge. 충돌은 css·테스트·이 로그·오답 노트의 '둘 다 덧붙인' 부분뿐이라 둘 다 살림. 정리하다 테스트 두 곳씩 닫는 `});`가 빠짐 → 테스트가 문법 오류로 알려 줘서 고침(지난번과 같은 모양)
+- 합친 뒤: logic 149 · deploy 70 · tourney 17 · push 7 passed / members 43 · signups 44 ok
+- **운영 DB용 SQL 묶음** `supabase/migrations_2026-11-27_member_signups.sql`(334줄): schema.sql의 '회원 로그인' + '운동 참가 신청' 부분 그대로. 표 6개(member_pin, member_session, workout_default, workout_day, signup, signup_notice)를 새로 만들고 함수만 추가 — 기존 표·데이터(app_state 등)는 안 건드림
+  - 확인: 운영과 같은 상태(main의 schema.sql만 넣은 새 DB)에 묶음을 넣고 → 한 번 더 넣어도 오류 없음(여러 번 돌려도 같음) → members 43 · signups 44 ok
+  - deploy 테스트: 묶음이 schema.sql과 글자까지 같은지, 지우는 SQL(drop table·truncate·app_state 지우기)이 없는지. 역검증: 묶음의 잠금 시간을 바꾸면 FAIL
+- 가짜 서버 E2E(합친 브랜치): 로그인(새 기기 만들기·다시 열기 유지·잠금·예전 사용자), 회원 관리(급수·조 따로), 참가(신청·대기·게스트·취소 확인·다른 회원 대기 3번·돼장 정원 30 → 대기 3명 입장 + 알림 호출·쉬는 날·명단 넣기·기본 정원) 모두 예상대로, 페이지 오류 0·가로 넘침 없음

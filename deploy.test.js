@@ -732,6 +732,14 @@ test('앱 시작: "불러오는 중"에서 멈추지 않음 — 그리다 오류
   assert.ok(be && /data-act="retry"/.test(be[0]) && /data-act="boot-reset"/.test(be[0]) && /esc\(/.test(be[0]), '오류 화면: 다시 시도·처음 상태로, 오류 글자는 esc');
   assert.ok(/act === 'boot-reset'/.test(appSrc), '처음 상태로 열기');
 });
+test('운영 DB용 SQL 묶음(회원 로그인 + 운동 신청)은 schema.sql 그 부분과 글자까지 같음 (2026-11-27)', () => {
+  const sql = fs.readFileSync(path.join(__dirname, 'supabase', 'schema.sql'), 'utf8');
+  const mig = fs.readFileSync(path.join(__dirname, 'supabase', 'migrations_2026-11-27_member_signups.sql'), 'utf8');
+  const body = mig.split('\n').slice(3).join('\n').trim();
+  assert.ok(body.length > 5000 && sql.indexOf(body) >= 0, '묶음이 schema.sql과 다름');
+  ['member_login', 'signup_apply', 'signup_notices_take', 'workout_defaults'].forEach(f => assert.ok(mig.indexOf('function public.' + f + '(') >= 0, f));
+  assert.ok(!/drop table|delete from public\.app_state|truncate/i.test(mig), '지우는 SQL 없음');
+});
 test('service worker: index.html network-first, supabase는 캐시 안 함', () => {
   const sw = fs.readFileSync(path.join(__dirname, 'dist', 'sw.js'), 'utf8');
   const cached = [];
