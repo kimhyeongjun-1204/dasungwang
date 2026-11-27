@@ -1279,11 +1279,13 @@
     var out = '<div class="pc-back" data-act="sg-list-close" aria-hidden="true"></div><section class="sg-modal" role="dialog" aria-modal="true" aria-labelledby="sgl-h">' +
       '<h3 id="sgl-h">참가자</h3><div class="sgm-sub"><b>' + dowOf(d) + '요일 운동 · ' + md(d) + '</b><span class="num"><em>' + sd.inCount + '</em>/' + row.cap + (sd.waitCount ? ' · 대기 ' + sd.waitCount : '') + '</span></div>' +
       '<div class="sgm-tabs" role="tablist" aria-label="급수">' + L.SG_TABS.map(function (t) {
-        return '<button role="tab" aria-selected="' + (tab === t.id) + '" data-act="sg-ltab" data-v="' + t.id + '"><b>' + t.label.replace('·', '·<wbr>') + '</b><small class="num">' + L.sgFilter(all, P, t.id).length + '명</small></button>';
+        var n = L.sgFilter(all, P, t.id).length;
+        return '<button role="tab" aria-selected="' + (tab === t.id) + '" data-act="sg-ltab" data-v="' + t.id + '" aria-label="' + t.label + ' ' + n + '명"' + (t.id !== 'all' && !n ? ' class="none"' : '') + '>' +
+          (t.id === 'all' ? '<b>전체</b>' : '<i class="face face-' + t.id + '" aria-hidden="true"></i>') + '<small class="num">' + n + '</small></button>';
       }).join('') + '</div>' +
       '<ol class="sgm-list">' + (es.length ? es.map(function (e) {
         var p = e.player_id ? P[e.player_id] || {} : null, ch = p ? GRADE_CH[p.grade] : null;
-        var face = p ? (ch ? '<i class="ch ch-' + ch + '" aria-hidden="true"></i>' : '<span class="sgm-ini" aria-hidden="true">' + esc((p.name || '?').slice(0, 1)) + '</span>') :
+        var face = p ? (ch ? '<i class="face face-' + ch + '" aria-hidden="true"></i>' : '<span class="sgm-ini" aria-hidden="true">' + esc((p.name || '?').slice(0, 1)) + '</span>') :
           '<span class="sgm-ini guest g' + (e.gender === 'F' ? 'f' : 'm') + '" aria-hidden="true">' + (e.gender === 'F' ? '여' : '남') + '</span>';
         var nm = p ? esc(p.name || '?') + (p.grade ? '<small>(' + esc(p.grade) + ')</small>' : '') :
           esc(e.guest || '게스트') + '<small>(게스트·' + (e.gender === 'F' ? '여' : '남') + ' · ' + esc((P[e.host_id] || {}).name || '?') + ' 데려옴)</small>';
@@ -1330,10 +1332,10 @@
       past ? '<span class="chip">지난 날</span>' : sd.full ? '<span class="chip sg-full">꽉 참' + (sd.waitCount ? ' · 대기 ' + sd.waitCount + '명' : '') + '</span>' : '<span class="chip sg-left">' + sd.left + '자리 남음</span>';
     var out = '<section class="card sg-day' + (mine ? ' sg-mine' : '') + (row.closed || past ? ' sg-dim' : '') + '">' + head + chip + '</div>';
     // 밴드 참가신청서처럼: 체크 동그라미로 신청 · 오른쪽 "15/22 ›" 누르면 참가자 창 (2026-11-27)
-    var hint = mine ? (mine.status === 'in' ? '신청했어요' : '대기 ' + mine.no + '번이에요') : !row.open ? (row.closed ? '쉬는 날이에요' : '신청이 끝났어요') : sd.full ? '체크하면 대기 신청' : '체크하면 신청';
+    var hint = mine ? (mine.status === 'in' ? '신청했어요' : '대기 ' + mine.no + '번이에요') : !row.open ? (row.closed ? '쉬는 날이에요' : '신청이 끝났어요') : '';
     out += '<div class="sg-row">' + (row.open || mine ? '<button class="sg-check' + (mine && mine.status !== 'in' ? ' wait' : '') + '" role="checkbox" aria-checked="' + !!mine + '" data-act="' + (mine ? 'sg-cancel' : 'sg-apply') + '" data-v="' + d + '"' + (row.open ? '' : ' disabled') +
         ' aria-label="' + dowOf(d) + '요일 ' + (mine ? '신청 취소' : sd.full ? '대기 신청' : '참가 신청') + '"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12.5l4 4 8-9"/></svg></button>' : '<span class="sg-check off" aria-hidden="true"></span>') +
-      '<span class="sg-what"><b>' + dowOf(d) + '요민턴</b><small>' + hint + '</small></span>' +
+      '<span class="sg-what"><b>' + dowOf(d) + '요민턴</b>' + (hint ? '<small>' + hint + '</small>' : '') + '</span>' +
       '<button class="sg-count" data-act="sg-list" data-v="' + d + '" aria-haspopup="dialog" aria-label="참가자 ' + sd.inCount + '명, 정원 ' + row.cap + '명' + (sd.waitCount ? ', 대기 ' + sd.waitCount + '명' : '') + ' 명단 보기"><span class="num"><em>' + sd.inCount + '</em>/' + row.cap + '</span>' + (sd.waitCount ? '<small>대기 ' + sd.waitCount + '</small>' : '') + '<i aria-hidden="true">›</i></button></div>' +
       (row.memo ? '<p class="sg-memo">' + esc(row.memo) + '</p>' : '');
     var btns = '';

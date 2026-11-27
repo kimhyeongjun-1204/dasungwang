@@ -1177,16 +1177,18 @@ test('bandTime: 신청 일시를 밴드처럼 "2026년 11월 26일 오후 2:38" 
   assert.strictEqual(L.bandTime(null), '');
 });
 
-test('sgFilter: 참가자 탭 — 전체 / 캐비어·랍스터 / 소갈비·양갈비 / 돼지갈비·닭갈비 (게스트·급수 없음은 전체에만)', () => {
-  assert.deepStrictEqual(L.SG_TABS.map(t => t.id + ':' + t.label), ['all:전체', 'A:캐비어·랍스터', 'B:소갈비·양갈비', 'C:돼지갈비·닭갈비']);
-  const P = { a: { grade: '캐비어' }, b: { grade: '양갈비' }, c: { grade: '닭갈비' }, d: { grade: '랍스터' }, e: {} };
-  const es = [{ id: 1, player_id: 'a' }, { id: 2, player_id: 'b' }, { id: 3, player_id: null, guest: '친구' }, { id: 4, player_id: 'c' }, { id: 5, player_id: 'd' }, { id: 6, player_id: 'e' }, { id: 7, player_id: 'zz' }];
+test('sgFilter: 참가자 탭 — 전체 + 급수 6개 각각 (게스트·급수 없음은 전체에만, 2026-11-27 김형준)', () => {
+  assert.deepStrictEqual(L.SG_TABS.map(t => t.id + ':' + t.label), ['all:전체', 'cv:캐비어', 'lb:랍스터', 'bf:소갈비', 'lm:양갈비', 'pk:돼지갈비', 'ck:닭갈비']);
+  const P = { a: { grade: '캐비어' }, b: { grade: '양갈비' }, c: { grade: '닭갈비' }, d: { grade: '랍스터' }, e: {}, f: { grade: '캐비어' } };
+  const es = [{ id: 1, player_id: 'a' }, { id: 2, player_id: 'b' }, { id: 3, player_id: null, guest: '친구' }, { id: 4, player_id: 'c' }, { id: 5, player_id: 'd' }, { id: 6, player_id: 'e' }, { id: 7, player_id: 'zz' }, { id: 8, player_id: 'f' }];
   const ids = tab => L.sgFilter(es, P, tab).map(e => e.id);
-  assert.deepStrictEqual(ids('all'), [1, 2, 3, 4, 5, 6, 7]);
-  assert.deepStrictEqual(ids('A'), [1, 5]);
-  assert.deepStrictEqual(ids('B'), [2]);
-  assert.deepStrictEqual(ids('C'), [4]);
-  assert.deepStrictEqual(ids(undefined), [1, 2, 3, 4, 5, 6, 7], '탭 없으면 전체');
+  assert.deepStrictEqual(ids('all'), [1, 2, 3, 4, 5, 6, 7, 8]);
+  assert.deepStrictEqual(ids('cv'), [1, 8]);
+  assert.deepStrictEqual(ids('lb'), [5]);
+  assert.deepStrictEqual(ids('lm'), [2]);
+  assert.deepStrictEqual(ids('ck'), [4]);
+  assert.deepStrictEqual(ids('bf'), []);
+  assert.deepStrictEqual(ids(undefined), [1, 2, 3, 4, 5, 6, 7, 8], '탭 없으면 전체');
 });
 
 console.log(`\n${passed} passed`);

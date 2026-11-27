@@ -968,11 +968,12 @@ var Logic = (function () {
   // ---- 회원 로그인·회원 관리 (2026-11-26) ----
   var GRADES = ['캐비어', '랍스터', '소갈비', '양갈비', '돼지갈비', '닭갈비'];
   function gradeGroup(g) { var i = GRADES.indexOf(g); return i < 0 ? null : ['A', 'B', 'C'][i >> 1]; }
-  // 참가자 창 탭: 전체 / 급수 두 개씩 묶음. 게스트·급수 없는 사람은 전체에만 (2026-11-27)
-  var SG_TABS = [{ id: 'all', label: '전체' }, { id: 'A', label: '캐비어·랍스터' }, { id: 'B', label: '소갈비·양갈비' }, { id: 'C', label: '돼지갈비·닭갈비' }];
+  // 참가자 창 탭: 전체 + 급수 6개 각각. id는 얼굴 아이콘 이름(face-cv…). 게스트·급수 없는 사람은 전체에만 (2026-11-27)
+  var SG_TABS = [{ id: 'all', label: '전체' }, { id: 'cv', label: '캐비어' }, { id: 'lb', label: '랍스터' }, { id: 'bf', label: '소갈비' }, { id: 'lm', label: '양갈비' }, { id: 'pk', label: '돼지갈비' }, { id: 'ck', label: '닭갈비' }];
   function sgFilter(es, P, tab) {
     if (!tab || tab === 'all') return es.slice();
-    return es.filter(function (e) { return e.player_id && P[e.player_id] && gradeGroup(P[e.player_id].grade) === tab; });
+    var t = SG_TABS.filter(function (x) { return x.id === tab; })[0];
+    return es.filter(function (e) { return t && e.player_id && P[e.player_id] && P[e.player_id].grade === t.label; });
   }
   // 로그인 화면: 조마다 활동 회원만 가나다순
   function loginGroups(players, groups) {

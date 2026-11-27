@@ -763,6 +763,9 @@ test('참가 카드: 밴드처럼 체크 버튼으로 신청, "15/22 ›" 누르
   assert.ok(/class="sg-count"[^>]*data-act="sg-list"/.test(card) && /sd\.inCount \+ '<\/em>\/' \+ row\.cap/.test(card) && /›/.test(card), '"15/22 ›" 누르면 명단');
   assert.ok(!/명단 ' \+/.test(card) && !/sg-main/.test(card) && !/sg-bar/.test(card), '예전 신청 큰 버튼·명단 버튼·막대 뺌');
   assert.ok(/L\.SG_TABS\.map/.test(pl) && /data-act="sg-ltab"/.test(pl) && /L\.sgFilter\(/.test(pl), '참가자 창 급수 탭');
+  assert.ok(/class="face face-' \+ t\.id/.test(pl), '탭은 급수 얼굴 아이콘');
+  assert.ok(/class="face face-' \+ ch/.test(pl) && !/class="ch ch-/.test(pl), '프로필 자리는 얼굴만 나오는 아이콘');
+  assert.ok(!/체크하면/.test(card), '"체크하면 신청" 문구 없음');
   assert.ok(/case 'sg-ltab':/.test(appSrc) && /case 'sg-list': ui\.sgList = v; ui\.sgTab = 'all'/.test(appSrc), '탭 바꾸기, 열 때는 전체');
 });
 test('service worker: index.html network-first, supabase는 캐시 안 함', () => {
