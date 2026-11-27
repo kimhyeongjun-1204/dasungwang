@@ -1094,4 +1094,10 @@ test('club.js 데이터: 진행 중 공지마다 밴드 글 번호, 2025년 비�
   assert.ok(cb && cb.date === '2026-11-27' && new Date(cb.date + 'T00:00:00Z').getUTCDay() === 5 && !cb.noDow, '청백전은 11/27(금) (사용자 확인 2026-11-25)');
 });
 
+test('club.js 청백전: 다른 회원이 만든 실시간 점수판 링크 (김형준 요청 2026-11-27)', () => {
+  const cb = CL.EVENTS.filter(e => e.short === '청백전')[0];
+  assert.strictEqual(cb.live, 'https://chang333787-boop.github.io/cheongbaek-2026/');
+  assert.ok(CL.EVENTS.filter(e => e.live).every(e => /^https:\/\//.test(e.live)), '링크는 https만');
+});
+
 console.log(`\n${passed} passed`);

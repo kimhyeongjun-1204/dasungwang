@@ -1522,3 +1522,16 @@ $ (구현 뒤) logic 140 · deploy 59 · tourney 17 · push 5 passed
 - 테스트: 클럽 홈 틀 테스트를 새 요구로 고쳐 쓰고(요구 변경) 먼저 FAIL 확인 → logic 140 · deploy 59 · tourney 17 · push 5 passed
 - 가짜 서버 11/25 16:40, 360·390·1024px: 안쪽 탭 5개, 내 기록·관리·예측 모두 다승왕 머리(돼지지옥 배너)와 '‹ 홈' 아래에 열림, 관리는 PIN 입력 화면, 하단 탭 홈·다승왕·기록 이동 정상, 가로 넘침·페이지 오류 없음
 - 사진: docs/screenshots/dsw-tabs/admin_360.png
+
+## 74. 홈 청백전 카드에 실시간 점수판 링크 (브랜치 feat/cheongbaek-live, main 기준, 2026-11-27)
+- 요청(김형준 2026-11-27 09:46): 다른 회원이 만든 청백전 페이지(https://chang333787-boop.github.io/cheongbaek-2026/)로 우리 앱에서 링크만 타고 가게. 청백전이 오늘(11/27)이라 이관 작업(#31~#33)과 따로 main 기준으로 만듦. 69~73번은 머지 전 PR들이 쓰고 있어 74번
+- 링크 확인(WebFetch): 제목 '라켓뚱보단 청백전', 11/27(금) 오리초 실시간 점수판(패기팀 vs 짬바팀, 3코트, 32명), 방문자 로그인·개인정보 입력 없음(관리만 PIN)
+- `club.js` EVENTS 청백전에 `live` 주소. 홈 행사 카드: live가 있으면 "📺 실시간 점수판"(노란 버튼, 새 창) + "밴드 공지 보기 ›"를 함께 담은 div (a 안에 a를 넣을 수 없어서). live 없는 행사(뚠뚠배)는 예전처럼 카드 전체가 밴드 링크. 행사 날이 지나면 카드가 사라지므로 링크도 같이 사라짐
+```
+$ node logic.test.js; node deploy.test.js   (테스트 먼저 FAIL 2건 확인 → 구현 뒤)
+  logic 141 · deploy 60 · tourney 17 · push 5 passed
+```
+- 역검증: live 분기를 막으면 deploy FAIL → 되돌리고 통과
+- 가짜 서버, 시계 11/26·11/27·11/28, 360·390·1024px: 11/26 D-1·11/27 D-DAY에 버튼(href 그 주소 · target _blank · rel noopener · 높이 40px), 11/28엔 청백전 카드 없음, a 안 a 0개, 가로 넘침·오류 없음
+- 고친 것(화면 확인 중): 360px에서 "📺 실시간 점수판 ›"의 ›가 다음 줄로 → › 빼고 한 줄로
+- 사진: docs/screenshots/cheongbaek-live/home_card_360.jpg
