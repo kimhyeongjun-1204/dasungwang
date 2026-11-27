@@ -765,6 +765,7 @@ test('참가 카드: 밴드처럼 체크 버튼으로 신청, "15/22 ›" 누르
   assert.ok(!/명단 ' \+/.test(card) && !/sg-main/.test(card) && !/sg-bar/.test(card), '예전 신청 큰 버튼·명단 버튼·막대 뺌');
   assert.ok(/L\.SG_TABS\.map/.test(pl) && /data-act="sg-ltab"/.test(pl) && /L\.sgFilter\(/.test(pl), '참가자 창 급수 탭');
   assert.ok(/class="face face-' \+ t\.id/.test(pl), '탭은 급수 얼굴 아이콘');
+  assert.ok(!/sgListModal\(|sgGuestModal\(/.test(card), '팝업은 카드 밖에서 그림(흐린 카드 안이면 다음 카드에 깔림)');
   assert.ok(/class="face face-' \+ ch/.test(pl) && !/class="ch ch-/.test(pl), '프로필 자리는 얼굴만 나오는 아이콘');
   assert.ok(!/체크하면/.test(card), '"체크하면 신청" 문구 없음');
   assert.ok(!/동그라미를 체크하면|대기 순서대로 자동으로/.test(appSrc), '참가 탭 맨 위 안내문 없음 (14:06)');
@@ -774,6 +775,17 @@ test('참가자 창 게스트 줄: "남게스트 · 김형준 추가" 식 (2026-
   const pl = appSrc.match(/function sgListModal\([^)]*\) \{[\s\S]*?\n  \}\n/)[0];
   assert.ok(!/데려옴/.test(appSrc) && !/\(게스트·/.test(pl), '예전 "(게스트·남 · 데려옴)" 없음');
   assert.ok(/'남게스트'|게스트' \+|\+ '게스트/.test(pl) && /' 추가/.test(pl), '남/여게스트 · 데려온 사람 추가');
+});
+test('뒤로 가기: 홈 아닌 화면·팝업마다 기록을 쌓고 popstate로 한 단계씩, 참가·기록 화면에 ‹ 홈 (2026-11-27 김형준 14:18)', () => {
+  assert.ok(/addEventListener\('popstate'/.test(appSrc) && /L\.backStep\(ui\)/.test(appSrc), '폰 뒤로 가기 처리');
+  assert.ok(/history\.pushState\(/.test(appSrc) && /history\.replaceState\(/.test(appSrc), '기록 쌓기');
+  const tabCase = appSrc.slice(appSrc.indexOf("case 'tab':"), appSrc.indexOf('break;', appSrc.indexOf("case 'tab':")));
+  assert.ok(/navPush\('tab'\)/.test(tabCase) && /navBack\(/.test(tabCase), '홈→다른 화면은 기록, 홈 버튼은 기록 하나 되돌림');
+  assert.ok(/case 'sg-list':[^\n]*navPush\('modal'\)/.test(appSrc) && /case 'sg-guest':[^\n]*navPush\('modal'\)/.test(appSrc), '팝업 열 때 기록');
+  assert.ok(/case 'sg-list-close':[^\n]*closeModal\(\)/.test(appSrc) && /case 'sg-guest-close':[^\n]*closeModal\(\)/.test(appSrc), '팝업 닫을 때 기록도 정리');
+  const cb = appSrc.match(/function clubBar\([^)]*\) \{[\s\S]*?\n  \}\n/)[0];
+  assert.ok(/data-act="tab" data-v="home"/.test(cb), '참가·기록 화면 맨 위에 홈으로 버튼');
+  assert.ok(/<button class="club-logo" data-act="tab" data-v="home"/.test(cb), '왼쪽 위 라켓뚱보단 누르면 홈 (14:20)');
 });
 test('service worker: index.html network-first, supabase는 캐시 안 함', () => {
   const sw = fs.readFileSync(path.join(__dirname, 'dist', 'sw.js'), 'utf8');

@@ -193,7 +193,7 @@
     }).join('') + '</div></nav>';
   }
   function clubBar(title) {
-    return '<div class="clubbar"><span class="club-logo">' + esc(work.settings.club || '라켓뚱보단') + '</span>' + (title ? '<h1 class="club-title">' + esc(title) + '</h1>' : '') + '</div>';
+    return '<div class="clubbar">' + (ui.tab !== 'home' ? '<button class="cb-back" data-act="tab" data-v="home" aria-label="홈으로">‹</button>' : '') + '<button class="club-logo" data-act="tab" data-v="home" aria-label="' + esc(work.settings.club || '라켓뚱보단') + ' 홈으로">' + esc(work.settings.club || '라켓뚱보단') + '</button>' + (title ? '<h1 class="club-title">' + esc(title) + '</h1>' : '') + '</div>';
   }
   // 클럽 홈 (2026-11-25): 운동 참가(예시 · 신청은 밴드) → 진행 중(다승왕전·행사) → 진행 중인 공지 → 다가오는 일정. 밴드 정보는 club.js
   var DOW = '일월화수목금토';
@@ -1321,6 +1321,9 @@
     }).join('') + '</div>';
     if (sg.err) out += '<div class="banner warn"><span>' + esc(sg.err) + '</span><button class="btn sm" data-act="sg-reload">다시 불러오기</button></div>';
     for (var d = wk.from; d <= wk.to; d = addDay(d)) out += sgCard(d, sg.rows[d], P, adm, t);
+    // 팝업은 카드 밖에: 지난 날·쉬는 날 카드(흐리게)는 opacity 때문에 팝업이 다음 카드 아래로 깔림 (2026-11-27 뒤로 가기 E2E에서 발견)
+    if (ui.sgList && sg.rows[ui.sgList]) out += sgListModal(ui.sgList, sg.rows[ui.sgList], P, adm);
+    if (ui.sgGuest) out += sgGuestModal(ui.sgGuest);
     return out;
   }
   function sgCard(d, row, P, adm, t) {
@@ -1349,8 +1352,6 @@
       '<label class="f" for="sg-memo">메모 (예: 랜덤빵 제공)<input id="sg-memo" maxlength="200" value="' + esc(row.memo || '') + '"></label>' +
       '<div class="row"><button class="btn primary" type="submit" data-act="sg-day-save">저장</button><button class="btn" type="button" data-act="sg-day-edit" data-v="' + d + '">닫기</button></div>' +
       '<p class="small muted">정원을 늘리면 대기 1번부터 자동으로 들어가고 알림이 가요. 기본 정원은 관리 › 설정에서 바꿔요.</p></form>';
-    if (ui.sgList === d) out += sgListModal(d, row, P, adm);
-    if (ui.sgGuest === d) out += sgGuestModal(d);
     return out + '</section>';
   }
   function sgDefaultsCard() {
@@ -1944,12 +1945,12 @@
     switch (act) {
       case 'sg-week': ui.sgWeek = +v; render(); break;
       case 'sg-reload': loadSignups(); break;
-      case 'sg-list': ui.sgList = v; ui.sgTab = 'all'; render(); break;
+      case 'sg-list': ui.sgList = v; ui.sgTab = 'all'; navPush('modal'); render(); break;
       case 'sg-ltab': ui.sgTab = v; render(); var ll = document.querySelector('.sgm-list'); if (ll) ll.scrollTop = 0; break;
-      case 'sg-list-close': ui.sgList = null; render(); break;
+      case 'sg-list-close': closeModal(); break;
       case 'sg-gender': ui.sgGender = v; var gn0 = document.getElementById('sg-gname'), keep = gn0 ? gn0.value : ''; render(); var gn1 = document.getElementById('sg-gname'); if (gn1) gn1.value = keep; break;
-      case 'sg-guest-close': ui.sgGuest = null; render(); break;
-      case 'sg-guest': ui.sgGuest = v; ui.sgGender = null; render(); var gi = document.getElementById('sg-gname'); if (gi) gi.focus(); break;
+      case 'sg-guest-close': closeModal(); break;
+      case 'sg-guest': ui.sgGuest = v; ui.sgGender = null; navPush('modal'); render(); var gi = document.getElementById('sg-gname'); if (gi) gi.focus(); break;
       case 'sg-day-edit': ui.sgDay = ui.sgDay === v ? null : v; render(); break;
       case 'sg-apply':
         remote.signupApply(member.token, v).then(function (r) { toast(r && r.status === 'wait' ? '대기 ' + r.no + '번으로 신청했어요. 자리가 나면 자동으로 들어가요.' : md(v) + '(' + dowOf(v) + ') 신청했어요.'); loadSignups(); }, function (e) { sgFail(e); });
@@ -2019,7 +2020,7 @@
       case 'push-done': push.help = false; render(); break;
       case 'push-test': pushTest().then(function (ok) { toast(ok ? '시험 알림을 보냈어요. 화면 위에 떴는지 확인해 보세요.' : '시험 알림을 못 보냈어요. 알림 허용을 확인해 주세요.'); }); break;
       case 'wview': ui.wview = v === 'all' ? 'all' : 'mine'; LS.set(KEY.wview, ui.wview); render(); break;
-      case 'tab': ui.tab = v; LS.set(KEY.tab, v); ui.notice = null; ui.pred.edit = false; ui.pred.full = false; ui.pred.confirm = false; render(); window.scrollTo(0, 0); break;
+      case 'tab': if (v === 'home' && ui.tab !== 'home') navBack(); else if (v !== 'home' && ui.tab === 'home') navPush('tab'); ui.tab = v; LS.set(KEY.tab, v); ui.notice = null; ui.pred.edit = false; ui.pred.full = false; ui.pred.confirm = false; render(); window.scrollTo(0, 0); break;
       case 'week': ui.week = v; SS.set(SKEY.week, v); ui.confirm = null; ui.notice = null; ui.ai.res = null; ui.ai.err = ''; ui.shiftSel = { p: '', dir: 'up' }; ui.pred.edit = false; ui.pred.more = false; ui.pred.adm = null; ui.pred.admDel = ''; render(); break;
       case 'rankg': ui.rankGroup = v; render(); break;
       case 'sec':
@@ -2204,7 +2205,7 @@
       var gd = f.getAttribute('data-d'), gn = ((document.getElementById('sg-gname') || {}).value || '').trim();
       if (!ui.sgGender) { toast('성별을 골라 주세요.'); return; }
       remote.signupGuest(member.token, gd, gn, ui.sgGender).then(function (r) {
-        ui.sgGuest = null; toast((gn || '게스트') + '(' + (ui.sgGender === 'F' ? '여' : '남') + ') ' + (r && r.status === 'wait' ? '대기 ' + r.no + '번으로 ' : '') + '추가했어요.'); loadSignups();
+        closeModal(); toast((gn || '게스트') + '(' + (ui.sgGender === 'F' ? '여' : '남') + ') ' + (r && r.status === 'wait' ? '대기 ' + r.no + '번으로 ' : '') + '추가했어요.'); loadSignups();
       }, function (e) { sgFail(e); });
       return;
     }
@@ -2297,12 +2298,32 @@
       '<div class="row" style="justify-content:center"><button class="btn primary" data-act="retry">다시 시도</button><button class="btn" data-act="boot-reset">처음 상태로 열기</button></div>' +
       '<p class="muted small">계속 이러면 이 화면을 캡처해서 보내 주세요.</p></div></main>';
   }
+  // ---- 뒤로 가기 (2026-11-27 김형준: 참가 들어가서 폰 뒤로 가기 누르면 앱이 꺼짐) ----
+  // 홈에서 다른 화면으로 갈 때·팝업을 열 때 기록을 하나씩 쌓아 두고, 폰 뒤로 가기(popstate)가 오면 L.backStep대로 한 단계만 되돌림.
+  // 화면 안 버튼(‹ 홈·확인·취소)으로 닫을 때는 쌓아 둔 기록도 하나 빼야 다음 뒤로 가기가 맞게 동작 → navBack (그때 오는 popstate는 무시)
+  var navSkip = 0;
+  function navTop() { try { return history.state && history.state.ddw; } catch (e) { return null; } }
+  function navPush(kind) { try { history.pushState({ ddw: kind }, ''); } catch (e) {} }
+  function navBack(kind) { if (navTop() && navTop() !== 'base' && (!kind || navTop() === kind)) { navSkip++; try { history.back(); } catch (e) { navSkip--; } } }
+  function closeModal() { ui.sgList = null; ui.sgGuest = null; navBack('modal'); render(); }
+  function navInit() {
+    try { if (!navTop()) history.replaceState({ ddw: 'base' }, ''); } catch (e) {}
+    if (ui.tab !== 'home' && navTop() === 'base') navPush('tab');
+    window.addEventListener('popstate', function () {
+      if (navSkip) { navSkip--; return; }
+      var st = L.backStep(ui);
+      if (st === 'modal') { ui.sgList = null; ui.sgGuest = null; }
+      else if (st === 'home') { ui.tab = 'home'; LS.set(KEY.tab, 'home'); ui.sgList = null; ui.sgGuest = null; window.scrollTo(0, 0); }
+      render();
+    });
+  }
   function start(state) {
     saved = state; work = clone(saved);
     restoreDraft();
     if (!ui.week || seasonDates().indexOf(ui.week) < 0) ui.week = defaultWeek();
     // 첫 화면: 늘 홈 (2026-11-27). 경기날이면 다승왕에 들어갔을 때 바로 그날 주가 보이게
     ui.tab = L.startTab(LS.get(KEY.tab), todayKST(), seasonDates());
+    if (!navInit.done) { navInit.done = true; navInit(); }
     if (seasonDates().indexOf(todayKST()) >= 0) ui.week = todayKST();
     var sess = R.loadSession(LS, Date.now());
     token = sess ? sess.token : null;

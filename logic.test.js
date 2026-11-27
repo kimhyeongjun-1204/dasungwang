@@ -1191,4 +1191,13 @@ test('sgFilter: 참가자 탭 — 전체 + 급수 6개 각각 (게스트·급수
   assert.deepStrictEqual(ids(undefined), [1, 2, 3, 4, 5, 6, 7, 8], '탭 없으면 전체');
 });
 
+test('backStep: 폰 뒤로 가기 한 번 = 팝업 닫기 → 홈으로 → (홈이면) 앱 밖 (2026-11-27 김형준)', () => {
+  assert.strictEqual(L.backStep({ tab: 'signup', sgList: '2026-12-01' }), 'modal');
+  assert.strictEqual(L.backStep({ tab: 'signup', sgGuest: '2026-12-01' }), 'modal');
+  assert.strictEqual(L.backStep({ tab: 'signup' }), 'home');
+  assert.strictEqual(L.backStep({ tab: 'rank' }), 'home');
+  assert.strictEqual(L.backStep({ tab: 'records', sgList: null, sgGuest: null }), 'home');
+  assert.strictEqual(L.backStep({ tab: 'home' }), null);
+});
+
 console.log(`\n${passed} passed`);

@@ -970,6 +970,8 @@ var Logic = (function () {
   function gradeGroup(g) { var i = GRADES.indexOf(g); return i < 0 ? null : ['A', 'B', 'C'][i >> 1]; }
   // 참가자 창 탭: 전체 + 급수 6개 각각. id는 얼굴 아이콘 이름(face-cv…). 게스트·급수 없는 사람은 전체에만 (2026-11-27)
   var SG_TABS = [{ id: 'all', label: '전체' }, { id: 'cv', label: '캐비어' }, { id: 'lb', label: '랍스터' }, { id: 'bf', label: '소갈비' }, { id: 'lm', label: '양갈비' }, { id: 'pk', label: '돼지갈비' }, { id: 'ck', label: '닭갈비' }];
+  // 폰 뒤로 가기 한 번에 할 일: 팝업이 열려 있으면 닫기 → 홈이 아니면 홈으로 → 홈이면 null(앱 밖으로) (2026-11-27)
+  function backStep(u) { return u.sgList || u.sgGuest ? 'modal' : u.tab && u.tab !== 'home' ? 'home' : null; }
   function sgFilter(es, P, tab) {
     if (!tab || tab === 'all') return es.slice();
     var t = SG_TABS.filter(function (x) { return x.id === tab; })[0];
@@ -1044,7 +1046,7 @@ var Logic = (function () {
     homeSummary: homeSummary,
     bandTime: bandTime,
     signupWeeks: signupWeeks, signupDay: signupDay,
-    GRADES: GRADES, gradeGroup: gradeGroup, SG_TABS: SG_TABS, sgFilter: sgFilter, loginGroups: loginGroups, memberEdit: memberEdit, pinError: pinError,
+    GRADES: GRADES, gradeGroup: gradeGroup, SG_TABS: SG_TABS, sgFilter: sgFilter, backStep: backStep, loginGroups: loginGroups, memberEdit: memberEdit, pinError: pinError,
     startTab: startTab,
     LIVE: LIVE, typicalMinutes: typicalMinutes, courtEta: courtEta, courtSlots: courtSlots, courtLabel: courtLabel, setExtraCourt: setExtraCourt, liveBoard: liveBoard, shortNames: shortNames, startMatch: startMatch, finishMatch: finishMatch, cancelMatch: cancelMatch, myLive: myLive,
     meRecord: meRecord, matchStarted: matchStarted, livePrediction: livePrediction, predictionRecord: predictionRecord,
