@@ -43,7 +43,9 @@ var Club = (function () {
     return all.slice(0, n || 4);
   }
   function postUrl(post) { return BAND + '/post/' + post; }
+  // 행사 당일이고 따로 페이지(live)가 있으면 그날만 홈 맨 위 큰 카드 (2026-11-27 청백전, 다승왕과 자리 바꿈)
+  function heroEvent(today, events) { return (events || EVENTS).filter(function (e) { return e.live && e.date === today; })[0] || null; }
 
-  return { BAND: BAND, NOTICES: NOTICES, SIGNUPS: SIGNUPS, EVENTS: EVENTS, activeNotices: activeNotices, currentSignup: currentSignup, upcoming: upcoming, postUrl: postUrl };
+  return { BAND: BAND, NOTICES: NOTICES, SIGNUPS: SIGNUPS, EVENTS: EVENTS, activeNotices: activeNotices, currentSignup: currentSignup, upcoming: upcoming, postUrl: postUrl, heroEvent: heroEvent };
 })();
 if (typeof module !== 'undefined') module.exports = Club;
