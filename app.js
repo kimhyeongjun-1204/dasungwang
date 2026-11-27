@@ -208,19 +208,27 @@
     var nextTxt = h.next ? (h.next === t ? '오늘' : '이번 주') + ' ' + md(h.next) + '(수) 17:30' : '시즌이 끝났어요';
     var tier = /^(hell|heaven|mid)$/.test(h.myTier || '') ? ' · 내 배정 <b class="' + h.myTier + '">' + TIER_LABEL[h.myTier] + '</b>' : '';
     var pct = h.total ? Math.round(h.done / h.total * 100) : 0;
-    out += '<h2 class="home-h">진행 중</h2>' +
-      '<button class="ev-card dsw" data-act="tab" data-v="week"><span class="ev-tag">' + st + '</span>' +
+    // 행사 당일(청백전 등, 따로 페이지가 있는 행사)엔 그 행사가 맨 위 큰 카드, 다승왕은 작은 카드로 자리 바꿈 (2026-11-27)
+    var hero = Club.heroEvent(t);
+    out += '<h2 class="home-h">진행 중</h2>';
+    if (hero) out += '<a class="ev-card cb" href="' + esc(hero.live) + '" target="_blank" rel="noopener"><span class="cb-tags"><span class="ev-tag">D-DAY · 오늘</span><span class="cb-vs"><i class="cb-blue">청팀</i><b>VS</b><i class="cb-white">백팀</i></span></span>' +
+      '<span class="ev-title cb-title" aria-label="' + esc(hero.short) + '"><span class="c1">청</span><span class="c2">백</span><span class="c3">전</span></span>' +
+      '<span class="ev-sub cb-sub">자존심을 건 한판 승부! 끝나고 치킨 🍗</span>' +
+      '<span class="ev-act"><span>' + md(hero.date) + '(' + dowOf(hero.date) + ') · ' + esc(hero.place) + '</span><b>바로가기 ›</b></span></a>';
+    else out += '<button class="ev-card dsw" data-act="tab" data-v="week"><span class="ev-tag">' + st + '</span>' +
       '<span class="ev-title">돼지지옥 다승왕전</span><span class="ev-sub">이기면 지옥도, 지면 천국도! · 매주 수요일 17:30</span>' +
       '<span class="ev-bar" aria-label="시즌 진행 ' + h.done + '/' + h.total + '주"><i style="width:' + pct + '%"></i></span>' +
       '<span class="ev-meta num">' + (h.first ? md(h.first) + '–' + md(h.last) : '') + ' · ' + h.done + '/' + h.total + '주 완료</span>' +
       '<span class="ev-act"><span>' + nextTxt + tier + '</span><b>바로가기 ›</b></span></button>';
-    var evs = Club.EVENTS.filter(function (e) { return e.date >= t; });
-    if (evs.length) out += '<div class="hm-evs">' + evs.map(function (e) {
+    var evs = Club.EVENTS.filter(function (e) { return e.date >= t && e !== hero; });
+    var dswMini = hero ? '<button class="ev-mini dsw-mini" data-act="tab" data-v="week"><span class="ev-dday">' + esc(st) + '</span><b>돼지지옥 다승왕전</b>' +
+      '<small class="num">' + h.done + '/' + h.total + '주 완료 · ' + esc(nextTxt) + '</small><span class="ev-link">바로가기 ›</span></button>' : '';
+    if (evs.length || dswMini) out += '<div class="hm-evs">' + dswMini + evs.map(function (e) {
       var n = Math.round((Date.parse(e.date) - Date.parse(t)) / 864e5);
       var info = '<span class="ev-dday">' + (n ? 'D-' + n : 'D-DAY') + '</span><b>' + esc(e.name) + '</b>' +
         '<small class="num">' + md(e.date) + (e.noDow ? '' : '(' + dowOf(e.date) + ')') + ' · ' + esc(e.place) + '</small>';
-      // 실시간 점수판이 따로 있는 행사(청백전, 다른 회원이 만든 페이지): 점수판 새 창 + 밴드 공지 (a 안에 a를 못 넣어서 div)
-      if (e.live) return '<div class="ev-mini ev-live">' + info + '<a class="btn primary ev-livebtn" href="' + esc(e.live) + '" target="_blank" rel="noopener">📺 실시간 점수판</a>' +
+      // 따로 페이지가 있는 행사(청백전, 다른 회원이 만든 페이지): 그 페이지 새 창 + 밴드 공지 (a 안에 a를 못 넣어서 div)
+      if (e.live) return '<div class="ev-mini ev-live">' + info + '<a class="btn primary ev-livebtn" href="' + esc(e.live) + '" target="_blank" rel="noopener">청백전 바로가기 ›</a>' +
         bandLink(e.post, 'ev-link', '밴드 공지 보기 ›') + '</div>';
       return bandLink(e.post, 'ev-mini', info + '<span class="ev-link">밴드에서 보기 ›</span>');
     }).join('') + '</div>';
@@ -1948,9 +1956,9 @@
     saved = state; work = clone(saved);
     restoreDraft();
     if (!ui.week || seasonDates().indexOf(ui.week) < 0) ui.week = defaultWeek();
-    // 첫 화면: 다승왕전 경기날이면 바로 그날 '이번 주' (왼쪽 위 ‹ 홈으로 클럽 홈), 아니면 보던 탭 (2026-11-25)
+    // 첫 화면: 늘 홈 (2026-11-27). 경기날이면 다승왕에 들어갔을 때 바로 그날 주가 보이게
     ui.tab = L.startTab(LS.get(KEY.tab), todayKST(), seasonDates());
-    if (ui.tab === 'week' && seasonDates().indexOf(todayKST()) >= 0) ui.week = todayKST();
+    if (seasonDates().indexOf(todayKST()) >= 0) ui.week = todayKST();
     var sess = R.loadSession(LS, Date.now());
     token = sess ? sess.token : null;
     ui.admin = !!sess && sess.role === 'admin'; ui.op = !!sess && sess.role === 'operator';

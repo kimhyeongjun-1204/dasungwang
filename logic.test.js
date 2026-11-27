@@ -1054,13 +1054,12 @@ test('homeSummary: 시즌 전·중·후 상태, 끝난 주 수, 다음 경기날
 });
 
 // ---- 앱을 열 때 첫 화면 (2026-11-25): 다승왕전 경기날이면 바로 '이번 주', 아니면 마지막에 보던 탭(처음이면 홈) ----
-test('startTab: 경기날이면 week(관리 화면만 그대로), 아니면 보던 탭, 처음이면 home', () => {
-  assert.strictEqual(typeof L.startTab, 'function', 'startTab 없음');
-  const ds = ['2026-11-18', '2026-11-25', '2026-12-02'];
-  assert.strictEqual(L.startTab('home', '2026-11-25', ds), 'week', '경기날인데 홈으로 열림');
-  assert.strictEqual(L.startTab(null, '2026-11-25', ds), 'week');
-  assert.strictEqual(L.startTab('records', '2026-11-26', ds), 'records', '경기날 아닌 날은 보던 탭');
-  assert.strictEqual(L.startTab(null, '2026-11-26', ds), 'home', '처음 여는 사람은 홈');
+test('startTab: 앱을 열면 늘 홈 (2026-11-27, 경기날 다승왕으로 열던 것 바뀜), 관리 화면에서 새로 고침만 그대로', () => {
+  const ds = ['2026-11-18', '2026-11-25'];
+  assert.strictEqual(L.startTab('week', '2026-11-25', ds), 'home', '경기날에도 홈');
+  assert.strictEqual(L.startTab(null, '2026-11-25', ds), 'home');
+  assert.strictEqual(L.startTab('records', '2026-11-26', ds), 'home', '보던 탭이 아니라 홈');
+  assert.strictEqual(L.startTab(null, '2026-11-26', ds), 'home');
   assert.strictEqual(L.startTab('admin', '2026-11-25', ds), 'admin', '관리 화면에서 새로 고침하면 그대로');
 });
 
@@ -1098,6 +1097,13 @@ test('club.js 청백전: 다른 회원이 만든 실시간 점수판 링크 (김
   const cb = CL.EVENTS.filter(e => e.short === '청백전')[0];
   assert.strictEqual(cb.live, 'https://chang333787-boop.github.io/cheongbaek-2026/');
   assert.ok(CL.EVENTS.filter(e => e.live).every(e => /^https:\/\//.test(e.live)), '링크는 https만');
+});
+
+test('club.js heroEvent: 행사 당일이고 따로 페이지(live)가 있으면 그날만 홈 맨 위 큰 카드 (2026-11-27 청백전)', () => {
+  assert.strictEqual(CL.heroEvent('2026-11-27').short, '청백전');
+  assert.strictEqual(CL.heroEvent('2026-11-26'), null, '전날은 아님');
+  assert.strictEqual(CL.heroEvent('2026-11-28'), null, '다음 날은 아님');
+  assert.strictEqual(CL.heroEvent('2026-12-18'), null, 'live 없는 뚠뚠배는 아님');
 });
 
 console.log(`\n${passed} passed`);

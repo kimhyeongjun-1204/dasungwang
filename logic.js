@@ -950,10 +950,9 @@ var Logic = (function () {
 
   // 클럽 홈 다승왕전 카드: 시즌 상태(upcoming/live/ended), 결과가 다 들어간 주 수, 다음 경기날(당일 포함), 내 다음 배정
   // 앱을 열 때 첫 화면: 다승왕전 경기날(today가 시즌 날짜)이면 '이번 주'로 바로. 관리 화면에서 새로 고침한 경우만 그대로 (2026-11-25)
+  // 앱을 열면 늘 홈 (2026-11-27 김형준: 경기날 다승왕으로 열던 것 → 홈). 관리 화면에서 새로 고침할 때만 그대로
   function startTab(saved, today, seasonDates) {
-    if (saved === 'admin') return saved;
-    if ((seasonDates || []).indexOf(today) >= 0) return 'week';
-    return saved || 'home';
+    return saved === 'admin' ? 'admin' : 'home';
   }
 
   function homeSummary(state, today, pid) {
