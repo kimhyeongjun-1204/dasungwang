@@ -1459,7 +1459,8 @@
       }).join('') + '<button class="btn" type="submit">바꾸기</button></form><p class="muted small">이름은 바꿀 수 없어요. 다른 이름으로 들어가야 하면 돼장에게 말해 주세요.</p></details>';
   }
 
-  // ---------- 돼장 회원 관리 (2026-11-26): 새 회원(이름 + 급수 → 조 자동), 급수·조 바꾸기는 저장하면 바로, 비밀번호 초기화, 쉬는 회원 ----------
+  // ---------- 돼장 회원 관리 (2026-11-26): 새 회원, 급수·조 바꾸기(저장하면 바로), 비밀번호 초기화, 쉬는 회원 ----------
+  // 급수(회원 등급)와 조(다승왕·대회에서 뛰는 조)는 따로 고름(2026-11-27): 랍스터여도 소갈비·양갈비조에서 뛸 수 있음
   function loadMemberPins() {
     if (!token || !ui.admin) return;
     remote.adminMemberPins(token).then(function (ids) { ui.mb.pins = ids; ui.mb.loading = false; render(); }, function (e) { ui.mb.loading = false; if (e.code === 'unauthorized') { dropAdmin(); ui.admin = false; render(); } });
@@ -1479,17 +1480,20 @@
         '<small class="muted">' + esc(gname(p.group)) + '조 · ' + (mb.pins === null ? '…' : pins.indexOf(p.id) >= 0 ? '비밀번호 있음' : '아직 로그인 안 함') + '</small>' +
         (p.active === false ? '<span class="chip warn">쉬는 회원</span>' : '') + '<span aria-hidden="true">›</span></button>';
     }).join('') : '<p class="muted">이 조에 회원이 없어요.</p>') + '</div>';
-    out += '<p class="small muted">급수를 바꾸면 저장하는 즉시 조가 바뀌어요. 지난 주 경기는 그날 조 그대로 남아요.</p>';
+    out += '<p class="small muted">급수와 조는 따로예요. 조를 바꾸면 저장하는 즉시 바뀌고, 지난 주 경기는 그날 조 그대로 남아요.</p>';
     var e = mb.edit;
     if (e) {
       var cur = e.id ? P[e.id] : null;
       out += '<div class="pc-back" data-act="mb-close" aria-hidden="true"></div><section class="pc-sheet mb-sheet" role="dialog" aria-modal="true" aria-labelledby="mb-h">' +
         '<h2 id="mb-h">' + (cur ? esc(cur.name) + ' 고치기' : '새 회원 추가') + '</h2>' +
         '<label class="f" for="mb-name">이름<input id="mb-name" value="' + esc(e.name) + '" maxlength="10" autocomplete="off"></label>' +
-        '<p class="small muted">급수 → 조는 자동으로 정해져요</p><div class="mb-grades" role="radiogroup" aria-label="급수">' + L.GRADES.map(function (gr, i) {
+        '<p class="small muted mb-lbl">급수 (회원 등급)</p><div class="mb-grades" role="radiogroup" aria-label="급수">' + L.GRADES.map(function (gr, i) {
           return '<button role="radio" aria-checked="' + (e.grade === gr) + '" data-act="mb-grade" data-v="' + gr + '"><i class="ch ch-' + ['cv', 'lb', 'bf', 'lm', 'pk', 'ck'][i] + '" aria-hidden="true"></i>' + gr + '</button>';
         }).join('') + '</div>' +
-        '<p class="small mb-to">조: <b>' + (e.grade ? esc(gname(L.gradeGroup(e.grade))) + '조' : cur ? esc(gname(cur.group)) + '조 (급수 미정)' : '급수를 골라 주세요') + '</b> · 저장하면 바로 바뀌어요</p>' +
+        '<p class="small muted mb-lbl">다승왕·대회에서 뛰는 조 <span>· 급수와 조는 따로예요</span></p><div class="gsel mb-gsel" role="radiogroup" aria-label="조">' + groups().map(function (g) {
+          return '<button role="radio" class="g' + g.id + '" aria-checked="' + (e.group === g.id) + '" aria-pressed="' + (e.group === g.id) + '" data-act="mb-gsel" data-v="' + g.id + '">' + esc(g.name) + '</button>';
+        }).join('') + '</div>' +
+        (cur && e.group && e.group !== cur.group ? '<p class="small mb-to">' + esc(gname(cur.group)) + '조 → <b>' + esc(gname(e.group)) + '조</b> · 저장하면 바로 바뀌고, 이번 시즌 승수도 새 조 순위로 가요</p>' : '') +
         (cur ? '<div class="row">' + (mb.pins && mb.pins.indexOf(cur.id) >= 0 ? '<button class="btn sm" data-act="mb-reset">비밀번호 초기화</button>' : '') +
           '<button class="btn sm' + (cur.active === false ? '' : ' danger') + '" data-act="mb-active" data-v="' + (cur.active === false ? '1' : '0') + '">' + (cur.active === false ? '다시 활동' : '쉬는 회원으로') + '</button></div>' : '') +
         (mb.ask === 'reset' ? '<div class="banner warn"><span>' + esc(cur.name) + ' 비밀번호를 지울까요? 그 회원의 모든 기기에서 로그아웃되고, 다음에 들어올 때 새로 만들어요.</span><span class="row"><button class="btn sm danger" data-act="mb-reset-yes">초기화</button><button class="btn sm" data-act="mb-reset-no">취소</button></span></div>' : '') +
@@ -1982,18 +1986,22 @@
       case 'lg-name': lgPick(el.getAttribute('data-p')); break;
       case 'lg-back': ui.lg.step = v; if (v === 'group') ui.lg.gid = null; ui.lg.pid = null; ui.lg.msg = ''; render(); break;
       case 'mb-group': ui.mb.group = v; render(); break;
-      case 'mb-new': ui.mb.edit = { id: null, name: '', grade: null }; ui.mb.ask = null; render(); var nf = document.getElementById('mb-name'); if (nf) nf.focus(); break;
-      case 'mb-edit': P = pm()[el.getAttribute('data-p')]; ui.mb.edit = { id: P.id, name: P.name, grade: P.grade || null }; ui.mb.ask = null; render(); break;
+      case 'mb-new': ui.mb.edit = { id: null, name: '', grade: null, group: null, groupSet: false }; ui.mb.ask = null; render(); var nf = document.getElementById('mb-name'); if (nf) nf.focus(); break;
+      case 'mb-edit': P = pm()[el.getAttribute('data-p')]; ui.mb.edit = { id: P.id, name: P.name, grade: P.grade || null, group: P.group, groupSet: true }; ui.mb.ask = null; render(); break;
       case 'mb-close': ui.mb.edit = null; ui.mb.ask = null; render(); break;
-      case 'mb-grade': ui.mb.edit.name = (document.getElementById('mb-name') || {}).value || ui.mb.edit.name; ui.mb.edit.grade = v; render(); break;
+      case 'mb-grade':   // 새 회원은 조를 아직 안 골랐으면 급수로 추천한 조를 미리 골라 둠(바꿀 수 있음). 기존 회원은 급수만 바뀜
+        ui.mb.edit.name = (document.getElementById('mb-name') || {}).value || ui.mb.edit.name; ui.mb.edit.grade = v;
+        if (!ui.mb.edit.groupSet) ui.mb.edit.group = L.gradeGroup(v);
+        render(); break;
+      case 'mb-gsel': ui.mb.edit.name = (document.getElementById('mb-name') || {}).value || ui.mb.edit.name; ui.mb.edit.group = v; ui.mb.edit.groupSet = true; render(); break;
       case 'mb-save':
         var me2 = ui.mb.edit, nm2 = (document.getElementById('mb-name') || {}).value;
-        if (!me2.id) mbApply({ name: nm2, grade: me2.grade }, String(nm2).trim() + ' 님을 추가했어요.');
+        if (!me2.id) { if (mbApply({ name: nm2, grade: me2.grade, group: me2.group || undefined }, String(nm2).trim() + ' 님을 추가했어요.') && me2.group) ui.mb.group = me2.group; }
         else {
           var was = pm()[me2.id], ed = { id: me2.id, name: nm2 };
           if (me2.grade && me2.grade !== was.grade) ed.grade = me2.grade;
-          var moved = ed.grade && L.gradeGroup(ed.grade) !== was.group;
-          if (mbApply(ed, moved ? String(nm2).trim() + ' 님을 ' + gname(L.gradeGroup(ed.grade)) + '조로 옮겼어요.' : '저장했어요.') && moved) ui.mb.group = L.gradeGroup(ed.grade);
+          if (me2.group && me2.group !== was.group) ed.group = me2.group;
+          if (mbApply(ed, ed.group ? String(nm2).trim() + ' 님을 ' + gname(ed.group) + '조로 옮겼어요.' : '저장했어요.') && ed.group) ui.mb.group = ed.group;
         }
         break;
       case 'mb-active': mbApply({ id: ui.mb.edit.id, active: v === '1' }, v === '1' ? '다시 활동으로 바꿨어요.' : '쉬는 회원으로 바꿨어요. 로그인·신청이 막혀요.'); break;
