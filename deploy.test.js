@@ -634,7 +634,7 @@ test('클럽 홈 행사 카드: live 링크가 있으면 "실시간 점수판" �
   const h = appSrc.match(/function viewHome\(\) \{[\s\S]*?\n  \}\n/)[0];
   assert.ok(/e\.live/.test(h) && /href="' \+ esc\(e\.live\) \+ '" target="_blank" rel="noopener"/.test(h), '실시간 점수판 새 창 링크');
   assert.ok(/실시간 점수판/.test(h), '버튼 글자');
-  assert.ok(/<div class="ev-mini ev-live">/.test(h), 'live 있는 카드는 링크 두 개를 담는 div (a 안에 a 금지)');
+  assert.ok(/if \(e\.live\) return '<div class="ev-mini ev-live">'/.test(h), 'live 있는 행사만 링크 두 개를 담는 div (a 안에 a 금지)');
 });
 test('service worker: index.html network-first, supabase는 캐시 안 함', () => {
   const sw = fs.readFileSync(path.join(__dirname, 'dist', 'sw.js'), 'utf8');
