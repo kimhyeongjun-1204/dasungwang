@@ -1559,3 +1559,4 @@ $ node logic.test.js; node deploy.test.js   (테스트 먼저 FAIL 2건 확인 �
 - 바꾼 곳: manifest name '라켓뚱보단 다승왕전' → '라켓뚱보단', short_name(홈 화면 아이콘 밑 이름) '다승왕' → '라켓뚱보단', 창 제목(build.js TITLE), 아이폰 홈 화면 이름(apple-mobile-web-app-title), 알림 기본 제목(sw.js), 시험 알림 제목. 화면 안 '돼지지옥 다승왕전' 같은 행사 이름은 그대로
 - 테스트를 먼저 바꾸고 FAIL 확인 → deploy 61 · logic 142 · tourney 17 · push 5 passed. 요구가 바뀐 테스트 1개(manifest 이름)는 고쳐 씀. 역검증: short_name을 '다승왕'으로 되돌리면 deploy FAIL
 - service worker는 네트워크 먼저라 manifest 새 이름을 바로 받아 감. 이미 설치한 앱의 아이콘 이름은 안드로이드 Chrome은 다음에 앱을 열 때 manifest를 다시 확인해 바뀌고(바로 안 바뀔 수 있음), 아이폰은 홈 화면에서 지우고 다시 추가해야 바뀜
+- 배포(2026-11-27 10:2x): 김형준 "진행" → #36 squash 머지(c6d7cb7) → GitHub Pages 배포 success → 실제 사이트(Chrome): 창 제목·아이폰 홈 화면 이름·manifest name·short_name 모두 '라켓뚱보단', 청백전 큰 카드 그대로
