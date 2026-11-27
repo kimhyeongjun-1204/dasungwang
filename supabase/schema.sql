@@ -904,7 +904,9 @@ language plpgsql security definer set search_path = public as $$
 declare r record; out jsonb := '[]'::jsonb;
 begin
   for r in select * from public.signup_rows(d) x where x.status = 'in' and not (x.id = any(before_in)) order by x.pos loop
-    insert into public.signup_notice (day, player_id, kind) values (d, coalesce(r.player_id, r.host_id), case when r.player_id is null then 'guest_in' else 'in' end);
+    if r.player_id is not null or r.host_id <> 'admin' then   -- 돼장이 넣은 게스트는 알림 받을 회원이 없음
+      insert into public.signup_notice (day, player_id, kind) values (d, coalesce(r.player_id, r.host_id), case when r.player_id is null then 'guest_in' else 'in' end);
+    end if;
     out := out || to_jsonb(coalesce(r.player_id, 'g:' || coalesce(r.guest_name, '게스트')));
   end loop;
   return out;
@@ -948,19 +950,25 @@ begin
   return public.signup_status_of(d, sid);
 end $$;
 
--- 게스트: 이름은 선택(빈칸이면 null), 성별 M/F는 꼭 (2026-11-27, 예전 3개 인자 함수는 지움)
+-- 게스트: 돼장만 추가 (2026-11-27 김형준 14:25). 회원용 signup_guest는 이름만 남기고 막음(예전 앱이 불러도 admin_only)
 drop function if exists public.signup_guest(uuid, date, text);
 create or replace function public.signup_guest(token uuid, d date, p_name text, p_gender text) returns jsonb
 language plpgsql security definer set search_path = public as $$
-declare pid text := public.member_check(token); sid bigint; nm text := nullif(btrim(coalesce(p_name, '')), '');
 begin
-  if pid is null then raise exception 'unauthorized'; end if;
-  if not public.workout_open(d) then raise exception 'closed_day'; end if;
+  raise exception 'admin_only';
+end $$;
+
+-- 돼장 게스트: 이름은 선택(빈칸이면 null), 성별 M/F는 꼭. 데려온 사람 칸은 'admin'(회원 아님 → 자리 나도 알림 없음), 날짜 제한은 돼장 넣기와 같음
+create or replace function public.admin_signup_guest(token uuid, d date, p_name text, p_gender text) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare sid bigint; nm text := nullif(btrim(coalesce(p_name, '')), '');
+begin
+  if not public.admin_check(token) then raise exception 'unauthorized'; end if;
+  if extract(isodow from d) not between 1 and 5 then raise exception 'bad_day'; end if;
   if p_gender is null or p_gender not in ('M', 'F') then raise exception 'bad_gender'; end if;
   if nm is not null and char_length(nm) > 20 then raise exception 'bad_name'; end if;
   perform pg_advisory_xact_lock(hashtext('signup:' || d));
-  if (select count(*) from public.signup s where s.day = d and s.host_id = pid and s.player_id is null) >= 3 then raise exception 'too_many_guests'; end if;
-  insert into public.signup (day, guest_name, guest_gender, host_id) values (d, nm, p_gender, pid) returning id into sid;
+  insert into public.signup (day, guest_name, guest_gender, host_id, by_admin) values (d, nm, p_gender, 'admin', true) returning id into sid;
   return public.signup_status_of(d, sid);
 end $$;
 

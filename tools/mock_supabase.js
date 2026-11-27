@@ -238,13 +238,13 @@ const RPC = {
     if (SG.rows.some(r => r.day === a.d && r.player_id === pid)) return fail(res, 'already');
     const id = ++SG.id; SG.rows.push({ id, day: a.d, player_id: pid, host_id: pid, at: new Date().toISOString() }); send(res, 200, JSON.stringify(sgStatus(a.d, id)));
   },
-  signup_guest: (a, res) => {
-    const pid = memberOf(a.token); if (!pid) return fail(res, 'unauthorized');
-    if (!sgOpen(a.d)) return fail(res, 'closed_day');
+  signup_guest: (a, res) => fail(res, 'admin_only'),   // 게스트는 돼장만 (2026-11-27)
+  admin_signup_guest: (a, res) => {
+    if (!db.sessions.has(a.token)) return fail(res, 'unauthorized');
+    if (isoDow(a.d) > 5) return fail(res, 'bad_day');
     if (!['M', 'F'].includes(a.p_gender)) return fail(res, 'bad_gender');
     const nm = String(a.p_name || '').trim() || null; if (nm && nm.length > 20) return fail(res, 'bad_name');
-    if (SG.rows.filter(r => r.day === a.d && r.host_id === pid && !r.player_id).length >= 3) return fail(res, 'too_many_guests');
-    const id = ++SG.id; SG.rows.push({ id, day: a.d, guest_name: nm, guest_gender: a.p_gender, host_id: pid, at: new Date().toISOString() }); send(res, 200, JSON.stringify(sgStatus(a.d, id)));
+    const id = ++SG.id; SG.rows.push({ id, day: a.d, guest_name: nm, guest_gender: a.p_gender, host_id: 'admin', by_admin: true, at: new Date().toISOString() }); send(res, 200, JSON.stringify(sgStatus(a.d, id)));
   },
   signup_cancel: (a, res) => {
     const pid = memberOf(a.token); if (!pid) return fail(res, 'unauthorized');

@@ -100,13 +100,14 @@ var Remote = (function () {
       signupsList: function (from, to) { return rpc('signups_list', { d_from: from, d_to: to }).then(function (r) { return r || []; }); },
       signupApply: function (token, d) { return rpc('signup_apply', { token: token, d: d }); },
       signupCancel: function (token, d) { return rpc('signup_cancel', { token: token, d: d }); },
-      signupGuest: function (token, d, name, gender) { return rpc('signup_guest', { token: token, d: d, p_name: name, p_gender: gender }); },
+      signupGuest: function (token, d, name, gender) { return rpc('signup_guest', { token: token, d: d, p_name: name, p_gender: gender }); },   // 서버에서 admin_only로 막힘(앱은 안 씀)
       signupGuestCancel: function (token, sid) { return rpc('signup_guest_cancel', { token: token, sid: sid }); },
       adminSetDay: function (token, d, cap, memo, closed) { return rpc('admin_set_day', { token: token, d: d, p_cap: cap, p_memo: memo, p_closed: closed }); },
       workoutDefaults: function () { return rpc('workout_defaults', {}).then(function (r) { return r || []; }); },
       adminSetDefaultCap: function (token, dow, cap) { return rpc('admin_set_default_cap', { token: token, p_dow: dow, p_cap: cap }); },
       adminSignupAdd: function (token, d, pid) { return rpc('admin_signup_add', { token: token, d: d, pid: pid }); },
       adminSignupRemove: function (token, d, sid) { return rpc('admin_signup_remove', { token: token, d: d, sid: sid }); },
+      adminSignupGuest: function (token, d, name, gender) { return rpc('admin_signup_guest', { token: token, d: d, p_name: name, p_gender: gender }); },   // 게스트는 돼장만 (2026-11-27)
       // 자리 나서 자동으로 들어간 사람에게 알림 (Edge Function notify kind=signup, 대상은 DB가 한 번만 꺼내 줌)
       notifySignup: function () { return call(client.functions.invoke('notify', { body: { kind: 'signup' } })); },
 
