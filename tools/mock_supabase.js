@@ -29,6 +29,7 @@ delete state.rev; delete state.savedAt; if (state.settings) delete state.setting
 const db = { state, rev: src.rev || 1, saved_at: src.savedAt || new Date().toISOString(), pin: '1234', sessions: new Set(), opPin: process.env.MOCK_OP_PIN || null, ops: new Set() };  // ops: 진행 도우미 토큰
 
 // ---- 회원 로그인 ----
+const ROLES = new Map(String(process.env.MOCK_ROLES || '').split(',').filter(Boolean).map(x => x.split(':'))), ROLE_TOK = new Map();
 const members = { pins: new Map(), sessions: new Map() };
 (process.env.MOCK_MEMBER_PINS || '').split(',').filter(Boolean).forEach(x => { const [pid, pin] = x.split(':'); members.pins.set(pid, { pin, fails: 0, until: 0 }); });
 const activeP = pid => (db.state.players || []).some(p => p.id === pid && p.active !== false);
@@ -288,6 +289,21 @@ const RPC = {
   },
   admin_login: (a, res) => { if (a.pin !== db.pin) return send(res, 200, 'null'); const t = crypto.randomUUID(); db.sessions.add(t); send(res, 200, JSON.stringify(t)); },
   admin_check: (a, res) => send(res, 200, String(db.sessions.has(a.token))),
+  // ---- 회원 역할 (schema.sql member_role_session / admin_operators / admin_set_operator 흉내, 2026-11-27). MOCK_ROLES=p010:admin,p003:operator ----
+  member_role_session: (a, res) => {
+    const pid = memberOf(a.token); if (!pid) return fail(res, 'unauthorized');
+    const r = ROLES.get(pid); if (!r) return send(res, 200, 'null');
+    const t = ROLE_TOK.get(pid + ':' + r) || crypto.randomUUID(); ROLE_TOK.set(pid + ':' + r, t); (r === 'admin' ? db.sessions : db.ops).add(t);
+    send(res, 200, JSON.stringify({ token: t, role: r }));
+  },
+  admin_operators: (a, res) => { if (!db.sessions.has(a.token)) return fail(res, 'unauthorized'); send(res, 200, JSON.stringify([...ROLES].filter(x => x[1] === 'operator').map(x => x[0]).sort())); },
+  admin_set_operator: (a, res) => {
+    if (!db.sessions.has(a.token)) return fail(res, 'unauthorized');
+    if (ROLES.get(a.pid) === 'admin') { if (a.p_on) return fail(res, 'is_admin'); }
+    else if (a.p_on) { if (!activeP(a.pid)) return fail(res, 'bad_player'); ROLES.set(a.pid, 'operator'); }
+    else { ROLES.delete(a.pid); const t = ROLE_TOK.get(a.pid + ':operator'); if (t) { db.ops.delete(t); ROLE_TOK.delete(a.pid + ':operator'); } }
+    send(res, 200, JSON.stringify([...ROLES].filter(x => x[1] === 'operator').map(x => x[0]).sort()));
+  },
   admin_logout: (a, res) => { db.sessions.delete(a.token); db.ops.delete(a.token); send(res, 200, 'null'); },
   // ---- 진행 PIN (schema.sql operator_login / live_check / set_operator_pin / live_action 흉내, 만료 시각은 생략) ----
   operator_login: (a, res) => { if (!db.opPin) return fail(res, 'no_op_pin'); if (a.pin !== db.opPin) return send(res, 200, 'null'); const t = crypto.randomUUID(); db.ops.add(t); send(res, 200, JSON.stringify(t)); },

@@ -281,6 +281,16 @@ test('api 진행 PIN: 로그인·역할 확인·진행 동작·PIN 설정, 토�
   r.saveToken(ls, 'atok', now);
   assert.deepStrictEqual(r.loadSession(ls, now), { token: 'atok', role: 'admin' }, '예전처럼 저장하면 돼장');
 });
+test('api 회원 역할: member_role_session · admin_operators · admin_set_operator (2026-11-27)', async () => {
+  const ok = v => () => ({ data: v, error: null });
+  const c = tableClient({}, { member_role_session: ok({ token: 'rt', role: 'admin' }), admin_operators: ok(['p1']), admin_set_operator: ok([]) });
+  const a = need().api(c);
+  assert.deepStrictEqual(await a.memberRoleSession('MT'), { token: 'rt', role: 'admin' });
+  assert.deepStrictEqual(await a.adminOperators('A'), ['p1']);
+  assert.deepStrictEqual(await a.adminSetOperator('A', 'p1', false), []);
+  assert.deepStrictEqual(c.calls.map(x => x[1] + ' ' + JSON.stringify(x[2])), ['member_role_session {"token":"MT"}', 'admin_operators {"token":"A"}', 'admin_set_operator {"token":"A","pid":"p1","p_on":false}']);
+  assert.strictEqual(need().errorCode({ message: 'is_admin' }).code, 'is_admin');
+});
 test('schema.sql 웹 푸시: 구독은 아무도 못 읽고, 보낼 대상은 돼장·도우미 토큰으로만·코트에 있는 경기만·한 번만 (2026-11-23)', () => {
   const sql = fs.readFileSync(path.join(__dirname, 'supabase', 'schema.sql'), 'utf8');
   assert.ok(/create table if not exists public\.push_subs \(/.test(sql) && /alter table public\.push_subs enable row level security/.test(sql), 'push_subs 테이블·RLS 없음');
@@ -379,7 +389,7 @@ test('클럽 홈 틀: 하단 탭 홈·참가·다승왕·기록(2026-11-26 참�
   assert.ok(!/\['me', '내 기록'/.test(nav[0]) && !/\['admin', '관리'/.test(nav[0]), '내 기록·관리는 하단 탭이 아니라 다승왕 안쪽 탭');
   const hd = appSrc.match(/function header\(\) \{[\s\S]*?\n  \}\n/)[0];
   assert.ok(/\[\['week', '이번 주'\], \['rank', '순위'\], \['plan', '예측'\], \['me', '내 기록'\], \['admin', '관리'\]\]/.test(hd), '다승왕전 안쪽 탭은 이번 주·순위·예측·내 기록·관리');
-  assert.ok(/t\[0\] === 'admin' && !ui\.admin && !ui\.op \? ' <span class="lock">PIN<\/span>'/.test(hd), '관리 탭 PIN 표시');
+  assert.ok(/t\[0\] !== 'admin' \|\| ui\.admin \|\| ui\.op/.test(hd), '관리 탭은 돼장·도우미에게만 (2026-11-27, 예전엔 PIN 표시)');
   assert.ok(/var DSW_TABS = \['week', 'rank', 'plan', 'me', 'admin'\];/.test(appSrc), '내 기록·관리도 다승왕 화면(헤더) 안');
   assert.ok(/data-act="tab" data-v="home"[^>]*>‹ 홈/.test(hd), '다승왕전 화면에서 홈으로 돌아가는 버튼 없음');
   const css = fs.readFileSync(path.join(__dirname, 'app.css'), 'utf8');
@@ -467,12 +477,23 @@ test('경기 진행 화면: 돼장 경기 진행|결과 표, 코트 넣기·결�
   assert.ok(/remote\.watchLive\(/.test(appSrc), '돼장 저장·자리 비움 Realtime 구독 없음');
   assert.ok(/function reloadState\(\)[\s\S]{0,200}if \(dirty\(\) \|\| ui\.busy\) return/.test(appSrc), '저장 안 한 변경이 있을 때 덮어쓰지 않는 확인 없음');
 });
-test('진행 도우미: 같은 PIN 칸에서 진행 PIN도 받고, 코트 동작은 live_action으로 (전체 저장 아님)', () => {
-  assert.ok(/remote\.login\(p1\)[\s\S]{0,600}remote\.operatorLogin\(p1\)/.test(appSrc), 'PIN 칸에서 진행 PIN을 안 받음');
+test('진행 도우미: PIN 대신 돼장이 회원 중에서 지정, 코트 동작은 live_action으로 (전체 저장 아님) (2026-11-27 바꿈)', () => {
   assert.ok(/function liveEdit\(fn, action[\s\S]{0,900}remote\.liveAction\(/.test(appSrc), '코트 동작이 live_action RPC를 안 씀');
   assert.ok(!/function liveEdit\(fn, action[^]*?\n  \}/.exec(appSrc) || !/\bsave\(\)/.test(/function liveEdit\(fn, action[^]*?\n  \}/.exec(appSrc)[0]), '코트 동작이 아직 전체 저장(save)을 부름');
   assert.ok(/ui\.op/.test(appSrc), '진행 도우미 상태(ui.op) 없음');
-  assert.ok(/id="op-pin"/.test(appSrc), '설정에 진행 PIN 칸 없음');
+  assert.ok(/remote\.adminSetOperator\(token, /.test(appSrc) && /remote\.adminOperators\(token\)/.test(appSrc), '설정에 진행 도우미 지정 없음');
+});
+test('관리 PIN 입력 없앰: 돼장·도우미는 회원 로그인으로 관리 열쇠를 받음 (2026-11-27 김형준 "다승왕 관리 핀 입력 지우고")', () => {
+  ['id="pin-form"', 'id="op-pin-form"', 'id="pin-change"', 'function viewLock', 'data-act="lock"', 'remote.login(', 'remote.operatorLogin(', 'remote.setOperatorPin(', 'remote.changePin('].forEach(k => assert.ok(appSrc.indexOf(k) < 0, k + ' 남아 있음'));
+  const ui = appSrc.split('\n').filter(l => !/^\s*\/\//.test(l)).map(l => l.replace(/\/\/.*$/, '')).filter(l => /PIN/.test(l));
+  assert.deepStrictEqual(ui, [], '화면 문구에 PIN이 남음');
+  assert.ok(/function roleSync\(\) \{[\s\S]*?remote\.memberRoleSession\(member\.token\)/.test(appSrc), '회원 로그인으로 역할 받기');
+  const mi = appSrc.match(/function memberIn\([^)]*\) \{[\s\S]*?\n  \}\n/), mo = appSrc.match(/function memberOut\([^)]*\) \{[\s\S]*?\n  \}\n/);
+  assert.ok(mi && /roleSync\(\)/.test(mi[0]), '로그인하면 역할 받기');
+  assert.ok(mo && /dropAdmin\(\)/.test(mo[0]), '로그아웃·초기화되면 관리 열쇠도 버림(함수 안에서)');
+  assert.ok(/remote\.memberCheck\(member\.token\)\.then\(function \(pid\) \{[\s\S]{0,400}roleSync\(\)/.test(appSrc), '앱 열 때 역할 다시 확인');
+  assert.ok(/function memberOut\([\s\S]*?dropAdmin\(\)/.test(appSrc), '로그아웃·초기화되면 관리 열쇠도 버림');
+  assert.ok(/\['admin', '관리'\]\]\.filter\(function \(t\) \{ return t\[0\] !== 'admin' \|\| ui\.admin \|\| ui\.op; \}\)/.test(appSrc), '관리 탭은 돼장·도우미에게만');
 });
 test('이름: 내 예측 카드만 이름만, 나머지는 성까지·가운데 / 조는 얼굴 아이콘 / "N경기" 없음 / 모래시계 없음 / 내 예측에 진행 코트 (사용자 요청 2026-11-22)', () => {
   assert.ok(/L\.shortNames\(work\.players\)/.test(appSrc), '짧은 이름 표 없음');
@@ -738,6 +759,12 @@ test('운영 DB용 SQL 묶음(회원 로그인 + 운동 신청)은 schema.sql �
   const body = mig.split('\n').slice(3).join('\n').trim();
   assert.ok(body.length > 5000 && sql.indexOf(body) >= 0, '묶음이 schema.sql과 다름');
   ['member_login', 'signup_apply', 'signup_notices_take', 'workout_defaults'].forEach(f => assert.ok(mig.indexOf('function public.' + f + '(') >= 0, f));
+  // 회원 역할(2026-11-27): 운영에는 작은 묶음만 넣음. 그 묶음도 schema.sql과 같아야 함
+  const rm = fs.readFileSync(path.join(__dirname, 'supabase', 'migrations_2026-11-27b_member_roles.sql'), 'utf8');
+  const rparts = rm.split('\n').slice(3).join('\n').split('\n-- 비밀번호 초기화하면 그 회원 로그인으로 받은 관리 열쇠도 끊음 (schema.sql 회원 로그인 부분과 같음)\n');
+  assert.ok(rparts.length === 2 && sql.indexOf(rparts[0].trim()) >= 0 && sql.indexOf(rparts[1].trim()) >= 0, '역할 묶음이 schema.sql과 다름');
+  ['member_role_session', 'admin_operators', 'admin_set_operator', 'admin_reset_member_pin'].forEach(f => assert.ok(rm.indexOf('function public.' + f + '(') >= 0, f));
+  assert.ok(!/drop table|delete from public\.app_state|truncate/i.test(rm), '역할 묶음에 지우는 SQL 없음');
   assert.ok(!/drop table|delete from public\.app_state|truncate/i.test(mig), '지우는 SQL 없음');
 });
 test('참가 명단·게스트: 가운데 팝업(밴드처럼), 급수 아이콘 + 이름(급수) + 신청 일시, 게스트는 이름 선택·성별 남/여 (2026-11-27)', () => {
