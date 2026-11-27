@@ -1868,3 +1868,4 @@ $ node logic.test.js; node deploy.test.js   (테스트 먼저 FAIL 2건 확인 �
 - 바꾼 것: 얼굴·이름을 버튼(data-act tab → my)으로, 누르기 쉬운 높이 44px. 화면 읽기 '내 정보 (이름)'
 - 테스트 먼저 FAIL 확인 → deploy 82 · logic 155 · tourney 17 passed. 역검증: 홈으로 가게 바꾸면 deploy FAIL 1
 - 가짜 서버 Playwright 360px: 프로필 81×44 → 누르면 '🙂 내 정보', 하단 탭도 내 정보, 기록 쌓임 → 뒤로 가기 → 홈 / 오류 0
+- 배포(2026-11-27 16:3x, 김형준 "머지"): #42 squash 머지(2e55cac) → GitHub Pages success → 실제 사이트 index.html에 내 프로필 버튼(→ 내 정보) 들어감
