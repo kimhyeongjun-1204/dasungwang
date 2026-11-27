@@ -964,13 +964,28 @@ button.lv-row:disabled { cursor: default; opacity: .7; }
 .chip.sg-full { background: var(--danger-50); color: var(--hell-text); }
 .chip.sg-left { background: var(--win-50); color: var(--win-text); }
 .chip.sg-off { background: var(--surface-2); color: var(--text-2); border-color: var(--line); }
-.sg-bar { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 700; }
-.sg-track { flex: 1; height: 8px; border-radius: 4px; background: var(--line-2); overflow: hidden; }
-.sg-track i { display: block; height: 100%; border-radius: 4px; background: var(--navy); }
-.sg-track i.full { background: #E8B23A; }
 .sg-memo { margin: 0; font-size: 13px; color: var(--navy); background: var(--navy-50); border-radius: 8px; padding: 6px 10px; }
 .sg-btns { display: flex; gap: 6px; flex-wrap: wrap; }
-.sg-btns .sg-main { flex: 1 1 120px; min-height: 44px; font-size: 15px; font-weight: 900; }
+/* 밴드 참가신청서 줄: 체크 동그라미 · 요일민턴 · 15/22 › (2026-11-27) */
+.sg-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line-2); border-bottom: 1px solid var(--line-2); }
+.sg-check { flex: none; width: 44px; height: 44px; border-radius: 50%; border: 2px solid var(--line); background: var(--surface); display: grid; place-items: center; padding: 0; cursor: pointer; }
+.sg-check svg { width: 24px; height: 24px; fill: none; stroke: var(--line); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.sg-check[aria-checked="true"] { border-color: var(--navy); background: var(--navy); }
+.sg-check[aria-checked="true"] svg { stroke: #fff; }
+.sg-check.wait[aria-checked="true"] { border-color: #E8B23A; background: #E8B23A; }
+.sg-check:disabled { opacity: .5; cursor: default; }
+.sg-check.off { border-style: dashed; opacity: .5; }
+.sg-what { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.sg-what b { font-size: 16px; font-weight: 900; } .sg-what small { font-size: 12px; color: var(--text-2); }
+.sg-count { flex: none; display: flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 4px 0 10px; border: 0; background: none; color: var(--text); font: inherit; font-size: 16px; font-weight: 700; cursor: pointer; }
+.sg-count em { font-style: normal; color: #4B5BD7; font-weight: 900; }
+.sg-count small { font-size: 11px; font-weight: 700; color: #7A5600; background: var(--yellow-50); border-radius: 999px; padding: 1px 6px; }
+.sg-count i { font-style: normal; font-size: 22px; line-height: 1; color: var(--text-2); }
+.sgm-tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.sgm-tabs button { min-height: 48px; padding: 4px 2px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--text-2); font: inherit; display: grid; align-content: center; gap: 1px; cursor: pointer; }
+.sgm-tabs button b { font-size: 12px; font-weight: 700; line-height: 1.25; word-break: keep-all; }
+.sgm-tabs button small { font-size: 11px; }
+.sgm-tabs button[aria-selected="true"] { border-color: var(--navy); background: var(--navy); color: #fff; }
 .btn.sg-waitbtn { background: var(--yellow-50); border: 1.5px solid #E8B23A; color: #7A5600; }
 .sg-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; font-size: 14px; }
 .sg-list li { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 2px 4px; border-bottom: 1px solid var(--line-2); }

@@ -968,6 +968,12 @@ var Logic = (function () {
   // ---- 회원 로그인·회원 관리 (2026-11-26) ----
   var GRADES = ['캐비어', '랍스터', '소갈비', '양갈비', '돼지갈비', '닭갈비'];
   function gradeGroup(g) { var i = GRADES.indexOf(g); return i < 0 ? null : ['A', 'B', 'C'][i >> 1]; }
+  // 참가자 창 탭: 전체 / 급수 두 개씩 묶음. 게스트·급수 없는 사람은 전체에만 (2026-11-27)
+  var SG_TABS = [{ id: 'all', label: '전체' }, { id: 'A', label: '캐비어·랍스터' }, { id: 'B', label: '소갈비·양갈비' }, { id: 'C', label: '돼지갈비·닭갈비' }];
+  function sgFilter(es, P, tab) {
+    if (!tab || tab === 'all') return es.slice();
+    return es.filter(function (e) { return e.player_id && P[e.player_id] && gradeGroup(P[e.player_id].grade) === tab; });
+  }
   // 로그인 화면: 조마다 활동 회원만 가나다순
   function loginGroups(players, groups) {
     return groups.map(function (g) {
@@ -1037,7 +1043,7 @@ var Logic = (function () {
     homeSummary: homeSummary,
     bandTime: bandTime,
     signupWeeks: signupWeeks, signupDay: signupDay,
-    GRADES: GRADES, gradeGroup: gradeGroup, loginGroups: loginGroups, memberEdit: memberEdit, pinError: pinError,
+    GRADES: GRADES, gradeGroup: gradeGroup, SG_TABS: SG_TABS, sgFilter: sgFilter, loginGroups: loginGroups, memberEdit: memberEdit, pinError: pinError,
     startTab: startTab,
     LIVE: LIVE, typicalMinutes: typicalMinutes, courtEta: courtEta, courtSlots: courtSlots, courtLabel: courtLabel, setExtraCourt: setExtraCourt, liveBoard: liveBoard, shortNames: shortNames, startMatch: startMatch, finishMatch: finishMatch, cancelMatch: cancelMatch, myLive: myLive,
     meRecord: meRecord, matchStarted: matchStarted, livePrediction: livePrediction, predictionRecord: predictionRecord,

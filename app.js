@@ -47,7 +47,7 @@
     notice: null,
     lg: { step: 'group', gid: null, pid: null, has: null, busy: false, msg: '' },   // 로그인 단계
     mb: { group: 'A', edit: null, pins: null, ask: null },   // 돼장 회원 관리
-    sgWeek: 0, sgList: null, sgGuest: null, sgGender: null, sgAsk: null, sgDay: null, sgPick: {},   // 운동 신청: 주, 명단 펼침, 게스트 입력, 취소 확인, 돼장 그날 고치기
+    sgWeek: 0, sgList: null, sgTab: 'all', sgGuest: null, sgGender: null, sgAsk: null, sgDay: null, sgPick: {},   // 운동 신청: 주, 명단 펼침, 게스트 입력, 취소 확인, 돼장 그날 고치기
   };
   var member = { ok: false, token: null };
   // 운동 참가 신청 (2026-11-26): 이번 주·다음 주 명단(signups_list)을 날짜별로
@@ -1275,9 +1275,12 @@
   function sgName(e, P) { return e.player_id ? ((P[e.player_id] || {}).name || '?') : (e.guest || '게스트') + ' (게스트·' + ((P[e.host_id] || {}).name || '?') + ')'; }
   // 참가자 목록: 밴드 참가신청서의 '참가자' 팝업처럼 가운데 창. 급수 아이콘 + 이름(급수) + 신청 일시, 오른쪽에 순서·대기 (2026-11-27)
   function sgListModal(d, row, P, adm) {
-    var es = row.entries || [], sd = L.signupDay(row, ui.me);
+    var all = row.entries || [], sd = L.signupDay(row, ui.me), tab = ui.sgTab || 'all', es = L.sgFilter(all, P, tab);
     var out = '<div class="pc-back" data-act="sg-list-close" aria-hidden="true"></div><section class="sg-modal" role="dialog" aria-modal="true" aria-labelledby="sgl-h">' +
       '<h3 id="sgl-h">참가자</h3><div class="sgm-sub"><b>' + dowOf(d) + '요일 운동 · ' + md(d) + '</b><span class="num"><em>' + sd.inCount + '</em>/' + row.cap + (sd.waitCount ? ' · 대기 ' + sd.waitCount : '') + '</span></div>' +
+      '<div class="sgm-tabs" role="tablist" aria-label="급수">' + L.SG_TABS.map(function (t) {
+        return '<button role="tab" aria-selected="' + (tab === t.id) + '" data-act="sg-ltab" data-v="' + t.id + '"><b>' + t.label.replace('·', '·<wbr>') + '</b><small class="num">' + L.sgFilter(all, P, t.id).length + '명</small></button>';
+      }).join('') + '</div>' +
       '<ol class="sgm-list">' + (es.length ? es.map(function (e) {
         var p = e.player_id ? P[e.player_id] || {} : null, ch = p ? GRADE_CH[p.grade] : null;
         var face = p ? (ch ? '<i class="ch ch-' + ch + '" aria-hidden="true"></i>' : '<span class="sgm-ini" aria-hidden="true">' + esc((p.name || '?').slice(0, 1)) + '</span>') :
@@ -1288,9 +1291,9 @@
           '<span class="sgm-who"><b>' + nm + (e.by_admin ? ' <small class="muted">돼장 넣음</small>' : '') + '</b><small class="num">' + L.bandTime(e.at) + '</small></span>' +
           '<span class="sgm-no num">' + (e.status === 'in' ? e.no : '대기 ' + e.no) + '</span>' +
           (adm ? '<button class="btn sm danger" data-act="sg-adm-rm" data-v="' + d + '" data-id="' + e.id + '">빼기</button>' : '') + '</li>';
-      }).join('') : '<li class="muted">아직 신청한 사람이 없어요.</li>') + '</ol>';
+      }).join('') : '<li class="muted">' + (all.length ? '이 급수는 아직 없어요.' : '아직 신청한 사람이 없어요.') + '</li>') + '</ol>';
     if (adm) {
-      var inList = {}; es.forEach(function (e) { if (e.player_id) inList[e.player_id] = 1; });
+      var inList = {}; all.forEach(function (e) { if (e.player_id) inList[e.player_id] = 1; });
       out += '<div class="row sg-add"><label class="f" for="sg-pick-' + d + '">명단에 넣기 (밴드·카톡으로 신청한 사람)<select id="sg-pick-' + d + '" data-act="sg-adm-pick" data-v="' + d + '"><option value="">이름 고르기</option>' + groups().map(function (g) {
         return '<optgroup label="' + esc(g.name) + '">' + work.players.filter(function (p) { return p.group === g.id && p.active !== false && !inList[p.id]; }).sort(function (a, b) { return a.name.localeCompare(b.name, 'ko'); })
           .map(function (p) { return '<option value="' + p.id + '"' + (ui.sgPick[d] === p.id ? ' selected' : '') + '>' + esc(p.name) + '</option>'; }).join('') + '</optgroup>';
@@ -1314,7 +1317,7 @@
     var out = '<div class="seg sg-weeks" role="group" aria-label="주">' + ws.map(function (w, i) {
       return '<button data-act="sg-week" data-v="' + i + '" aria-pressed="' + (ui.sgWeek === i) + '"><b>' + w.label + '</b><small class="num">' + md(w.from) + '–' + md(w.to) + '</small></button>';
     }).join('') + '</div>';
-    out += '<p class="small muted">누르면 바로 신청돼요. 정원이 차면 대기 순서대로 자동으로 들어가고, 알림을 켠 사람에게는 자리가 났다고 알려요.</p>';
+    out += '<p class="small muted">동그라미를 체크하면 바로 신청돼요. 정원이 차면 대기 순서대로 자동으로 들어가고, 알림을 켠 사람에게는 자리가 났다고 알려요.</p>';
     if (sg.err) out += '<div class="banner warn"><span>' + esc(sg.err) + '</span><button class="btn sm" data-act="sg-reload">다시 불러오기</button></div>';
     for (var d = wk.from; d <= wk.to; d = addDay(d)) out += sgCard(d, sg.rows[d], P, adm, t);
     return out;
@@ -1325,19 +1328,18 @@
     var sd = L.signupDay(row, ui.me), mine = sd.mine, past = d < t;
     var chip = row.closed ? '<span class="chip sg-off">쉬는 날</span>' : mine ? (mine.status === 'in' ? '<span class="chip sg-in">신청함</span>' : '<span class="chip sg-wait">대기 ' + mine.no + '번' + (mine.ahead ? ' · 앞에 ' + mine.ahead + '명' : '') + '</span>') :
       past ? '<span class="chip">지난 날</span>' : sd.full ? '<span class="chip sg-full">꽉 참' + (sd.waitCount ? ' · 대기 ' + sd.waitCount + '명' : '') + '</span>' : '<span class="chip sg-left">' + sd.left + '자리 남음</span>';
-    var pct = row.cap ? Math.min(100, Math.round(sd.inCount / row.cap * 100)) : 0;
-    var out = '<section class="card sg-day' + (mine ? ' sg-mine' : '') + (row.closed || past ? ' sg-dim' : '') + '">' + head + chip + '</div>' +
-      '<div class="sg-bar"><span class="sg-track"><i style="width:' + pct + '%"' + (sd.full ? ' class="full"' : '') + '></i></span><span class="num">' + sd.inCount + ' / ' + row.cap + '명</span></div>' +
+    var out = '<section class="card sg-day' + (mine ? ' sg-mine' : '') + (row.closed || past ? ' sg-dim' : '') + '">' + head + chip + '</div>';
+    // 밴드 참가신청서처럼: 체크 동그라미로 신청 · 오른쪽 "15/22 ›" 누르면 참가자 창 (2026-11-27)
+    var hint = mine ? (mine.status === 'in' ? '신청했어요' : '대기 ' + mine.no + '번이에요') : !row.open ? (row.closed ? '쉬는 날이에요' : '신청이 끝났어요') : sd.full ? '체크하면 대기 신청' : '체크하면 신청';
+    out += '<div class="sg-row">' + (row.open || mine ? '<button class="sg-check' + (mine && mine.status !== 'in' ? ' wait' : '') + '" role="checkbox" aria-checked="' + !!mine + '" data-act="' + (mine ? 'sg-cancel' : 'sg-apply') + '" data-v="' + d + '"' + (row.open ? '' : ' disabled') +
+        ' aria-label="' + dowOf(d) + '요일 ' + (mine ? '신청 취소' : sd.full ? '대기 신청' : '참가 신청') + '"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12.5l4 4 8-9"/></svg></button>' : '<span class="sg-check off" aria-hidden="true"></span>') +
+      '<span class="sg-what"><b>' + dowOf(d) + '요민턴</b><small>' + hint + '</small></span>' +
+      '<button class="sg-count" data-act="sg-list" data-v="' + d + '" aria-haspopup="dialog" aria-label="참가자 ' + sd.inCount + '명, 정원 ' + row.cap + '명' + (sd.waitCount ? ', 대기 ' + sd.waitCount + '명' : '') + ' 명단 보기"><span class="num"><em>' + sd.inCount + '</em>/' + row.cap + '</span>' + (sd.waitCount ? '<small>대기 ' + sd.waitCount + '</small>' : '') + '<i aria-hidden="true">›</i></button></div>' +
       (row.memo ? '<p class="sg-memo">' + esc(row.memo) + '</p>' : '');
     var btns = '';
-    if (row.open) {
-      if (mine) btns += '<button class="btn sg-main" data-act="sg-cancel" data-v="' + d + '">' + (mine.status === 'in' ? '신청 취소' : '대기 취소') + '</button>';
-      else btns += '<button class="btn ' + (sd.full ? 'sg-waitbtn' : 'primary') + ' sg-main" data-act="sg-apply" data-v="' + d + '">' + (sd.full ? '대기 신청' : '신청') + '</button>';
-      btns += '<button class="btn sm" data-act="sg-guest" data-v="' + d + '">＋ 게스트</button>';
-    }
-    btns += '<button class="btn sm" data-act="sg-list" data-v="' + d + '" aria-haspopup="dialog">명단 ' + (sd.inCount + sd.waitCount) + '</button>';
+    if (row.open) btns += '<button class="btn sm" data-act="sg-guest" data-v="' + d + '">＋ 게스트</button>';
     if (adm) btns += '<button class="btn sm" data-act="sg-day-edit" data-v="' + d + '">정원·메모</button>';
-    out += '<div class="sg-btns">' + btns + '</div>';
+    if (btns) out += '<div class="sg-btns">' + btns + '</div>';
     if (ui.sgAsk === d && mine) out += '<div class="banner warn"><span>' + md(d) + '(' + dowOf(d) + ') ' + (mine.status === 'in' ? '신청' : '대기 ' + mine.no + '번') + '을 취소할까요?</span><span class="row"><button class="btn sm danger" data-act="sg-cancel-yes" data-v="' + d + '">취소하기</button><button class="btn sm" data-act="sg-cancel-no">아니요</button></span></div>';
     if (sd.guests.length) out += '<div class="sg-myg">' + sd.guests.map(function (g) {
       return '<span class="chip">' + esc(g.guest || '게스트') + '(' + (g.gender === 'F' ? '여' : '남') + ') · ' + (g.status === 'in' ? '신청 완료' : '대기 ' + g.no) + (row.open ? ' <button class="linkbtn" data-act="sg-guest-rm" data-id="' + g.id + '" aria-label="' + esc(g.guest || '게스트') + ' 취소">✕</button>' : '') + '</span>';
@@ -1942,7 +1944,8 @@
     switch (act) {
       case 'sg-week': ui.sgWeek = +v; render(); break;
       case 'sg-reload': loadSignups(); break;
-      case 'sg-list': ui.sgList = v; render(); break;
+      case 'sg-list': ui.sgList = v; ui.sgTab = 'all'; render(); break;
+      case 'sg-ltab': ui.sgTab = v; render(); var ll = document.querySelector('.sgm-list'); if (ll) ll.scrollTop = 0; break;
       case 'sg-list-close': ui.sgList = null; render(); break;
       case 'sg-gender': ui.sgGender = v; var gn0 = document.getElementById('sg-gname'), keep = gn0 ? gn0.value : ''; render(); var gn1 = document.getElementById('sg-gname'); if (gn1) gn1.value = keep; break;
       case 'sg-guest-close': ui.sgGuest = null; render(); break;

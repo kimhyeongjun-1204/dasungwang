@@ -756,6 +756,15 @@ test('참가 취소 확인: "다시 신청하면 맨 뒤로 가요" 문구 뺌 (
   assert.ok(!/다시 신청하면 맨 뒤로/.test(appSrc), '문구 없음');
   assert.ok(/을 취소할까요\?/.test(appSrc), '취소 확인은 그대로');
 });
+test('참가 카드: 밴드처럼 체크 버튼으로 신청, "15/22 ›" 누르면 명단 / 참가자 창에 급수 탭 (2026-11-27 김형준)', () => {
+  const card = appSrc.match(/function sgCard\([^)]*\) \{[\s\S]*?\n  \}\n/)[0], pl = appSrc.match(/function sgListModal\([^)]*\) \{[\s\S]*?\n  \}\n/)[0];
+  assert.ok(/class="sg-check/.test(card) && /role="checkbox"/.test(card) && /aria-checked="/.test(card), '체크 버튼');
+  assert.ok(/data-act="' \+ \(mine \? 'sg-cancel' : 'sg-apply'\)/.test(card), '체크 = 신청, 체크 해제 = 취소 확인');
+  assert.ok(/class="sg-count"[^>]*data-act="sg-list"/.test(card) && /sd\.inCount \+ '<\/em>\/' \+ row\.cap/.test(card) && /›/.test(card), '"15/22 ›" 누르면 명단');
+  assert.ok(!/명단 ' \+/.test(card) && !/sg-main/.test(card) && !/sg-bar/.test(card), '예전 신청 큰 버튼·명단 버튼·막대 뺌');
+  assert.ok(/L\.SG_TABS\.map/.test(pl) && /data-act="sg-ltab"/.test(pl) && /L\.sgFilter\(/.test(pl), '참가자 창 급수 탭');
+  assert.ok(/case 'sg-ltab':/.test(appSrc) && /case 'sg-list': ui\.sgList = v; ui\.sgTab = 'all'/.test(appSrc), '탭 바꾸기, 열 때는 전체');
+});
 test('service worker: index.html network-first, supabase는 캐시 안 함', () => {
   const sw = fs.readFileSync(path.join(__dirname, 'dist', 'sw.js'), 'utf8');
   const cached = [];
