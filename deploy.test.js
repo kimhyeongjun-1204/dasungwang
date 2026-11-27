@@ -681,15 +681,15 @@ test('돼장 회원 관리: 관리 메뉴에 회원, 새 회원·급수·조(따
 });
 test('api 운동 신청: RPC 이름·인자 (2026-11-26)', async () => {
   const calls = [];
-  const names = ['signups_list', 'signup_apply', 'signup_cancel', 'signup_guest', 'signup_guest_cancel', 'admin_set_day', 'admin_set_default_cap', 'admin_signup_add', 'admin_signup_remove', 'admin_signup_guest'];
+  const names = ['signups_list', 'signup_apply', 'signup_cancel', 'signup_guest', 'signup_guest_cancel', 'admin_set_day', 'admin_set_default_cap', 'admin_signup_add', 'admin_signup_remove'];
   const c = fakeClient(Object.fromEntries(names.map(n => [n, a => { calls.push(n + ' ' + JSON.stringify(a)); return { data: n === 'signups_list' ? [] : n.endsWith('apply') ? { status: 'in', no: 1 } : [], error: null }; }])));
   const a = need().api(c);
   await a.signupsList('2026-11-30', '2026-12-04'); await a.signupApply('T', '2026-11-30'); await a.signupCancel('T', '2026-11-30');
   await a.signupGuest('T', '2026-11-30', '손님', 'M'); await a.signupGuestCancel('T', 7);
-  await a.adminSetDay('A', '2026-11-30', 20, '메모', false); await a.adminSetDefaultCap('A', 1, 22); await a.adminSignupAdd('A', '2026-11-30', 'p1'); await a.adminSignupRemove('A', '2026-11-30', 7); await a.adminSignupGuest('A', '2026-11-30', null, 'F');
+  await a.adminSetDay('A', '2026-11-30', 20, '메모', false); await a.adminSetDefaultCap('A', 1, 22); await a.adminSignupAdd('A', '2026-11-30', 'p1'); await a.adminSignupRemove('A', '2026-11-30', 7);
   assert.deepStrictEqual(calls, ['signups_list {"d_from":"2026-11-30","d_to":"2026-12-04"}', 'signup_apply {"token":"T","d":"2026-11-30"}', 'signup_cancel {"token":"T","d":"2026-11-30"}',
     'signup_guest {"token":"T","d":"2026-11-30","p_name":"손님","p_gender":"M"}', 'signup_guest_cancel {"token":"T","sid":7}', 'admin_set_day {"token":"A","d":"2026-11-30","p_cap":20,"p_memo":"메모","p_closed":false}',
-    'admin_set_default_cap {"token":"A","p_dow":1,"p_cap":22}', 'admin_signup_add {"token":"A","d":"2026-11-30","pid":"p1"}', 'admin_signup_remove {"token":"A","d":"2026-11-30","sid":7}', 'admin_signup_guest {"token":"A","d":"2026-11-30","p_name":null,"p_gender":"F"}']);
+    'admin_set_default_cap {"token":"A","p_dow":1,"p_cap":22}', 'admin_signup_add {"token":"A","d":"2026-11-30","pid":"p1"}', 'admin_signup_remove {"token":"A","d":"2026-11-30","sid":7}']);
   await assert.rejects(need().api(fakeClient({ signup_apply: () => ({ data: null, error: { message: 'closed_day' } }) })).signupApply('T', 'x'), e => e.code === 'closed_day');
 });
 test('운동 신청 화면: 하단 탭 참가, 요일 카드(신청·대기·취소·게스트·명단), 돼장 정원·명단 고치기, 자리 나면 알림 (2026-11-26)', () => {
@@ -747,8 +747,8 @@ test('참가 명단·게스트: 가운데 팝업(밴드처럼), 급수 아이콘
   assert.ok(/GRADE_CH\[/.test(pl[0]) && /L\.bandTime\(e\.at\)/.test(pl[0]), '급수 아이콘 + 신청 일시');
   assert.ok(/class="sg-modal[ "]/.test(gm[0]) && /data-act="sg-gender"/.test(gm[0]) && /\['M', 'F'\]/.test(gm[0]), '성별 남/여 고르기');
   assert.ok(/이름 \(선택\)|이름은 안 적어도/.test(gm[0]), '이름은 선택');
-  assert.ok(/remote\.adminSignupGuest\(token, [^)]*ui\.sgGender\)/.test(appSrc) && !/remote\.signupGuest\(/.test(appSrc), '돼장 토큰으로 성별을 같이 보냄 (게스트는 돼장만, 14:25)');
-  const at = appSrc.indexOf('remote.adminSignupGuest(token'), sub = appSrc.slice(at - 400, at);
+  assert.ok(/remote\.signupGuest\(member\.token, [^)]*ui\.sgGender\)/.test(appSrc), '성별을 같이 보냄');
+  const at = appSrc.indexOf('remote.signupGuest(member.token'), sub = appSrc.slice(at - 400, at);
   assert.ok(/if \(!ui\.sgGender\) \{[^}]*return;/.test(sub), '성별 안 고르면 보내기 전에 막음');
   assert.ok(!/<ol class="sg-list">/.test(appSrc.match(/function sgCard\([^)]*\) \{[\s\S]*?\n  \}\n/)[0]), '카드 안에 펼치던 명단은 팝업으로');
 });
@@ -768,8 +768,6 @@ test('참가 카드: 밴드처럼 체크 버튼으로 신청, "15/22 ›" 누르
   assert.ok(!/sgListModal\(|sgGuestModal\(/.test(card), '팝업은 카드 밖에서 그림(흐린 카드 안이면 다음 카드에 깔림)');
   assert.ok(/class="face face-' \+ ch/.test(pl) && !/class="ch ch-/.test(pl), '프로필 자리는 얼굴만 나오는 아이콘');
   assert.ok(!/체크하면/.test(card), '"체크하면 신청" 문구 없음');
-  assert.ok(/if \(row\.open && adm\) btns \+= '<button class="btn sm" data-act="sg-guest"/.test(card), '＋ 게스트 버튼은 돼장만 (14:25)');
-  assert.ok(/e\.by_admin \? '돼장 추가'/.test(pl), '돼장이 넣은 게스트는 "돼장 추가"');
   assert.ok(!/동그라미를 체크하면|대기 순서대로 자동으로/.test(appSrc), '참가 탭 맨 위 안내문 없음 (14:06)');
   assert.ok(/case 'sg-ltab':/.test(appSrc) && /case 'sg-list': ui\.sgList = v; ui\.sgTab = 'all'/.test(appSrc), '탭 바꾸기, 열 때는 전체');
 });

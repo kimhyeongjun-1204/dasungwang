@@ -1256,7 +1256,7 @@
 
   // ---------- 운동 참가 신청 (2026-11-26): 요일 카드에서 신청·대기·취소, 게스트, 명단. 돼장은 그날 정원·메모·쉬는 날과 명단 넣기·빼기 ----------
   var SG_ERR = { closed_day: '신청할 수 없는 날이에요(지난 날·쉬는 날·아직 안 열린 날).', already: '이미 신청했어요.', not_signed: '신청한 기록이 없어요. 화면을 새로 볼게요.', not_yours: '내가 데려온 게스트만 취소할 수 있어요.',
-    bad_name: '게스트 이름은 20자까지예요.', admin_only: '게스트는 돼장만 추가할 수 있어요.', bad_gender: '성별을 골라 주세요.', too_many_guests: '게스트는 하루 3명까지 데려올 수 있어요.', bad_cap: '정원은 1~99명으로 적어 주세요.', bad_player: '회원 명단에 없는 사람이에요.', network: '인터넷 연결을 확인해 주세요.' };
+    bad_name: '게스트 이름은 20자까지예요.', bad_gender: '성별을 골라 주세요.', too_many_guests: '게스트는 하루 3명까지 데려올 수 있어요.', bad_cap: '정원은 1~99명으로 적어 주세요.', bad_player: '회원 명단에 없는 사람이에요.', network: '인터넷 연결을 확인해 주세요.' };
   function loadSignups() {
     var ws = L.signupWeeks(todayKST());
     sg.busy = true;
@@ -1287,10 +1287,10 @@
         var face = p ? (ch ? '<i class="face face-' + ch + '" aria-hidden="true"></i>' : '<span class="sgm-ini" aria-hidden="true">' + esc((p.name || '?').slice(0, 1)) + '</span>') :
           '<span class="sgm-ini guest g' + (e.gender === 'F' ? 'f' : 'm') + '" aria-hidden="true">' + (e.gender === 'F' ? '여' : '남') + '</span>';
         var nm = p ? esc(p.name || '?') + (p.grade ? '<small>(' + esc(p.grade) + ')</small>' : '') :
-          (function () { var gl = (e.gender === 'F' ? '여' : '남') + '게스트', by = e.by_admin ? '돼장 추가' : esc((P[e.host_id] || {}).name || '?') + ' 추가';   // "남게스트 · 김형준 추가" (14:17), 게스트는 돼장만 넣음(14:25)
+          (function () { var gl = (e.gender === 'F' ? '여' : '남') + '게스트', by = esc((P[e.host_id] || {}).name || '?') + ' 추가';   // "남게스트 · 김형준 추가" (14:17)
             return e.guest ? esc(e.guest) + '<small>(' + gl + ' · ' + by + ')</small>' : gl + ' <small>· ' + by + '</small>'; })();
         return '<li class="' + (e.status === 'in' ? 'in' : 'wait') + (e.player_id && e.player_id === ui.me ? ' me' : '') + '"><span class="sgm-face">' + face + '</span>' +
-          '<span class="sgm-who"><b>' + nm + (e.by_admin && e.player_id ? ' <small class="muted">돼장 넣음</small>' : '') + '</b><small class="num">' + L.bandTime(e.at) + '</small></span>' +
+          '<span class="sgm-who"><b>' + nm + (e.by_admin ? ' <small class="muted">돼장 넣음</small>' : '') + '</b><small class="num">' + L.bandTime(e.at) + '</small></span>' +
           '<span class="sgm-no num">' + (e.status === 'in' ? e.no : '대기 ' + e.no) + '</span>' +
           (adm ? '<button class="btn sm danger" data-act="sg-adm-rm" data-v="' + d + '" data-id="' + e.id + '">빼기</button>' : '') + '</li>';
       }).join('') : '<li class="muted">' + (all.length ? '이 급수는 아직 없어요.' : '아직 신청한 사람이 없어요.') + '</li>') + '</ol>';
@@ -1341,7 +1341,7 @@
       '<button class="sg-count" data-act="sg-list" data-v="' + d + '" aria-haspopup="dialog" aria-label="참가자 ' + sd.inCount + '명, 정원 ' + row.cap + '명' + (sd.waitCount ? ', 대기 ' + sd.waitCount + '명' : '') + ' 명단 보기"><span class="num"><em>' + sd.inCount + '</em>/' + row.cap + '</span>' + (sd.waitCount ? '<small>대기 ' + sd.waitCount + '</small>' : '') + '<i aria-hidden="true">›</i></button></div>' +
       (row.memo ? '<p class="sg-memo">' + esc(row.memo) + '</p>' : '');
     var btns = '';
-    if (row.open && adm) btns += '<button class="btn sm" data-act="sg-guest" data-v="' + d + '">＋ 게스트</button>';
+    if (row.open) btns += '<button class="btn sm" data-act="sg-guest" data-v="' + d + '">＋ 게스트</button>';
     if (adm) btns += '<button class="btn sm" data-act="sg-day-edit" data-v="' + d + '">정원·메모</button>';
     if (btns) out += '<div class="sg-btns">' + btns + '</div>';
     if (sd.guests.length) out += '<div class="sg-myg">' + sd.guests.map(function (g) {
@@ -2204,8 +2204,7 @@
     if (f.classList.contains('sg-gform')) {
       var gd = f.getAttribute('data-d'), gn = ((document.getElementById('sg-gname') || {}).value || '').trim();
       if (!ui.sgGender) { toast('성별을 골라 주세요.'); return; }
-      if (!ui.admin || !token) { toast('게스트는 돼장만 추가할 수 있어요.'); return; }
-      remote.adminSignupGuest(token, gd, gn, ui.sgGender).then(function (r) {
+      remote.signupGuest(member.token, gd, gn, ui.sgGender).then(function (r) {
         closeModal(); toast((gn || '게스트') + '(' + (ui.sgGender === 'F' ? '여' : '남') + ') ' + (r && r.status === 'wait' ? '대기 ' + r.no + '번으로 ' : '') + '추가했어요.'); loadSignups();
       }, function (e) { sgFail(e); });
       return;

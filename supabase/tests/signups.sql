@@ -46,20 +46,16 @@ select pg_temp.eq('a 신청 → 신청 완료', $q$select public.signup_apply('a
 select pg_temp.eq('a 또 신청', $q$select public.signup_apply('aaaaaaaa-0000-0000-0000-000000000000', :mon)::text$q$, 'ERR already');
 select pg_temp.eq('b 신청 → 신청 완료', $q$select public.signup_apply('bbbbbbbb-0000-0000-0000-000000000000', :mon)::text$q$, '{"no": 2, "status": "in"}');
 select pg_temp.eq('c 신청 → 대기 1번', $q$select public.signup_apply('cccccccc-0000-0000-0000-000000000000', :mon)::text$q$, '{"no": 1, "status": "wait"}');
--- 게스트는 돼장만 추가 (2026-11-27 김형준 14:25)
-select pg_temp.eq('회원은 게스트 추가 못 함', $q$select public.signup_guest('dddddddd-0000-0000-0000-000000000000', :mon, '손님', 'M')::text$q$, 'ERR admin_only');
-select pg_temp.eq('도우미도 게스트 추가 못 함', $q$select public.admin_signup_guest('22222222-2222-2222-2222-222222222222', :mon, '손님', 'M')::text$q$, 'ERR unauthorized');
-select pg_temp.eq('돼장이 게스트(남) 추가 → 대기 2번', $q$select public.admin_signup_guest('11111111-1111-1111-1111-111111111111', :mon, ' 손님 ', 'M')::text$q$, '{"no": 2, "status": "wait"}');
-select pg_temp.eq('돼장 게스트는 돼장이 넣은 줄', $q$select host_id || ':' || by_admin::text from public.signup where guest_name = '손님'$q$, 'admin:true');
+select pg_temp.eq('d 게스트(남) 데려옴 → 대기 2번', $q$select public.signup_guest('dddddddd-0000-0000-0000-000000000000', :mon, ' 손님 ', 'M')::text$q$, '{"no": 2, "status": "wait"}');
 -- 게스트: 이름은 안 적어도 되고, 성별(남 M·여 F)은 꼭 (2026-11-27)
-select pg_temp.eq('게스트 성별 없음', $q$select public.admin_signup_guest('11111111-1111-1111-1111-111111111111', :mon, '친구', null)::text$q$, 'ERR bad_gender');
-select pg_temp.eq('게스트 성별 이상한 값', $q$select public.admin_signup_guest('11111111-1111-1111-1111-111111111111', :mon, '친구', 'X')::text$q$, 'ERR bad_gender');
-select pg_temp.eq('게스트 이름 21자', $q$select public.admin_signup_guest('11111111-1111-1111-1111-111111111111', :mon, repeat('가', 21), 'F')::text$q$, 'ERR bad_name');
+select pg_temp.eq('게스트 성별 없음', $q$select public.signup_guest('dddddddd-0000-0000-0000-000000000000', :mon, '친구', null)::text$q$, 'ERR bad_gender');
+select pg_temp.eq('게스트 성별 이상한 값', $q$select public.signup_guest('dddddddd-0000-0000-0000-000000000000', :mon, '친구', 'X')::text$q$, 'ERR bad_gender');
+select pg_temp.eq('게스트 이름 21자', $q$select public.signup_guest('dddddddd-0000-0000-0000-000000000000', :mon, repeat('가', 21), 'F')::text$q$, 'ERR bad_name');
 select pg_temp.eq('명단(순서·상태)', $q$select string_agg(coalesce(e->>'player_id', 'g:' || (e->>'guest')) || '=' || (e->>'status'), ' ' order by (e->>'pos')::int)
   from public.signups_list(:mon, :mon) s, jsonb_array_elements(s->'entries') e$q$, 'a=in b=in c=wait g:손님=wait');
 select pg_temp.eq('명단에 게스트 성별·신청 시각', $q$select string_agg(coalesce(e->>'gender', '-') || ':' || ((e->>'at')::timestamptz <= clock_timestamp())::text, ' ' order by (e->>'pos')::int)
   from public.signups_list(:mon, :mon) s, jsonb_array_elements(s->'entries') e$q$, '-:true -:true -:true M:true');
-select pg_temp.eq('이름 없는 게스트(여) → 화요일 신청 완료', $q$select public.admin_signup_guest('11111111-1111-1111-1111-111111111111', :mon + 1, '   ', 'F')::text$q$, '{"no": 1, "status": "in"}');
+select pg_temp.eq('이름 없는 게스트(여) → 화요일 신청 완료', $q$select public.signup_guest('dddddddd-0000-0000-0000-000000000000', :mon + 1, '   ', 'F')::text$q$, '{"no": 1, "status": "in"}');
 select pg_temp.eq('이름 없는 게스트는 이름 null·성별 F', $q$select coalesce(e->>'guest', 'null') || ':' || (e->>'gender') from public.signups_list(:mon + 1, :mon + 1) s, jsonb_array_elements(s->'entries') e$q$, 'null:F');
 select pg_temp.eq('명단에 정원·메모', $q$select (s->>'cap') || '/' || (s->>'memo') from public.signups_list(:mon, :mon) s$q$, '2/랜덤빵 제공');
 select pg_temp.eq('주말은 명단에 안 나옴', $q$select count(*)::text from public.signups_list(:mon, :mon + 6)$q$, '5');
@@ -68,7 +64,7 @@ select pg_temp.eq('신청 안 한 사람 취소', $q$select public.signup_cancel
 select pg_temp.eq('a 취소 → c 자동 입장', $q$select public.signup_cancel('aaaaaaaa-0000-0000-0000-000000000000', :mon)::text$q$, '["c"]');
 select pg_temp.eq('알림 대기열', $q$select string_agg(player_id || ':' || kind, ',') from public.signup_notice where sent_at is null$q$, 'c:in');
 select pg_temp.eq('b 취소 → 게스트 들어감, b 다시 신청하면 맨 뒤 대기 1번', $q$select public.signup_cancel('bbbbbbbb-0000-0000-0000-000000000000', :mon)::text || public.signup_apply('bbbbbbbb-0000-0000-0000-000000000000', :mon)::text$q$, '["g:손님"]{"no": 1, "status": "wait"}');
-select pg_temp.eq('돼장 게스트가 들어가면 알림 없음(받을 회원이 없음)', $q$select string_agg(player_id || ':' || kind, ',' order by id) from public.signup_notice where sent_at is null$q$, 'c:in');
+select pg_temp.eq('게스트가 들어가면 데려온 사람에게 알림', $q$select string_agg(player_id || ':' || kind, ',' order by id) from public.signup_notice where sent_at is null$q$, 'c:in,d:guest_in');
 -- 정원을 늘리면 대기자가 들어감
 select pg_temp.eq('정원 3으로 → b 들어감', $q$select public.admin_set_day('11111111-1111-1111-1111-111111111111', :mon, 3, '랜덤빵 제공', false)::text$q$, '["b"]');
 -- 돼장: 명단에 직접 넣기·빼기 (밴드·카톡으로 신청한 사람 정리)
@@ -78,7 +74,7 @@ select pg_temp.eq('돼장이 c 빼기 → a 들어감', $q$select public.admin_s
 select pg_temp.eq('도우미는 명단 못 고침', $q$select public.admin_signup_add('22222222-2222-2222-2222-222222222222', :mon, 'c')::text$q$, 'ERR unauthorized');
 -- 게스트 취소: 데려온 사람만(또는 돼장)
 select pg_temp.eq('남의 게스트 취소', $q$select public.signup_guest_cancel('aaaaaaaa-0000-0000-0000-000000000000', (select id from public.signup where day = :mon and guest_name = '손님'))::text$q$, 'ERR not_yours');
-select pg_temp.eq('돼장이 게스트 빼기', $q$select public.admin_signup_remove('11111111-1111-1111-1111-111111111111', :mon, (select id from public.signup where day = :mon and guest_name = '손님'))::text$q$, '[]');
+select pg_temp.eq('내 게스트 취소', $q$select public.signup_guest_cancel('dddddddd-0000-0000-0000-000000000000', (select id from public.signup where day = :mon and guest_name = '손님'))::text$q$, '[]');
 -- 쉬는 날(닫기): 신청 못 함, 이미 한 사람은 그대로 보임
 select pg_temp.eq('돼장: 수요일 닫기', $q$select public.admin_set_day('11111111-1111-1111-1111-111111111111', :mon + 2, null, '체육관 사정', true)::text$q$, '[]');
 select pg_temp.eq('닫힌 날 신청', $q$select public.signup_apply('aaaaaaaa-0000-0000-0000-000000000000', :mon + 2)::text$q$, 'ERR closed_day');
