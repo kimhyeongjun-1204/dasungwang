@@ -47,7 +47,7 @@
     notice: null,
     lg: { step: 'group', gid: null, pid: null, has: null, busy: false, msg: '' },   // 로그인 단계
     mb: { group: 'A', edit: null, pins: null, ask: null },   // 돼장 회원 관리
-    sgWeek: 0, sgOpen: {}, sgGuest: null, sgAsk: null, sgDay: null, sgPick: {},   // 운동 신청: 주, 명단 펼침, 게스트 입력, 취소 확인, 돼장 그날 고치기
+    sgWeek: 0, sgList: null, sgGuest: null, sgGender: null, sgAsk: null, sgDay: null, sgPick: {},   // 운동 신청: 주, 명단 펼침, 게스트 입력, 취소 확인, 돼장 그날 고치기
   };
   var member = { ok: false, token: null };
   // 운동 참가 신청 (2026-11-26): 이번 주·다음 주 명단(signups_list)을 날짜별로
@@ -1256,7 +1256,7 @@
 
   // ---------- 운동 참가 신청 (2026-11-26): 요일 카드에서 신청·대기·취소, 게스트, 명단. 돼장은 그날 정원·메모·쉬는 날과 명단 넣기·빼기 ----------
   var SG_ERR = { closed_day: '신청할 수 없는 날이에요(지난 날·쉬는 날·아직 안 열린 날).', already: '이미 신청했어요.', not_signed: '신청한 기록이 없어요. 화면을 새로 볼게요.', not_yours: '내가 데려온 게스트만 취소할 수 있어요.',
-    bad_name: '게스트 이름을 적어 주세요.', too_many_guests: '게스트는 하루 3명까지 데려올 수 있어요.', bad_cap: '정원은 1~99명으로 적어 주세요.', bad_player: '회원 명단에 없는 사람이에요.', network: '인터넷 연결을 확인해 주세요.' };
+    bad_name: '게스트 이름은 20자까지예요.', bad_gender: '성별을 골라 주세요.', too_many_guests: '게스트는 하루 3명까지 데려올 수 있어요.', bad_cap: '정원은 1~99명으로 적어 주세요.', bad_player: '회원 명단에 없는 사람이에요.', network: '인터넷 연결을 확인해 주세요.' };
   function loadSignups() {
     var ws = L.signupWeeks(todayKST());
     sg.busy = true;
@@ -1271,7 +1271,43 @@
   }
   // 자리가 나서 들어간 사람이 있으면 알림 (실패해도 신청에는 영향 없음)
   function sgPromoted(list) { if (list && list.length && vapidKey()) remote.notifySignup().catch(function () { }); }
-  function sgName(e, P) { return e.player_id ? ((P[e.player_id] || {}).name || '?') : e.guest + ' (게스트·' + ((P[e.host_id] || {}).name || '?') + ')'; }
+  var GRADE_CH = { '캐비어': 'cv', '랍스터': 'lb', '소갈비': 'bf', '양갈비': 'lm', '돼지갈비': 'pk', '닭갈비': 'ck' };
+  function sgName(e, P) { return e.player_id ? ((P[e.player_id] || {}).name || '?') : (e.guest || '게스트') + ' (게스트·' + ((P[e.host_id] || {}).name || '?') + ')'; }
+  // 참가자 목록: 밴드 참가신청서의 '참가자' 팝업처럼 가운데 창. 급수 아이콘 + 이름(급수) + 신청 일시, 오른쪽에 순서·대기 (2026-11-27)
+  function sgListModal(d, row, P, adm) {
+    var es = row.entries || [], sd = L.signupDay(row, ui.me);
+    var out = '<div class="pc-back" data-act="sg-list-close" aria-hidden="true"></div><section class="sg-modal" role="dialog" aria-modal="true" aria-labelledby="sgl-h">' +
+      '<h3 id="sgl-h">참가자</h3><div class="sgm-sub"><b>' + dowOf(d) + '요일 운동 · ' + md(d) + '</b><span class="num"><em>' + sd.inCount + '</em>/' + row.cap + (sd.waitCount ? ' · 대기 ' + sd.waitCount : '') + '</span></div>' +
+      '<ol class="sgm-list">' + (es.length ? es.map(function (e) {
+        var p = e.player_id ? P[e.player_id] || {} : null, ch = p ? GRADE_CH[p.grade] : null;
+        var face = p ? (ch ? '<i class="ch ch-' + ch + '" aria-hidden="true"></i>' : '<span class="sgm-ini" aria-hidden="true">' + esc((p.name || '?').slice(0, 1)) + '</span>') :
+          '<span class="sgm-ini guest g' + (e.gender === 'F' ? 'f' : 'm') + '" aria-hidden="true">' + (e.gender === 'F' ? '여' : '남') + '</span>';
+        var nm = p ? esc(p.name || '?') + (p.grade ? '<small>(' + esc(p.grade) + ')</small>' : '') :
+          esc(e.guest || '게스트') + '<small>(게스트·' + (e.gender === 'F' ? '여' : '남') + ' · ' + esc((P[e.host_id] || {}).name || '?') + ' 데려옴)</small>';
+        return '<li class="' + (e.status === 'in' ? 'in' : 'wait') + (e.player_id && e.player_id === ui.me ? ' me' : '') + '"><span class="sgm-face">' + face + '</span>' +
+          '<span class="sgm-who"><b>' + nm + (e.by_admin ? ' <small class="muted">돼장 넣음</small>' : '') + '</b><small class="num">' + L.bandTime(e.at) + '</small></span>' +
+          '<span class="sgm-no num">' + (e.status === 'in' ? e.no : '대기 ' + e.no) + '</span>' +
+          (adm ? '<button class="btn sm danger" data-act="sg-adm-rm" data-v="' + d + '" data-id="' + e.id + '">빼기</button>' : '') + '</li>';
+      }).join('') : '<li class="muted">아직 신청한 사람이 없어요.</li>') + '</ol>';
+    if (adm) {
+      var inList = {}; es.forEach(function (e) { if (e.player_id) inList[e.player_id] = 1; });
+      out += '<div class="row sg-add"><label class="f" for="sg-pick-' + d + '">명단에 넣기 (밴드·카톡으로 신청한 사람)<select id="sg-pick-' + d + '" data-act="sg-adm-pick" data-v="' + d + '"><option value="">이름 고르기</option>' + groups().map(function (g) {
+        return '<optgroup label="' + esc(g.name) + '">' + work.players.filter(function (p) { return p.group === g.id && p.active !== false && !inList[p.id]; }).sort(function (a, b) { return a.name.localeCompare(b.name, 'ko'); })
+          .map(function (p) { return '<option value="' + p.id + '"' + (ui.sgPick[d] === p.id ? ' selected' : '') + '>' + esc(p.name) + '</option>'; }).join('') + '</optgroup>';
+      }).join('') + '</select></label><button class="btn" data-act="sg-adm-add" data-v="' + d + '">넣기</button></div>';
+    }
+    return out + '<button class="btn primary sgm-ok" data-act="sg-list-close">확인</button></section>';
+  }
+  // 게스트 추가: 가운데 팝업, 이름은 선택, 성별 남/여는 꼭 (2026-11-27)
+  function sgGuestModal(d) {
+    return '<div class="pc-back" data-act="sg-guest-close" aria-hidden="true"></div><form class="sg-modal sg-gform" data-d="' + d + '" role="dialog" aria-modal="true" aria-labelledby="sgg-h">' +
+      '<h3 id="sgg-h">게스트 추가</h3><p class="small muted">' + dowOf(d) + '요일 ' + md(d) + ' · 게스트도 정원에 들어가요</p>' +
+      '<label class="f" for="sg-gname">이름 (선택)<input id="sg-gname" maxlength="20" autocomplete="off" placeholder="이름은 안 적어도 돼요"></label>' +
+      '<div class="f"><span>성별</span><div class="sgm-gender" role="radiogroup" aria-label="성별">' +
+        ['M', 'F'].map(function (g) { return '<button type="button" role="radio" aria-checked="' + (ui.sgGender === g) + '" data-act="sg-gender" data-v="' + g + '">' + (g === 'M' ? '남' : '여') + '</button>'; }).join('') + '</div></div>' +
+      '<div class="pc-btns lv-yesno"><button class="btn primary" type="submit">추가</button><button class="btn" type="button" data-act="sg-guest-close">취소</button></div>' +
+      '<p class="small muted">셔틀콕 안내는 공지를 확인해 주세요.</p></form>';
+  }
   function viewSignup() {
     var t = todayKST(), ws = L.signupWeeks(t), wk = ws[ui.sgWeek] || ws[0], P = pm(), adm = ui.admin;
     if (!sg.at && !sg.busy) loadSignups();
@@ -1299,34 +1335,20 @@
       else btns += '<button class="btn ' + (sd.full ? 'sg-waitbtn' : 'primary') + ' sg-main" data-act="sg-apply" data-v="' + d + '">' + (sd.full ? '대기 신청' : '신청') + '</button>';
       btns += '<button class="btn sm" data-act="sg-guest" data-v="' + d + '">＋ 게스트</button>';
     }
-    btns += '<button class="btn sm" data-act="sg-list" data-v="' + d + '" aria-expanded="' + !!ui.sgOpen[d] + '">명단 ' + (sd.inCount + sd.waitCount) + '</button>';
+    btns += '<button class="btn sm" data-act="sg-list" data-v="' + d + '" aria-haspopup="dialog">명단 ' + (sd.inCount + sd.waitCount) + '</button>';
     if (adm) btns += '<button class="btn sm" data-act="sg-day-edit" data-v="' + d + '">정원·메모</button>';
     out += '<div class="sg-btns">' + btns + '</div>';
     if (ui.sgAsk === d && mine) out += '<div class="banner warn"><span>' + md(d) + '(' + dowOf(d) + ') ' + (mine.status === 'in' ? '신청' : '대기 ' + mine.no + '번') + '을 취소할까요? 다시 신청하면 맨 뒤로 가요.</span><span class="row"><button class="btn sm danger" data-act="sg-cancel-yes" data-v="' + d + '">취소하기</button><button class="btn sm" data-act="sg-cancel-no">아니요</button></span></div>';
-    if (ui.sgGuest === d) out += '<form class="row sg-gform" data-d="' + d + '"><label class="f" for="sg-gname">게스트 이름<input id="sg-gname" maxlength="20" autocomplete="off" placeholder="예: 홍길동(친구)"></label><button class="btn primary" type="submit">추가</button><button class="btn" type="button" data-act="sg-guest" data-v="' + d + '">닫기</button></form>' +
-      '<p class="small muted">게스트도 정원에 들어가요. 셔틀콕 안내는 공지를 확인해 주세요.</p>';
     if (sd.guests.length) out += '<div class="sg-myg">' + sd.guests.map(function (g) {
-      return '<span class="chip">' + esc(g.guest) + ' · ' + (g.status === 'in' ? '신청 완료' : '대기 ' + g.no) + (row.open ? ' <button class="linkbtn" data-act="sg-guest-rm" data-id="' + g.id + '" aria-label="' + esc(g.guest) + ' 취소">✕</button>' : '') + '</span>';
+      return '<span class="chip">' + esc(g.guest || '게스트') + '(' + (g.gender === 'F' ? '여' : '남') + ') · ' + (g.status === 'in' ? '신청 완료' : '대기 ' + g.no) + (row.open ? ' <button class="linkbtn" data-act="sg-guest-rm" data-id="' + g.id + '" aria-label="' + esc(g.guest || '게스트') + ' 취소">✕</button>' : '') + '</span>';
     }).join('') + '</div>';
     if (adm && ui.sgDay === d) out += '<form class="sg-dform" data-d="' + d + '"><div class="row"><label class="f" for="sg-cap">이날 정원<input id="sg-cap" class="num" type="number" inputmode="numeric" min="1" max="99" value="' + row.cap + '"></label>' +
       '<label class="f sg-chk" for="sg-closed"><input id="sg-closed" type="checkbox"' + (row.closed ? ' checked' : '') + '> 쉬는 날</label></div>' +
       '<label class="f" for="sg-memo">메모 (예: 랜덤빵 제공)<input id="sg-memo" maxlength="200" value="' + esc(row.memo || '') + '"></label>' +
       '<div class="row"><button class="btn primary" type="submit" data-act="sg-day-save">저장</button><button class="btn" type="button" data-act="sg-day-edit" data-v="' + d + '">닫기</button></div>' +
       '<p class="small muted">정원을 늘리면 대기 1번부터 자동으로 들어가고 알림이 가요. 기본 정원은 관리 › 설정에서 바꿔요.</p></form>';
-    if (ui.sgOpen[d]) {
-      var es = row.entries || [];
-      out += '<ol class="sg-list">' + (es.length ? es.map(function (e) {
-        return '<li class="' + (e.status === 'in' ? 'in' : 'wait') + (e.player_id && e.player_id === ui.me ? ' me' : '') + '"><span class="num">' + (e.status === 'in' ? e.no : '대기 ' + e.no) + '</span>' + esc(sgName(e, P)) +
-          (e.by_admin ? ' <small class="muted">돼장 넣음</small>' : '') + (adm ? ' <button class="btn sm danger" data-act="sg-adm-rm" data-v="' + d + '" data-id="' + e.id + '">빼기</button>' : '') + '</li>';
-      }).join('') : '<li class="muted">아직 신청한 사람이 없어요.</li>') + '</ol>';
-      if (adm) {
-        var inList = {}; es.forEach(function (e) { if (e.player_id) inList[e.player_id] = 1; });
-        out += '<div class="row sg-add"><label class="f" for="sg-pick-' + d + '">명단에 넣기 (밴드·카톡으로 신청한 사람)<select id="sg-pick-' + d + '" data-act="sg-adm-pick" data-v="' + d + '"><option value="">이름 고르기</option>' + groups().map(function (g) {
-          return '<optgroup label="' + esc(g.name) + '">' + work.players.filter(function (p) { return p.group === g.id && p.active !== false && !inList[p.id]; }).sort(function (a, b) { return a.name.localeCompare(b.name, 'ko'); })
-            .map(function (p) { return '<option value="' + p.id + '"' + (ui.sgPick[d] === p.id ? ' selected' : '') + '>' + esc(p.name) + '</option>'; }).join('') + '</optgroup>';
-        }).join('') + '</select></label><button class="btn" data-act="sg-adm-add" data-v="' + d + '">넣기</button></div>';
-      }
-    }
+    if (ui.sgList === d) out += sgListModal(d, row, P, adm);
+    if (ui.sgGuest === d) out += sgGuestModal(d);
     return out + '</section>';
   }
   function sgDefaultsCard() {
@@ -1920,8 +1942,11 @@
     switch (act) {
       case 'sg-week': ui.sgWeek = +v; render(); break;
       case 'sg-reload': loadSignups(); break;
-      case 'sg-list': ui.sgOpen[v] = !ui.sgOpen[v]; render(); break;
-      case 'sg-guest': ui.sgGuest = ui.sgGuest === v ? null : v; render(); if (ui.sgGuest) { var gi = document.getElementById('sg-gname'); if (gi) gi.focus(); } break;
+      case 'sg-list': ui.sgList = v; render(); break;
+      case 'sg-list-close': ui.sgList = null; render(); break;
+      case 'sg-gender': ui.sgGender = v; var gn0 = document.getElementById('sg-gname'), keep = gn0 ? gn0.value : ''; render(); var gn1 = document.getElementById('sg-gname'); if (gn1) gn1.value = keep; break;
+      case 'sg-guest-close': ui.sgGuest = null; render(); break;
+      case 'sg-guest': ui.sgGuest = v; ui.sgGender = null; render(); var gi = document.getElementById('sg-gname'); if (gi) gi.focus(); break;
       case 'sg-day-edit': ui.sgDay = ui.sgDay === v ? null : v; render(); break;
       case 'sg-apply':
         remote.signupApply(member.token, v).then(function (r) { toast(r && r.status === 'wait' ? '대기 ' + r.no + '번으로 신청했어요. 자리가 나면 자동으로 들어가요.' : md(v) + '(' + dowOf(v) + ') 신청했어요.'); loadSignups(); }, function (e) { sgFail(e); });
@@ -2176,9 +2201,11 @@
     if (!work) return;
     if (f.id === 'lg-form') { submitLogin(); return; }
     if (f.classList.contains('sg-gform')) {
-      var gd = f.getAttribute('data-d'), gn = (document.getElementById('sg-gname') || {}).value || '';
-      if (!gn.trim()) { toast('게스트 이름을 적어 주세요.'); return; }
-      remote.signupGuest(member.token, gd, gn).then(function (r) { ui.sgGuest = null; toast(gn.trim() + ' 게스트를 ' + (r && r.status === 'wait' ? '대기 ' + r.no + '번으로 ' : '') + '추가했어요.'); loadSignups(); }, function (e) { sgFail(e); });
+      var gd = f.getAttribute('data-d'), gn = ((document.getElementById('sg-gname') || {}).value || '').trim();
+      if (!ui.sgGender) { toast('성별을 골라 주세요.'); return; }
+      remote.signupGuest(member.token, gd, gn, ui.sgGender).then(function (r) {
+        ui.sgGuest = null; toast((gn || '게스트') + '(' + (ui.sgGender === 'F' ? '여' : '남') + ') ' + (r && r.status === 'wait' ? '대기 ' + r.no + '번으로 ' : '') + '추가했어요.'); loadSignups();
+      }, function (e) { sgFail(e); });
       return;
     }
     if (f.classList.contains('sg-dform')) {

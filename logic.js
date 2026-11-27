@@ -1026,8 +1026,16 @@ var Logic = (function () {
     return { inCount: inC, waitCount: waitC, left: Math.max(0, cap - inC), full: inC >= cap, mine: mine, guests: guests };
   }
 
+  // 신청 일시를 밴드처럼: "2026년 11월 26일 오후 2:38" (KST) (2026-11-27)
+  function bandTime(iso) {
+    if (!iso) return '';
+    var d = new Date(new Date(iso).getTime() + 9 * 3600e3), h = d.getUTCHours(), m = d.getUTCMinutes();
+    return d.getUTCFullYear() + '년 ' + (d.getUTCMonth() + 1) + '월 ' + d.getUTCDate() + '일 ' + (h < 12 ? '오전 ' : '오후 ') + (h % 12 || 12) + ':' + ('0' + m).slice(-2);
+  }
+
   return {
     homeSummary: homeSummary,
+    bandTime: bandTime,
     signupWeeks: signupWeeks, signupDay: signupDay,
     GRADES: GRADES, gradeGroup: gradeGroup, loginGroups: loginGroups, memberEdit: memberEdit, pinError: pinError,
     startTab: startTab,

@@ -1011,3 +1011,28 @@ button.lv-row:disabled { cursor: default; opacity: .7; }
 .ev-card.cb .ev-act b { color: #1E5BD8; }
 .ev-mini.dsw-mini { text-align: left; font: inherit; cursor: pointer; border-left: 4px solid #C0503A; }
 .ev-mini.dsw-mini .ev-dday { color: var(--text-2); }
+/* 참가자 목록·게스트 추가: 가운데 팝업 (밴드 '참가자' 창 참고, 2026-11-27) */
+.sg-modal { position: fixed; z-index: 15; top: 50%; left: 16px; right: 16px; max-width: 460px; margin: 0 auto; transform: translateY(-50%);
+  max-height: calc(100dvh - 48px); display: grid; grid-template-rows: auto; gap: 10px; padding: 18px 16px 16px; overflow: hidden;
+  background: var(--surface); border-radius: 16px; box-shadow: 0 10px 40px rgb(20 24 40 / .3); }
+.sg-modal h3 { margin: 0; text-align: center; font-size: 17px; font-weight: 900; }
+.sgm-sub { display: flex; justify-content: space-between; align-items: baseline; padding-bottom: 8px; border-bottom: 1px solid var(--line); font-size: 14px; }
+.sgm-sub em { font-style: normal; color: var(--navy); font-weight: 900; }
+.sgm-list { margin: 0; padding: 0; list-style: none; overflow-y: auto; max-height: min(52dvh, 420px); display: grid; align-content: start; }
+.sgm-list li { display: flex; align-items: center; gap: 10px; min-height: 56px; padding: 6px 2px; border-bottom: 1px solid var(--line-2); }
+.sgm-list li.me { background: var(--navy-50); }
+.sgm-face { flex: none; width: 42px; height: 42px; border-radius: 50%; background: var(--surface-2); border: 1px solid var(--line); display: grid; place-items: center; overflow: hidden; }
+.sgm-face .ch { --chh: 36px; margin: 0; filter: none; }
+.sgm-ini { font-size: 15px; font-weight: 900; color: var(--text-2); }
+.sgm-ini.guest { width: 100%; height: 100%; display: grid; place-items: center; color: #fff; font-size: 14px; }
+.sgm-ini.gm { background: #3E7BD9; } .sgm-ini.gf { background: #D9497A; }
+.sgm-who { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.sgm-who b { font-size: 15px; overflow-wrap: anywhere; } .sgm-who b small { font-weight: 500; color: var(--text-2); margin-left: 2px; }
+.sgm-who > small { font-size: 12px; color: var(--text-2); }
+.sgm-no { flex: none; font-size: 12px; font-weight: 700; color: var(--text-2); }
+.sgm-list li.wait .sgm-no { color: #7A5600; background: var(--yellow-50); border-radius: 999px; padding: 2px 8px; }
+.sgm-ok { justify-self: center; min-width: 120px; }
+.sgm-gender { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.sgm-gender button { min-height: 48px; border: 1.5px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--text); font-size: 16px; font-weight: 900; }
+.sgm-gender button[aria-checked="true"] { border-color: var(--navy); background: var(--navy); color: #fff; }
+.sg-gform input { height: 46px; padding: 0 12px; border: 1px solid var(--line); border-radius: 12px; font: inherit; font-size: 16px; }

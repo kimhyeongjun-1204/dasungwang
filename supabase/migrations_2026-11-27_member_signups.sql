@@ -130,9 +130,14 @@ create table if not exists public.signup (
   guest_name text check (char_length(guest_name) between 1 and 20),
   host_id text not null,
   by_admin boolean not null default false,
-  created_at timestamptz not null default clock_timestamp(),
-  check ((player_id is null) <> (guest_name is null))
+  created_at timestamptz not null default clock_timestamp()
 );
+-- 게스트(2026-11-27): 이름은 안 적어도 되고 성별(남 M·여 F)은 꼭. 회원 줄은 player_id, 게스트 줄은 성별로 구분
+-- (처음 만든 표에는 '회원 또는 게스트 이름' 조건 signup_check가 있었음 → 지우고 새 조건으로. 여러 번 돌려도 같음)
+alter table public.signup add column if not exists guest_gender text check (guest_gender in ('M', 'F'));
+alter table public.signup drop constraint if exists signup_check;
+alter table public.signup drop constraint if exists signup_who;
+alter table public.signup add constraint signup_who check ((player_id is not null and guest_gender is null and guest_name is null) or (player_id is null and guest_gender is not null)) not valid;   -- not valid: 이미 들어간 옛 게스트 줄(성별 없음)은 그대로 두고 새 줄부터 확인
 create unique index if not exists signup_member on public.signup (day, player_id) where player_id is not null;
 create index if not exists signup_day on public.signup (day, created_at, id);
 create table if not exists public.signup_notice (
@@ -165,13 +170,14 @@ language sql stable security definer set search_path = public as $$
      and not coalesce((select w.closed from public.workout_day w where w.day = d), false);
 $$;
 
--- 그날 신청 줄: 순서(pos)·상태(in/wait)·대기 번호
+-- 그날 신청 줄: 순서(pos)·상태(in/wait)·대기 번호 (반환 열이 바뀌면 replace가 안 돼서 먼저 지움)
+drop function if exists public.signup_rows(date);
 create or replace function public.signup_rows(d date)
-returns table (id bigint, player_id text, guest_name text, host_id text, by_admin boolean, created_at timestamptz, pos int, status text, no int)
+returns table (id bigint, player_id text, guest_name text, guest_gender text, host_id text, by_admin boolean, created_at timestamptz, pos int, status text, no int)
 language sql stable security definer set search_path = public as $$
   with o as (select s.*, row_number() over (order by s.created_at, s.id)::int as pos from public.signup s where s.day = d),
        c as (select coalesce(public.workout_cap(d), 0) as cap)
-  select o.id, o.player_id, o.guest_name, o.host_id, o.by_admin, o.created_at, o.pos,
+  select o.id, o.player_id, o.guest_name, o.guest_gender, o.host_id, o.by_admin, o.created_at, o.pos,
          case when o.pos <= c.cap then 'in' else 'wait' end, case when o.pos <= c.cap then o.pos else o.pos - c.cap end
     from o, c order by o.pos;
 $$;
@@ -184,7 +190,7 @@ declare r record; out jsonb := '[]'::jsonb;
 begin
   for r in select * from public.signup_rows(d) x where x.status = 'in' and not (x.id = any(before_in)) order by x.pos loop
     insert into public.signup_notice (day, player_id, kind) values (d, coalesce(r.player_id, r.host_id), case when r.player_id is null then 'guest_in' else 'in' end);
-    out := out || to_jsonb(coalesce(r.player_id, 'g:' || r.guest_name));
+    out := out || to_jsonb(coalesce(r.player_id, 'g:' || coalesce(r.guest_name, '게스트')));
   end loop;
   return out;
 end $$;
@@ -206,8 +212,8 @@ revoke all on function public.signup_status_of(date, bigint) from public, anon, 
 create or replace function public.signups_list(d_from date, d_to date) returns setof jsonb
 language sql stable security definer set search_path = public as $$
   select jsonb_build_object('day', g.d, 'cap', public.workout_cap(g.d), 'memo', w.memo, 'closed', coalesce(w.closed, false), 'open', public.workout_open(g.d),
-           'entries', coalesce((select jsonb_agg(jsonb_build_object('id', x.id, 'player_id', x.player_id, 'guest', x.guest_name, 'host_id', x.host_id, 'by_admin', x.by_admin,
-                                                   'pos', x.pos, 'status', x.status, 'no', x.no) order by x.pos) from public.signup_rows(g.d) x), '[]'::jsonb))
+           'entries', coalesce((select jsonb_agg(jsonb_build_object('id', x.id, 'player_id', x.player_id, 'guest', x.guest_name, 'gender', x.guest_gender, 'host_id', x.host_id, 'by_admin', x.by_admin,
+                                                   'pos', x.pos, 'status', x.status, 'no', x.no, 'at', x.created_at) order by x.pos) from public.signup_rows(g.d) x), '[]'::jsonb))
     from generate_series(d_from, least(d_to, d_from + 31), interval '1 day') as g0(t)
     cross join lateral (select g0.t::date as d) g
     left join public.workout_day w on w.day = g.d
@@ -227,16 +233,19 @@ begin
   return public.signup_status_of(d, sid);
 end $$;
 
-create or replace function public.signup_guest(token uuid, d date, p_name text) returns jsonb
+-- 게스트: 이름은 선택(빈칸이면 null), 성별 M/F는 꼭 (2026-11-27, 예전 3개 인자 함수는 지움)
+drop function if exists public.signup_guest(uuid, date, text);
+create or replace function public.signup_guest(token uuid, d date, p_name text, p_gender text) returns jsonb
 language plpgsql security definer set search_path = public as $$
-declare pid text := public.member_check(token); sid bigint; nm text := btrim(p_name);
+declare pid text := public.member_check(token); sid bigint; nm text := nullif(btrim(coalesce(p_name, '')), '');
 begin
   if pid is null then raise exception 'unauthorized'; end if;
   if not public.workout_open(d) then raise exception 'closed_day'; end if;
-  if nm is null or char_length(nm) not between 1 and 20 then raise exception 'bad_name'; end if;
+  if p_gender is null or p_gender not in ('M', 'F') then raise exception 'bad_gender'; end if;
+  if nm is not null and char_length(nm) > 20 then raise exception 'bad_name'; end if;
   perform pg_advisory_xact_lock(hashtext('signup:' || d));
-  if (select count(*) from public.signup s where s.day = d and s.host_id = pid and s.guest_name is not null) >= 3 then raise exception 'too_many_guests'; end if;
-  insert into public.signup (day, guest_name, host_id) values (d, nm, pid) returning id into sid;
+  if (select count(*) from public.signup s where s.day = d and s.host_id = pid and s.player_id is null) >= 3 then raise exception 'too_many_guests'; end if;
+  insert into public.signup (day, guest_name, guest_gender, host_id) values (d, nm, p_gender, pid) returning id into sid;
   return public.signup_status_of(d, sid);
 end $$;
 
@@ -258,7 +267,7 @@ language plpgsql security definer set search_path = public as $$
 declare pid text := public.member_check(token); r public.signup%rowtype; before bigint[];
 begin
   if pid is null then raise exception 'unauthorized'; end if;
-  select * into r from public.signup s where s.id = sid and s.guest_name is not null;
+  select * into r from public.signup s where s.id = sid and s.player_id is null;
   if not found then raise exception 'not_signed'; end if;
   if r.host_id <> pid then raise exception 'not_yours'; end if;
   perform pg_advisory_xact_lock(hashtext('signup:' || r.day));

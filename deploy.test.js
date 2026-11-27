@@ -685,10 +685,10 @@ test('api 운동 신청: RPC 이름·인자 (2026-11-26)', async () => {
   const c = fakeClient(Object.fromEntries(names.map(n => [n, a => { calls.push(n + ' ' + JSON.stringify(a)); return { data: n === 'signups_list' ? [] : n.endsWith('apply') ? { status: 'in', no: 1 } : [], error: null }; }])));
   const a = need().api(c);
   await a.signupsList('2026-11-30', '2026-12-04'); await a.signupApply('T', '2026-11-30'); await a.signupCancel('T', '2026-11-30');
-  await a.signupGuest('T', '2026-11-30', '손님'); await a.signupGuestCancel('T', 7);
+  await a.signupGuest('T', '2026-11-30', '손님', 'M'); await a.signupGuestCancel('T', 7);
   await a.adminSetDay('A', '2026-11-30', 20, '메모', false); await a.adminSetDefaultCap('A', 1, 22); await a.adminSignupAdd('A', '2026-11-30', 'p1'); await a.adminSignupRemove('A', '2026-11-30', 7);
   assert.deepStrictEqual(calls, ['signups_list {"d_from":"2026-11-30","d_to":"2026-12-04"}', 'signup_apply {"token":"T","d":"2026-11-30"}', 'signup_cancel {"token":"T","d":"2026-11-30"}',
-    'signup_guest {"token":"T","d":"2026-11-30","p_name":"손님"}', 'signup_guest_cancel {"token":"T","sid":7}', 'admin_set_day {"token":"A","d":"2026-11-30","p_cap":20,"p_memo":"메모","p_closed":false}',
+    'signup_guest {"token":"T","d":"2026-11-30","p_name":"손님","p_gender":"M"}', 'signup_guest_cancel {"token":"T","sid":7}', 'admin_set_day {"token":"A","d":"2026-11-30","p_cap":20,"p_memo":"메모","p_closed":false}',
     'admin_set_default_cap {"token":"A","p_dow":1,"p_cap":22}', 'admin_signup_add {"token":"A","d":"2026-11-30","pid":"p1"}', 'admin_signup_remove {"token":"A","d":"2026-11-30","sid":7}']);
   await assert.rejects(need().api(fakeClient({ signup_apply: () => ({ data: null, error: { message: 'closed_day' } }) })).signupApply('T', 'x'), e => e.code === 'closed_day');
 });
@@ -739,6 +739,18 @@ test('운영 DB용 SQL 묶음(회원 로그인 + 운동 신청)은 schema.sql �
   assert.ok(body.length > 5000 && sql.indexOf(body) >= 0, '묶음이 schema.sql과 다름');
   ['member_login', 'signup_apply', 'signup_notices_take', 'workout_defaults'].forEach(f => assert.ok(mig.indexOf('function public.' + f + '(') >= 0, f));
   assert.ok(!/drop table|delete from public\.app_state|truncate/i.test(mig), '지우는 SQL 없음');
+});
+test('참가 명단·게스트: 가운데 팝업(밴드처럼), 급수 아이콘 + 이름(급수) + 신청 일시, 게스트는 이름 선택·성별 남/여 (2026-11-27)', () => {
+  const pl = appSrc.match(/function sgListModal\([^)]*\) \{[\s\S]*?\n  \}\n/), gm = appSrc.match(/function sgGuestModal\([^)]*\) \{[\s\S]*?\n  \}\n/);
+  assert.ok(pl && gm, '명단 팝업·게스트 팝업 함수');
+  assert.ok(/class="sg-modal"/.test(pl[0]) && /role="dialog"/.test(pl[0]) && /참가자/.test(pl[0]) && /확인/.test(pl[0]), '밴드 참가자 팝업처럼 제목·확인');
+  assert.ok(/GRADE_CH\[/.test(pl[0]) && /L\.bandTime\(e\.at\)/.test(pl[0]), '급수 아이콘 + 신청 일시');
+  assert.ok(/class="sg-modal[ "]/.test(gm[0]) && /data-act="sg-gender"/.test(gm[0]) && /\['M', 'F'\]/.test(gm[0]), '성별 남/여 고르기');
+  assert.ok(/이름 \(선택\)|이름은 안 적어도/.test(gm[0]), '이름은 선택');
+  assert.ok(/remote\.signupGuest\(member\.token, [^)]*ui\.sgGender\)/.test(appSrc), '성별을 같이 보냄');
+  const at = appSrc.indexOf('remote.signupGuest(member.token'), sub = appSrc.slice(at - 400, at);
+  assert.ok(/if \(!ui\.sgGender\) \{[^}]*return;/.test(sub), '성별 안 고르면 보내기 전에 막음');
+  assert.ok(!/<ol class="sg-list">/.test(appSrc.match(/function sgCard\([^)]*\) \{[\s\S]*?\n  \}\n/)[0]), '카드 안에 펼치던 명단은 팝업으로');
 });
 test('service worker: index.html network-first, supabase는 캐시 안 함', () => {
   const sw = fs.readFileSync(path.join(__dirname, 'dist', 'sw.js'), 'utf8');

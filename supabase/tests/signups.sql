@@ -46,10 +46,17 @@ select pg_temp.eq('a 신청 → 신청 완료', $q$select public.signup_apply('a
 select pg_temp.eq('a 또 신청', $q$select public.signup_apply('aaaaaaaa-0000-0000-0000-000000000000', :mon)::text$q$, 'ERR already');
 select pg_temp.eq('b 신청 → 신청 완료', $q$select public.signup_apply('bbbbbbbb-0000-0000-0000-000000000000', :mon)::text$q$, '{"no": 2, "status": "in"}');
 select pg_temp.eq('c 신청 → 대기 1번', $q$select public.signup_apply('cccccccc-0000-0000-0000-000000000000', :mon)::text$q$, '{"no": 1, "status": "wait"}');
-select pg_temp.eq('d 게스트 데려옴 → 대기 2번', $q$select public.signup_guest('dddddddd-0000-0000-0000-000000000000', :mon, ' 손님 ')::text$q$, '{"no": 2, "status": "wait"}');
-select pg_temp.eq('게스트 이름 빈칸', $q$select public.signup_guest('dddddddd-0000-0000-0000-000000000000', :mon, '  ')::text$q$, 'ERR bad_name');
+select pg_temp.eq('d 게스트(남) 데려옴 → 대기 2번', $q$select public.signup_guest('dddddddd-0000-0000-0000-000000000000', :mon, ' 손님 ', 'M')::text$q$, '{"no": 2, "status": "wait"}');
+-- 게스트: 이름은 안 적어도 되고, 성별(남 M·여 F)은 꼭 (2026-11-27)
+select pg_temp.eq('게스트 성별 없음', $q$select public.signup_guest('dddddddd-0000-0000-0000-000000000000', :mon, '친구', null)::text$q$, 'ERR bad_gender');
+select pg_temp.eq('게스트 성별 이상한 값', $q$select public.signup_guest('dddddddd-0000-0000-0000-000000000000', :mon, '친구', 'X')::text$q$, 'ERR bad_gender');
+select pg_temp.eq('게스트 이름 21자', $q$select public.signup_guest('dddddddd-0000-0000-0000-000000000000', :mon, repeat('가', 21), 'F')::text$q$, 'ERR bad_name');
 select pg_temp.eq('명단(순서·상태)', $q$select string_agg(coalesce(e->>'player_id', 'g:' || (e->>'guest')) || '=' || (e->>'status'), ' ' order by (e->>'pos')::int)
   from public.signups_list(:mon, :mon) s, jsonb_array_elements(s->'entries') e$q$, 'a=in b=in c=wait g:손님=wait');
+select pg_temp.eq('명단에 게스트 성별·신청 시각', $q$select string_agg(coalesce(e->>'gender', '-') || ':' || ((e->>'at')::timestamptz <= clock_timestamp())::text, ' ' order by (e->>'pos')::int)
+  from public.signups_list(:mon, :mon) s, jsonb_array_elements(s->'entries') e$q$, '-:true -:true -:true M:true');
+select pg_temp.eq('이름 없는 게스트(여) → 화요일 신청 완료', $q$select public.signup_guest('dddddddd-0000-0000-0000-000000000000', :mon + 1, '   ', 'F')::text$q$, '{"no": 1, "status": "in"}');
+select pg_temp.eq('이름 없는 게스트는 이름 null·성별 F', $q$select coalesce(e->>'guest', 'null') || ':' || (e->>'gender') from public.signups_list(:mon + 1, :mon + 1) s, jsonb_array_elements(s->'entries') e$q$, 'null:F');
 select pg_temp.eq('명단에 정원·메모', $q$select (s->>'cap') || '/' || (s->>'memo') from public.signups_list(:mon, :mon) s$q$, '2/랜덤빵 제공');
 select pg_temp.eq('주말은 명단에 안 나옴', $q$select count(*)::text from public.signups_list(:mon, :mon + 6)$q$, '5');
 -- 취소하면 대기 1번이 자동으로 들어가고 알림 대기열에

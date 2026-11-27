@@ -1169,4 +1169,12 @@ test('signupDay: 신청 완료·대기 수, 남은 자리, 내 상태(본인·�
   assert.deepStrictEqual(L.signupDay(Object.assign({}, row, { cap: 5 }), 'a').left, 3);
 });
 
+test('bandTime: 신청 일시를 밴드처럼 "2026년 11월 26일 오후 2:38" (KST)', () => {
+  assert.strictEqual(L.bandTime('2026-11-26T05:38:12.5+00:00'), '2026년 11월 26일 오후 2:38');
+  assert.strictEqual(L.bandTime('2026-11-23T01:30:00Z'), '2026년 11월 23일 오전 10:30');
+  assert.strictEqual(L.bandTime('2026-11-22T15:05:00Z'), '2026년 11월 23일 오전 12:05');
+  assert.strictEqual(L.bandTime('2026-11-23T03:00:00Z'), '2026년 11월 23일 오후 12:00');
+  assert.strictEqual(L.bandTime(null), '');
+});
+
 console.log(`\n${passed} passed`);

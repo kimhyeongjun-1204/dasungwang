@@ -11,7 +11,7 @@ var Remote = (function () {
     // 회원 로그인 (schema.sql member_*)
     'pin_exists', 'wrong_pin',
     // 운동 신청 (schema.sql signup_*)
-    'closed_day', 'already', 'not_signed', 'not_yours', 'bad_name', 'too_many_guests', 'bad_cap', 'bad_day',
+    'closed_day', 'already', 'not_signed', 'not_yours', 'bad_name', 'bad_gender', 'too_many_guests', 'bad_cap', 'bad_day',
     'no_op_pin', 'same_as_admin', 'same_as_operator', 'no_week', 'no_match', 'bad_court', 'court_busy', 'player_busy', 'already_done', 'not_on_court', 'bad_action'];
 
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
@@ -100,7 +100,7 @@ var Remote = (function () {
       signupsList: function (from, to) { return rpc('signups_list', { d_from: from, d_to: to }).then(function (r) { return r || []; }); },
       signupApply: function (token, d) { return rpc('signup_apply', { token: token, d: d }); },
       signupCancel: function (token, d) { return rpc('signup_cancel', { token: token, d: d }); },
-      signupGuest: function (token, d, name) { return rpc('signup_guest', { token: token, d: d, p_name: name }); },
+      signupGuest: function (token, d, name, gender) { return rpc('signup_guest', { token: token, d: d, p_name: name, p_gender: gender }); },
       signupGuestCancel: function (token, sid) { return rpc('signup_guest_cancel', { token: token, sid: sid }); },
       adminSetDay: function (token, d, cap, memo, closed) { return rpc('admin_set_day', { token: token, d: d, p_cap: cap, p_memo: memo, p_closed: closed }); },
       workoutDefaults: function () { return rpc('workout_defaults', {}).then(function (r) { return r || []; }); },
