@@ -1456,8 +1456,15 @@
     }
     var g = LG.filter(function (x) { return x.id === lg.gid; })[0] || { members: [] };
     if (lg.step === 'name' || !lg.pid) {
+      // 조 안에서 남자·여자 탭으로 나눠 이름 찾기 쉽게 (2026-11-27 김형준). 성별 모르는 사람이 있으면 '그 밖' 탭
+      var tabs = [['M', '남자'], ['F', '여자']].concat(g.members.some(function (m) { return !m.gender; }) ? [['X', '그 밖']] : []);
+      var cntOf = function (k) { return g.members.filter(function (m) { return (m.gender || 'X') === k; }).length; };
+      var sex = lg.sex && tabs.some(function (t) { return t[0] === lg.sex; }) ? lg.sex : (tabs.filter(function (t) { return cntOf(t[0]); })[0] || tabs[0])[0];   // 처음엔 사람이 있는 첫 탭
       return out + '<button class="btn sm lg-back" data-act="lg-back" data-v="group">‹ 조 다시 고르기</button><h1 id="lg-h">' + esc(gname(lg.gid)) + '조 · 내 이름</h1>' +
-        '<div class="lg-names">' + g.members.map(function (m) { return '<button data-act="lg-name" data-p="' + m.id + '">' + esc(m.name) + '</button>'; }).join('') + '</div>' +
+        '<div class="seg lg-sex" role="tablist" aria-label="성별">' + tabs.map(function (t) {
+          var n = cntOf(t[0]);
+          return '<button role="tab" aria-selected="' + (sex === t[0]) + '" data-act="lg-sex" data-v="' + t[0] + '">' + t[1] + ' <span class="num">' + n + '</span></button>'; }).join('') + '</div>' +
+        '<div class="lg-names">' + g.members.filter(function (m) { return (m.gender || 'X') === sex; }).map(function (m) { return '<button data-act="lg-name" data-p="' + m.id + '">' + esc(m.name) + '</button>'; }).join('') + '</div>' +
         '<p class="muted small">내 이름이 없으면 돼장에게 회원 추가를 부탁해 주세요.</p></section>';
     }
     var nm = (pm()[lg.pid] || {}).name || '';
@@ -2052,7 +2059,8 @@
         if (!ui.sgPick[v]) { toast('넣을 이름을 골라 주세요.'); break; }
         remote.adminSignupAdd(token, v, ui.sgPick[v]).then(function (r) { ui.sgPick[v] = ''; toast(r && r.status === 'wait' ? '대기 ' + r.no + '번으로 넣었어요.' : '명단에 넣었어요.'); loadSignups(); }, function (e) { sgFail(e, true); });
         break;
-      case 'lg-group': ui.lg.gid = v; ui.lg.step = 'name'; ui.lg.pid = null; ui.lg.msg = ''; render(); break;
+      case 'lg-group': ui.lg.gid = v; ui.lg.step = 'name'; ui.lg.pid = null; ui.lg.msg = ''; ui.lg.sex = null; render(); break;
+      case 'lg-sex': ui.lg.sex = v; render(); break;
       case 'lg-name': lgPick(el.getAttribute('data-p')); break;
       case 'lg-back': ui.lg.step = v; if (v === 'group') ui.lg.gid = null; ui.lg.pid = null; ui.lg.msg = ''; render(); break;
       case 'mb-group': ui.mb.group = v; render(); break;
