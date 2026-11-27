@@ -752,6 +752,10 @@ test('참가 명단·게스트: 가운데 팝업(밴드처럼), 급수 아이콘
   assert.ok(/if \(!ui\.sgGender\) \{[^}]*return;/.test(sub), '성별 안 고르면 보내기 전에 막음');
   assert.ok(!/<ol class="sg-list">/.test(appSrc.match(/function sgCard\([^)]*\) \{[\s\S]*?\n  \}\n/)[0]), '카드 안에 펼치던 명단은 팝업으로');
 });
+test('참가 취소 확인: "다시 신청하면 맨 뒤로 가요" 문구 뺌 (2026-11-27 김형준)', () => {
+  assert.ok(!/다시 신청하면 맨 뒤로/.test(appSrc), '문구 없음');
+  assert.ok(/을 취소할까요\?/.test(appSrc), '취소 확인은 그대로');
+});
 test('service worker: index.html network-first, supabase는 캐시 안 함', () => {
   const sw = fs.readFileSync(path.join(__dirname, 'dist', 'sw.js'), 'utf8');
   const cached = [];

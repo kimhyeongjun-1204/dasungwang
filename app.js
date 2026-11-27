@@ -1338,7 +1338,7 @@
     btns += '<button class="btn sm" data-act="sg-list" data-v="' + d + '" aria-haspopup="dialog">명단 ' + (sd.inCount + sd.waitCount) + '</button>';
     if (adm) btns += '<button class="btn sm" data-act="sg-day-edit" data-v="' + d + '">정원·메모</button>';
     out += '<div class="sg-btns">' + btns + '</div>';
-    if (ui.sgAsk === d && mine) out += '<div class="banner warn"><span>' + md(d) + '(' + dowOf(d) + ') ' + (mine.status === 'in' ? '신청' : '대기 ' + mine.no + '번') + '을 취소할까요? 다시 신청하면 맨 뒤로 가요.</span><span class="row"><button class="btn sm danger" data-act="sg-cancel-yes" data-v="' + d + '">취소하기</button><button class="btn sm" data-act="sg-cancel-no">아니요</button></span></div>';
+    if (ui.sgAsk === d && mine) out += '<div class="banner warn"><span>' + md(d) + '(' + dowOf(d) + ') ' + (mine.status === 'in' ? '신청' : '대기 ' + mine.no + '번') + '을 취소할까요?</span><span class="row"><button class="btn sm danger" data-act="sg-cancel-yes" data-v="' + d + '">취소하기</button><button class="btn sm" data-act="sg-cancel-no">아니요</button></span></div>';
     if (sd.guests.length) out += '<div class="sg-myg">' + sd.guests.map(function (g) {
       return '<span class="chip">' + esc(g.guest || '게스트') + '(' + (g.gender === 'F' ? '여' : '남') + ') · ' + (g.status === 'in' ? '신청 완료' : '대기 ' + g.no) + (row.open ? ' <button class="linkbtn" data-act="sg-guest-rm" data-id="' + g.id + '" aria-label="' + esc(g.guest || '게스트') + ' 취소">✕</button>' : '') + '</span>';
     }).join('') + '</div>';
