@@ -943,4 +943,6 @@ button.lv-row:disabled { cursor: default; opacity: .7; }
 .mb-grades .ch { --chh: 30px; margin-bottom: 0; filter: none; }
 .mb-to { margin: 0; color: var(--navy); background: var(--navy-50); border-radius: 10px; padding: 8px 12px; }
 .mb-sheet { display: grid; gap: 10px; }
+.mb-lbl { margin: 2px 0 -4px; font-weight: 700; } .mb-lbl span { font-weight: 400; }
+.mb-gsel { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .mb-sheet input { height: 46px; padding: 0 12px; border: 1px solid var(--line); border-radius: 12px; font: inherit; font-size: 16px; color: var(--text); background: var(--surface); }

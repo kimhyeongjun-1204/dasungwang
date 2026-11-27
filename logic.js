@@ -976,7 +976,9 @@ var Logic = (function () {
         .sort(function (a, b) { return a.name.localeCompare(b.name, 'ko'); }).map(function (p) { return { id: p.id, name: p.name }; }) };
     });
   }
-  // 돼장 회원 관리: e = { id?(없으면 새 회원), name?, grade?, active? }. 급수를 주면 조가 바로 바뀜. work.players를 직접 고침
+  // 돼장 회원 관리: e = { id?(없으면 새 회원), name?, grade?, group?, active? }. work.players를 직접 고침
+  // 급수(회원 등급)와 조(다승왕·대회에서 뛰는 조)는 따로(2026-11-27): 급수를 바꿔도 조는 그대로, 조는 따로 바꾸면 바로.
+  // 새 회원만 조를 안 주면 급수로 추천한 조(gradeGroup)
   function memberEdit(work, e, newId) {
     var ps = work.players, p = null;
     if (e.id) { p = ps.filter(function (x) { return x.id === e.id; })[0]; if (!p) return { errors: ['없는 회원이에요.'] }; }
@@ -987,9 +989,12 @@ var Logic = (function () {
       e = Object.assign({}, e, { name: nm });
     }
     if (!p || e.grade !== undefined) { if (!gradeGroup(e.grade)) return { errors: ['급수를 골라 주세요.'] }; }
-    if (!p) { ps.push({ id: newId, name: e.name, group: gradeGroup(e.grade), grade: e.grade }); return { errors: [] }; }
+    var grp = e.group !== undefined ? e.group : !p ? gradeGroup(e.grade) : undefined;
+    if (grp !== undefined && ['A', 'B', 'C'].indexOf(grp) < 0) return { errors: ['조를 골라 주세요.'] };
+    if (!p) { ps.push({ id: newId, name: e.name, group: grp, grade: e.grade }); return { errors: [] }; }
     if (e.name !== undefined) p.name = e.name;
-    if (e.grade !== undefined) { p.grade = e.grade; p.group = gradeGroup(e.grade); }
+    if (e.grade !== undefined) p.grade = e.grade;
+    if (grp !== undefined) p.group = grp;
     if (e.active === false) p.active = false; else if (e.active === true) delete p.active;
     return { errors: [] };
   }
