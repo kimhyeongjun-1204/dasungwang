@@ -1759,3 +1759,8 @@ $ node logic.test.js; node deploy.test.js   (테스트 먼저 FAIL 2건 확인 �
 - 역검증: 묶음 안 정렬을 빼면 logic FAIL 1
 - 가짜 서버 Playwright 360·1024px(급수는 가짜 서버가 조 안에서 번갈아 넣은 값): 캐비어·랍스터 탭 = 캐비어 #1·#7·#20·대기 2 → 랍스터 #13·#19 / 소갈비·양갈비 탭 = 소갈비 6명 → 양갈비 6명 / 돼지갈비·닭갈비 탭 = 돼지갈비 4명 → 닭갈비 4명 / 탭 한 칸 360px 71px, 가로 넘침 없음 · 오류 0
 - 사진: docs/screenshots/signup-modal/list_group_tabs_360.jpg
+
+## 88. '게스트는 돼장만' 되돌림 (2026-11-27)
+- 요청(김형준 14:33): 게스트 추가는 돼장뿐 아니라 다른 사람도 가능하게 그냥 둠 → 87(47e12e9)을 git revert
+- 운영 DB에는 87의 SQL을 넣지 않았음 → 운영(d15eebf6 묶음)과 코드가 다시 같음. 묶음 SHA-256 d15eebf6… 확인
+- 되돌린 뒤: deploy 75 · logic 152 passed / signups 49 · members 43 ok (Postgres가 꺼져 있어서 처음엔 0 ok로 나옴 → 켜고 다시 돌림)
