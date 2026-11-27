@@ -1026,6 +1026,42 @@ var Logic = (function () {
       return { from: f, to: addDays(f, 4), label: weekend ? (k ? '다다음 주' : '다음 주') : (k ? '다음 주' : '이번 주') };
     });
   }
+  // ---- 내 정보 (2026-11-27): 달력 칸 · 내 운동 날 · 다승왕전 기록 ----
+  // 'YYYY-MM' → 주마다 7칸(일~토), 그 달이 아닌 칸은 null
+  function monthGrid(ym) {
+    var first = ym + '-01', dow = new Date(first + 'T00:00:00Z').getUTCDay(), out = [], wk = [];
+    for (var i = 0; i < dow; i++) wk.push(null);
+    for (var d = first; d.slice(0, 7) === ym; d = addDays(d, 1)) { wk.push(d); if (wk.length === 7) { out.push(wk); wk = []; } }
+    if (wk.length) { while (wk.length < 7) wk.push(null); out.push(wk); }
+    return out;
+  }
+  // signups_list 줄들 → { 날짜: 'done'(지난 날 신청 완료 = 운동함) | 'plan'(오늘 이후 신청) | 'wait'(오늘 이후 대기) }. 지난 대기·게스트는 뺌
+  function myDays(rows, pid, today) {
+    var out = {};
+    (rows || []).forEach(function (r) {
+      var e = (r.entries || []).filter(function (x) { return x.player_id === pid; })[0];
+      if (!e) return;
+      if (r.day < today) { if (e.status === 'in') out[r.day] = 'done'; }
+      else out[r.day] = e.status === 'in' ? 'plan' : 'wait';
+    });
+    return out;
+  }
+  // 다승왕전 주별 내 승·패·남은 경기(참석했거나 경기에 나온 주만, 최근 주부터)
+  function myDsw(state, pid) {
+    var weeks = [];
+    (state.weeks || []).forEach(function (w) {
+      var r = { date: w.date, w: 0, l: 0, pending: 0 }, inWeek = !!(w.attendees || {})[pid];
+      (w.matches || []).forEach(function (m) {
+        var side = (m.a || []).indexOf(pid) >= 0 ? 'a' : (m.b || []).indexOf(pid) >= 0 ? 'b' : null;
+        if (!side) return; inWeek = true;
+        if (!m.win) r.pending++; else if (m.win === side) r.w++; else r.l++;
+      });
+      if (inWeek) weeks.push(r);
+    });
+    weeks.sort(function (x, y) { return x.date < y.date ? 1 : -1; });
+    return { weeks: weeks, n: weeks.length, w: weeks.reduce(function (a, x) { return a + x.w; }, 0), l: weeks.reduce(function (a, x) { return a + x.l; }, 0) };
+  }
+
   // 탭에 띄울 주: 오늘부터 남은 날이 모두 쉬는 날이면 그 주는 뺌(예: 금요일 청백전으로 쉬면 이번 주 끝 → 다음 주만). 명단 못 받은 날은 열린 것으로 봄 (2026-11-27)
   function signupOpenWeeks(ws, rows, today) {
     var out = ws.filter(function (w) {
@@ -1057,7 +1093,7 @@ var Logic = (function () {
     homeSummary: homeSummary,
     bandTime: bandTime,
     signupWeeks: signupWeeks, signupDay: signupDay,
-    GRADES: GRADES, gradeGroup: gradeGroup, SG_TABS: SG_TABS, sgFilter: sgFilter, backStep: backStep, signupOpenWeeks: signupOpenWeeks, loginGroups: loginGroups, memberEdit: memberEdit, pinError: pinError,
+    GRADES: GRADES, gradeGroup: gradeGroup, SG_TABS: SG_TABS, sgFilter: sgFilter, backStep: backStep, signupOpenWeeks: signupOpenWeeks, monthGrid: monthGrid, myDays: myDays, myDsw: myDsw, loginGroups: loginGroups, memberEdit: memberEdit, pinError: pinError,
     startTab: startTab,
     LIVE: LIVE, typicalMinutes: typicalMinutes, courtEta: courtEta, courtSlots: courtSlots, courtLabel: courtLabel, setExtraCourt: setExtraCourt, liveBoard: liveBoard, shortNames: shortNames, startMatch: startMatch, finishMatch: finishMatch, cancelMatch: cancelMatch, myLive: myLive,
     meRecord: meRecord, matchStarted: matchStarted, livePrediction: livePrediction, predictionRecord: predictionRecord,

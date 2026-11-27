@@ -375,7 +375,7 @@ test('CI: 뚱뚱배 순수 함수 테스트(tourney.test.js)도 통과해야 배
 test('클럽 홈 틀: 하단 탭 홈·참가·다승왕·기록(2026-11-26 참가 추가), 다승왕전 안쪽 탭은 예전처럼 이번 주·순위·예측·내 기록·관리 (2026-11-24, 2026-11-25 사용자 요청으로 내 기록·관리 되돌림)', () => {
   const nav = appSrc.match(/function bottomNav\(\) \{[\s\S]*?\n  \}\n/);
   assert.ok(nav, '하단 탭(bottomNav) 없음');
-  assert.ok(/\[\['home', '홈', [^\]]*\], \['signup', '참가', [^\]]*\], \['week', '다승왕', [^\]]*\], \['records', '기록', [^\]]*\]\]/.test(nav[0]), '하단 탭은 홈·참가·다승왕·기록 네 개');
+  assert.ok(/\[\['home', '홈', [^\]]*\], \['signup', '참가', [^\]]*\], \['week', '다승왕', [^\]]*\], \['records', '기록', [^\]]*\](, \['my', '내 정보', [^\]]*\])?\]/.test(nav[0]), '하단 탭은 홈·참가·다승왕·기록 네 개');
   assert.ok(!/\['me', '내 기록'/.test(nav[0]) && !/\['admin', '관리'/.test(nav[0]), '내 기록·관리는 하단 탭이 아니라 다승왕 안쪽 탭');
   const hd = appSrc.match(/function header\(\) \{[\s\S]*?\n  \}\n/)[0];
   assert.ok(/\[\['week', '이번 주'\], \['rank', '순위'\], \['plan', '예측'\], \['me', '내 기록'\], \['admin', '관리'\]\]/.test(hd), '다승왕전 안쪽 탭은 이번 주·순위·예측·내 기록·관리');
@@ -801,6 +801,17 @@ test('참가 4가지 (2026-11-27 15:55): 끝난 주는 탭에서 빼기 · 명�
   const cb = appSrc.match(/function clubBar\([^)]*\) \{[\s\S]*?\n  \}\n/)[0];
   assert.ok(/ui\.tab === 'home'/.test(cb) && /class="cb-me"/.test(cb) && /class="face face-' \+ GRADE_CH\[/.test(cb), '홈 맨 위 오른쪽에 내 급수 얼굴 + 내 이름 (15:55)');
   assert.ok(/var waitCta = sd\.full && row\.open && !mine;/.test(card) && /\(waitCta \? '<button class="btn sg-waitcta" data-act="sg-apply" data-v="' \+ d \+ '">대기 신청하기<\/button>'/.test(card), '꽉 차면 대기 신청 버튼(꽉 찬 날·열린 날·내가 아직 없을 때)');
+});
+test('내 정보 탭: 하단 탭 다섯 번째, 달력(운동함·신청·대기)·다가오는 신청·다승왕전 기록 (2026-11-27 김형준)', () => {
+  const nav = appSrc.match(/function bottomNav\(\) \{[\s\S]*?\n  \}\n/)[0];
+  assert.ok(/\['records', '기록', [^\]]*\], \['my', '내 정보', [^\]]*\]\]/.test(nav), '하단 탭 끝에 내 정보');
+  const v = appSrc.match(/function viewMy\(\) \{[\s\S]*?\n  \}\n/);
+  assert.ok(v, 'viewMy 없음');
+  assert.ok(/L\.monthGrid\(/.test(v[0]) && /L\.myDays\(/.test(v[0]) && /L\.myDsw\(work, ui\.me\)/.test(v[0]), '달력·내 운동 날·다승왕전 기록');
+  assert.ok(/data-act="my-month"/.test(v[0]), '달 넘기기');
+  assert.ok(/remote\.signupsList\(/.test(appSrc.match(/function loadMyMonth\([^)]*\) \{[\s\S]*?\n  \}\n/)[0]), '그 달 명단 불러오기');
+  assert.ok(/ui\.tab === 'my' \? viewMy\(\)/.test(appSrc), '탭 연결');
+  assert.ok(/my: '[^']*내 정보'/.test(appSrc), '맨 위 제목');
 });
 test('service worker: index.html network-first, supabase는 캐시 안 함', () => {
   const sw = fs.readFileSync(path.join(__dirname, 'dist', 'sw.js'), 'utf8');
