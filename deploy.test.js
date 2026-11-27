@@ -647,6 +647,13 @@ test('클럽 홈: 행사 당일(heroEvent)엔 그 행사가 맨 위 큰 카드, 
   const css = fs.readFileSync(path.join(__dirname, 'app.css'), 'utf8');
   assert.ok(/\.ev-card\.cb \{/.test(css), '청백전 카드 꾸밈');
 });
+test('앱 시작: "불러오는 중"에서 멈추지 않음 — 그리다 오류 나면 오류 내용 + 다시 시도·처음 상태로, 15초 넘게 못 받으면 다시 시도 (2026-11-27 폰에서 멈춤)', () => {
+  assert.ok(/remote\.load\(\)\.then\(function \(s\) \{ clearTimeout\(bootTimer\); try \{ start\(s\); \} catch \(e\) \{ bootError\(e\); \} \}/.test(appSrc), 'start 오류를 잡아서 보여 줌');
+  assert.ok(/var bootTimer = setTimeout\(function \(\) \{[^}]*bootView\('불러오는 데 오래 걸려요/.test(appSrc), '오래 걸리면 다시 시도');
+  const be = appSrc.match(/function bootError\(e\) \{[\s\S]*?\n  \}\n/);
+  assert.ok(be && /data-act="retry"/.test(be[0]) && /data-act="boot-reset"/.test(be[0]) && /esc\(/.test(be[0]), '오류 화면: 다시 시도·처음 상태로, 오류 글자는 esc');
+  assert.ok(/act === 'boot-reset'/.test(appSrc), '처음 상태로 열기');
+});
 test('service worker: index.html network-first, supabase는 캐시 안 함', () => {
   const sw = fs.readFileSync(path.join(__dirname, 'dist', 'sw.js'), 'utf8');
   const cached = [];
