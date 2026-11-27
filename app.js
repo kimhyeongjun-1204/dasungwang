@@ -1431,6 +1431,10 @@
       (r.n ? '<ul class="my-dsw">' + r.weeks.map(function (w) { return '<li><span class="num">' + md(w.date) + '(수)</span><span class="num">' + w.w + '승 ' + w.l + '패' + (w.pending ? ' · 남은 경기 ' + w.pending : '') + '</span></li>'; }).join('') + '</ul>' +
         '<button class="btn sm" data-act="tab" data-v="me">다승왕 내 기록 자세히 ›</button>' : '') +
       '<p class="small muted">뚱뚱배는 앱에서 열리면 여기에 기록이 모여요.</p></section>';
+    // 비밀번호 바꾸기·로그아웃 (2026-11-27 김형준 "내정보에서 로그아웃")
+    out += mePinCard() + '<section class="card my-out">' + (ui.myOut ?
+      '<p><b>이 기기에서 로그아웃할까요?</b><br><span class="small muted">다시 들어올 때 이름과 비밀번호를 넣어야 해요.</span></p><div class="row"><button class="btn danger" data-act="my-logout-ok">로그아웃</button><button class="btn" data-act="my-logout-no">취소</button></div>' :
+      '<button class="btn" data-act="my-logout">로그아웃</button>') + '</section>';
     return out;
   }
   function sgDefaultsCard() {
@@ -1499,6 +1503,13 @@
     var p = pm()[ui.me];
     ui.lg = { step: p ? 'name' : 'group', gid: p ? p.group : null, pid: null, has: null, busy: false, msg: msg || '' };
     if (p && p.active !== false) lgPick(p.id, msg); else render();   // 초기화됐으면 '비밀번호 만들기'로
+  }
+  // 직접 로그아웃: 이 기기 토큰·관리 열쇠를 지우고 조 고르기부터 (다른 사람이 이어서 들어올 수 있게)
+  function memberLeave() {
+    member.ok = false; member.token = null; LS.del(MKEY);
+    dropAdmin(); ui.admin = false; ui.op = false; ui.myOut = false;
+    ui.lg = { step: 'group', gid: null, pid: null, has: null, busy: false, msg: '', sex: null };
+    ui.tab = 'home'; render(); toast('로그아웃했어요.');
   }
   var LOGIN_ERR = { bad_player: '회원 명단에 없는 이름이에요. 돼장에게 확인해 주세요.', network: '인터넷 연결을 확인해 주세요.' };
   function hhmm(iso) { var d = new Date(new Date(iso).getTime() + 9 * 3600e3); return d.getUTCHours() + ':' + ('0' + d.getUTCMinutes()).slice(-2); }
@@ -2033,6 +2044,9 @@
     var w, m, P;
     switch (act) {
       case 'sg-week': ui.sgWeek = +v; render(); break;
+      case 'my-logout': ui.myOut = true; render(); break;
+      case 'my-logout-no': ui.myOut = false; render(); break;
+      case 'my-logout-ok': var otok = member.token; if (otok && remote) remote.memberLogout(otok).catch(function () {}); memberLeave(); break;
       case 'my-month': my.ym = ymShift(my.ym || todayKST().slice(0, 7), +v); render(); break;
       case 'rec-month': rec.ym = ymShift(rec.ym || todayKST().slice(0, 7), +v); render(); break;
       case 'sg-reload': loadSignups(); break;
