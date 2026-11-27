@@ -667,11 +667,13 @@ test('로그인 화면: 내 이름이 없으면 조 → 이름 → 비밀번호,
   assert.ok(/if \(!member\.ok\) return viewLogin\(\)|member\.ok \? [^:]+ : viewLogin\(\)/.test(appSrc), '로그인 전에는 로그인 화면');
   assert.ok(!/data-act="me"/.test(appSrc) && !/function mePicker/.test(appSrc), '이름 고르기(바꾸기) 없음');
 });
-test('돼장 회원 관리: 관리 메뉴에 회원, 새 회원·급수·쉬는 회원·비밀번호 초기화 (2026-11-26)', () => {
+test('돼장 회원 관리: 관리 메뉴에 회원, 새 회원·급수·조(따로)·쉬는 회원·비밀번호 초기화 (2026-11-26, 조 따로 11-27)', () => {
   assert.ok(/\['members', '회원'\]/.test(appSrc), '관리 메뉴에 회원');
   const v = appSrc.match(/function viewMembers\(\) \{[\s\S]*?\n  \}\n/);
   assert.ok(v, 'viewMembers 없음');
   assert.ok(/L\.GRADES/.test(v[0]) && /mb-save/.test(v[0]) && /mb-reset/.test(v[0]) && /mb-active/.test(v[0]), '급수·저장·초기화·쉬는 회원');
+  assert.ok(/data-act="mb-gsel"/.test(v[0]) && /급수와 조는 따로/.test(v[0]), '조는 급수와 따로 고름 (2026-11-27)');
+  assert.ok(!/급수 → 조는 자동/.test(v[0]), '급수로 조가 자동으로 정해진다는 안내 없음');
   assert.ok(/remote\.adminResetMemberPin\(/.test(appSrc) && /remote\.adminMemberPins\(/.test(appSrc));
   assert.ok(/L\.memberEdit\(/.test(appSrc));
 });
