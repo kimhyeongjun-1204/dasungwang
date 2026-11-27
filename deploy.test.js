@@ -848,6 +848,10 @@ test('이달의 출석왕: 기록 탭에 달별 순위(얼굴·이름·횟수, �
   assert.ok(/L\.attendRank\(/.test(vm), '내 정보에 내 출석 순위');
   assert.ok(/case 'rec-month':/.test(appSrc));
 });
+test('홈 오른쪽 위 내 프로필(얼굴·이름)을 누르면 내 정보로 (2026-11-27 김형준 16:27)', () => {
+  const cb = appSrc.match(/function clubBar\([^)]*\) \{[\s\S]*?\n  \}\n/)[0];
+  assert.ok(/<button class="cb-me" data-act="tab" data-v="my"/.test(cb), '내 프로필 = 내 정보 버튼');
+});
 test('service worker: index.html network-first, supabase는 캐시 안 함', () => {
   const sw = fs.readFileSync(path.join(__dirname, 'dist', 'sw.js'), 'utf8');
   const cached = [];

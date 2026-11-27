@@ -206,7 +206,7 @@
   function clubBar(title) {
     // 홈 맨 위 오른쪽: 내 급수 얼굴 + 내 이름 (2026-11-27 15:55)
     var me = pm()[ui.me], ch = me && GRADE_CH[me.grade];
-    var mine = ui.tab === 'home' && member.ok && me ? '<span class="cb-me">' + (ch ? '<i class="face face-' + GRADE_CH[me.grade] + '" aria-hidden="true"></i>' : '') + '<b>' + esc(me.name) + '</b></span>' : '';
+    var mine = ui.tab === 'home' && member.ok && me ? '<button class="cb-me" data-act="tab" data-v="my" aria-label="내 정보 (' + esc(me.name) + ')">' + (ch ? '<i class="face face-' + GRADE_CH[me.grade] + '" aria-hidden="true"></i>' : '') + '<b>' + esc(me.name) + '</b></button>' : '';
     return '<div class="clubbar">' + (ui.tab !== 'home' ? '<button class="cb-back" data-act="tab" data-v="home" aria-label="홈으로">‹</button>' : '') + '<button class="club-logo" data-act="tab" data-v="home" aria-label="' + esc(work.settings.club || '라켓뚱보단') + ' 홈으로">' + esc(work.settings.club || '라켓뚱보단') + '</button>' + (title ? '<h1 class="club-title">' + esc(title) + '</h1>' : '') + mine + '</div>';
   }
 
