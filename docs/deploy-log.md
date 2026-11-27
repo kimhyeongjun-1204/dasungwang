@@ -1792,3 +1792,4 @@ $ node logic.test.js; node deploy.test.js   (테스트 먼저 FAIL 2건 확인 �
 - 테스트 먼저(처음 열 때 lgPick 없음) FAIL 확인 → deploy 76 · logic 152 passed
 - 가짜 서버 Playwright 360px: 예전 이름만(p005, 토큰 없음) → "내 조를 골라 주세요" / p010 토큰 → 로그인 상태·하단 탭 / 아무것도 없음 → "내 조를 골라 주세요" · 오류 0
 - 운영 확인(공개 키, member_has_pin 58명): 비밀번호 있는 사람 김성곤(p005) · 김형준(p006) · 최서연(p031) — 주성모(p008)는 없음(남의 이름으로 만든 것 없음)
+- 배포(2026-11-27 14:5x, 김형준 "머지"): #38 squash 머지(e465a93) → GitHub Pages success → 실제 사이트 index.html에 예전 바로 가기(lgPick(meP.id)) 없음, 새 코드 들어감
