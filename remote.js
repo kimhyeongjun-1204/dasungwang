@@ -12,7 +12,7 @@ var Remote = (function () {
     'pin_exists', 'wrong_pin',
     // 운동 신청 (schema.sql signup_*)
     'closed_day', 'already', 'not_signed', 'not_yours', 'bad_name', 'bad_gender', 'too_many_guests', 'bad_cap', 'bad_day',
-    'no_op_pin', 'same_as_admin', 'same_as_operator', 'no_week', 'no_match', 'bad_court', 'court_busy', 'player_busy', 'already_done', 'not_on_court', 'bad_action'];
+    'is_admin', 'no_op_pin', 'same_as_admin', 'same_as_operator', 'no_week', 'no_match', 'bad_court', 'court_busy', 'player_busy', 'already_done', 'not_on_court', 'bad_action'];
 
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
   // 서버로 보내는 state: PIN 해시와 서버가 관리하는 rev/savedAt은 뺀다
@@ -107,6 +107,10 @@ var Remote = (function () {
       adminSetDefaultCap: function (token, dow, cap) { return rpc('admin_set_default_cap', { token: token, p_dow: dow, p_cap: cap }); },
       adminSignupAdd: function (token, d, pid) { return rpc('admin_signup_add', { token: token, d: d, pid: pid }); },
       adminSignupRemove: function (token, d, sid) { return rpc('admin_signup_remove', { token: token, d: d, sid: sid }); },
+      // 회원 역할(2026-11-27): 돼장·진행 도우미는 PIN 대신 회원 로그인으로 관리 열쇠를 받음. 역할 없으면 null
+      memberRoleSession: function (token) { return rpc('member_role_session', { token: token }).then(function (r) { return r && r.token ? r : null; }); },
+      adminOperators: function (token) { return rpc('admin_operators', { token: token }).then(function (r) { return r || []; }); },
+      adminSetOperator: function (token, pid, on) { return rpc('admin_set_operator', { token: token, pid: pid, p_on: on }).then(function (r) { return r || []; }); },
       // 자리 나서 자동으로 들어간 사람에게 알림 (Edge Function notify kind=signup, 대상은 DB가 한 번만 꺼내 줌)
       notifySignup: function () { return call(client.functions.invoke('notify', { body: { kind: 'signup' } })); },
 

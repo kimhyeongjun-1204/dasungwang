@@ -21,14 +21,14 @@
   function todayKST() { return new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10); }
 
   var saved = null, work = null; // Supabase에서 읽은 뒤 start()에서 채움
-  var remote = null, token = null, pinBusy = false;
+  var remote = null, token = null;
   var ui = {
     tab: LS.get(KEY.tab) || 'home',
     week: SS.get(SKEY.week) || null,
     me: LS.get(KEY.me) || '',
     wview: LS.get(KEY.wview) || 'mine',   // 이번 주 탭: 'mine'(내 경기) | 'all'. 기본 내 경기 (사용자 요청 2026-11-20)
     admin: false,
-    op: false,      // 진행 도우미(진행 PIN): 이번 주 탭의 경기 진행만
+    op: false,      // 진행 도우미(돼장이 회원 중에서 지정): 이번 주 탭의 경기 진행만
     saveError: null,
     sec: SS.get(SKEY.sec) || 'plan',
     rankGroup: null,
@@ -43,7 +43,6 @@
     draftConflict: null,
     toast: null,
     busy: null,
-    pinMsg: '',
     notice: null,
     lg: { step: 'group', gid: null, pid: null, has: null, busy: false, msg: '' },   // 로그인 단계
     mb: { group: 'A', edit: null, pins: null, ask: null },   // 돼장 회원 관리
@@ -67,6 +66,17 @@
   function rememberAdmin(t) { token = t; R.saveToken(LS, t, Date.now()); }
   function dropAdmin() { token = null; ui.op = false; R.clearToken(LS); }
   function forgetAdmin() { if (token && remote) remote.logout(token).catch(function () { }); dropAdmin(); }
+  // 관리 열쇠는 회원 로그인으로 (2026-11-27 김형준 "다승왕 관리 핀 입력 지우고"): 돼장·진행 도우미로 지정된 회원이면 서버가 열쇠를 줌
+  function roleSync() {
+    if (!member.ok || !member.token || !remote) return;
+    remote.memberRoleSession(member.token).then(function (r) {
+      if (!r) { dropAdmin(); ui.admin = false; ui.op = false; render(); return; }
+      token = r.token; R.saveToken(LS, r.token, Date.now(), r.role);
+      ui.admin = r.role === 'admin'; ui.op = r.role === 'operator'; render();
+    }, function () { });
+  }
+  // 서버가 관리 열쇠를 거절하면(만료·도우미 해제) 버리고 회원 로그인으로 다시 받기
+  function adminExpired() { dropAdmin(); ui.admin = false; ui.op = false; roleSync(); }
   function pm() { var m = {}; work.players.forEach(function (p) { m[p.id] = p; }); return m; }
   function groups() { return work.settings.groups; }
   function gname(id) { var g = groups().filter(function (x) { return x.id === id; })[0]; return g ? g.name : id; }
@@ -117,7 +127,7 @@
   function save(okMsg) {
     if (ui.busy) return;
     if (!ui.admin || !token) {
-      ui.saveError = '관리 탭에서 PIN으로 잠금을 해제해야 저장할 수 있어요.';
+      ui.saveError = '돼장으로 로그인해야 저장할 수 있어요.';
       render(); return;
     }
     ui.saveError = null;
@@ -143,8 +153,8 @@
         return;
       }
       if (code === 'unauthorized') {
-        dropAdmin(); ui.admin = false; ui.pinMsg = '관리자 로그인이 만료됐어요. PIN을 다시 입력하세요.';
-        ui.saveError = '관리자 로그인이 만료돼서 저장하지 못했어요. 관리 탭에서 PIN을 다시 입력한 뒤 저장해 주세요.';
+        adminExpired();
+        ui.saveError = '관리 권한을 다시 확인하느라 저장하지 못했어요. 잠시 뒤 다시 저장해 주세요. 내 변경은 이 기기에 남아 있어요.';
       } else if (code === 'network') ui.saveError = '인터넷에 연결되지 않아 저장하지 못했어요. 연결을 확인하고 다시 저장해 주세요.';
       else if (code === 'too_large') ui.saveError = '데이터가 너무 커서 저장하지 못했어요.';
       else ui.saveError = '저장하지 못했어요 (' + (code || '알 수 없는 오류') + '). 잠시 후 다시 시도해 주세요.';
@@ -179,8 +189,9 @@
       '<span class="hero-side hell" aria-hidden="true">지옥도</span><span class="hero-side heaven" aria-hidden="true">천국도</span></header>' +
       '<div class="season"><span class="season-label">시즌 진행</span><div class="season-bar" aria-label="시즌 진행 ' + done + '/' + ds.length + '주">' + bar + '</div><span class="season-txt num">' + md(ds[0]) + '–' + md(ds[ds.length - 1]) + ' · ' + done + '/' + ds.length + '주 완료</span></div>' +
       // 다승왕전 안쪽 탭: 예전처럼 내 기록·관리도 여기 (2026-11-25 사용자 요청으로 하단 탭에서 되돌림)
-      '<nav class="tabs" role="tablist">' + [['week', '이번 주'], ['rank', '순위'], ['plan', '예측'], ['me', '내 기록'], ['admin', '관리']].map(function (t) {
-        return '<button role="tab" data-act="tab" data-v="' + t[0] + '" aria-selected="' + (ui.tab === t[0]) + '">' + t[1] + (t[0] === 'admin' && !ui.admin && !ui.op ? ' <span class="lock">PIN</span>' : '') + '</button>';
+      // 관리 탭은 돼장·진행 도우미에게만 (회원 역할, 2026-11-27)
+      '<nav class="tabs" role="tablist">' + [['week', '이번 주'], ['rank', '순위'], ['plan', '예측'], ['me', '내 기록'], ['admin', '관리']].filter(function (t) { return t[0] !== 'admin' || ui.admin || ui.op; }).map(function (t) {
+        return '<button role="tab" data-act="tab" data-v="' + t[0] + '" aria-selected="' + (ui.tab === t[0]) + '">' + t[1] + '</button>';
       }).join('') + '</nav>';
   }
 
@@ -890,7 +901,7 @@
     remote.adminListPredictions(token, d).then(function (rows) {
       if (pred.admWeek === d) { pred.admList = rows || []; render(); }
     }, function (e) {
-      if (e.code === 'unauthorized') { dropAdmin(); ui.admin = false; ui.pinMsg = '관리자 로그인이 만료됐어요. PIN을 다시 입력하세요.'; }
+      if (e.code === 'unauthorized') adminExpired();
       else pred.admErr = e.code === 'network' ? '인터넷 연결을 확인해 주세요.' : '예측 목록을 불러오지 못했어요 (' + e.code + ').';
       render();
     });
@@ -1241,7 +1252,7 @@
     }, function (e) { a.busy = false; adminPredFail(e); });
   }
   function adminPredFail(e) {
-    if (e.code === 'unauthorized') { dropAdmin(); ui.admin = false; ui.pinMsg = '관리자 로그인이 만료됐어요. PIN을 다시 입력하세요.'; render(); return; }
+    if (e.code === 'unauthorized') { adminExpired(); toast('관리 권한을 다시 확인했어요. 한 번 더 해 주세요.'); return; }
     toast(e.code === 'bad_quota' ? quotaText(predWeek()) : SUBMIT_ERR[e.code] || '저장하지 못했어요 (' + (e.code || '알 수 없는 오류') + ').');
   }
   function afterAdminPred(d) {
@@ -1266,7 +1277,7 @@
     }, function (e) { sg.busy = false; sg.at = sg.at || Date.now(); sg.err = SG_ERR[e.code] || '명단을 불러오지 못했어요 (' + e.code + ').'; render(); });
   }
   function sgFail(e, admin) {
-    if (e.code === 'unauthorized') { if (admin) { dropAdmin(); ui.admin = false; toast('관리자 로그인이 만료됐어요. 관리 탭에서 PIN을 다시 입력해 주세요.'); } else memberOut('다시 로그인해 주세요.'); return; }
+    if (e.code === 'unauthorized') { if (admin) { adminExpired(); toast('관리 권한을 다시 확인했어요. 한 번 더 해 주세요.'); } else memberOut('다시 로그인해 주세요.'); return; }
     toast(SG_ERR[e.code] || '하지 못했어요 (' + e.code + ').'); loadSignups();
   }
   // 자리가 나서 들어간 사람이 있으면 알림 (실패해도 신청에는 영향 없음)
@@ -1405,9 +1416,11 @@
     ui.me = pid; LS.set(KEY.me, pid); ui.lg = { step: 'group', gid: null, pid: null, has: null, busy: false, msg: '' };
     if (push.sub) pushRebind();
     render(); toast(((pm()[pid] || {}).name || '') + ' 님, 반가워요!');
+    roleSync();   // 돼장·진행 도우미면 관리 열쇠 받기
   }
   function memberOut(msg) {
     member.ok = false; member.token = null; LS.del(MKEY);
+    dropAdmin(); ui.admin = false; ui.op = false;   // 관리 열쇠는 회원 로그인에 붙어 있음
     var p = pm()[ui.me];
     ui.lg = { step: p ? 'name' : 'group', gid: p ? p.group : null, pid: null, has: null, busy: false, msg: msg || '' };
     if (p && p.active !== false) lgPick(p.id, msg); else render();   // 초기화됐으면 '비밀번호 만들기'로
@@ -1493,27 +1506,17 @@
     ui.mb.edit = null; ui.mb.ask = null; save(msg); return true;
   }
 
-  function viewLock() {
-    return '<div class="card lockcard"><div class="pig" aria-hidden="true"></div>' +
-      '<h2>관리 화면 잠금 해제</h2>' +
-      '<p class="muted small">돼장·운영진용 4자리 PIN을 입력하세요.</p>' +
-      '<form id="pin-form" class="row" style="justify-content:center;align-items:flex-end">' +
-      '<label class="f pinf" for="pin1">PIN 4자리<input id="pin1" class="pin num" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off"></label>' +
-      '<button class="btn primary" type="submit"' + (pinBusy ? ' disabled' : '') + '>열기</button></form>' +
-      (ui.pinMsg ? '<p class="small" style="color:var(--err)">' + esc(ui.pinMsg) + '</p>' : '') +
-      '<p class="muted small">PIN은 관리 화면을 여는 열쇠예요. 한 번 열면 이 기기에서는 30일 동안 다시 묻지 않아요.</p></div>';
-  }
-
   function viewAdmin() {
-    if (ui.op) return '<div class="card lockcard"><div class="pig" aria-hidden="true"></div><h2>진행 도우미로 들어와 있어요</h2>' +
-      '<p class="muted small">이번 주 탭의 <b>경기 진행</b>(코트 넣기·이김·빼기, 지금 못 하는 사람)만 할 수 있어요. 이 기기에서 계속 유지되고, 돼장이 진행 PIN을 바꾸거나 끄면 잠겨요.</p>' +
-      '<div class="row" style="justify-content:center"><button class="btn primary" data-act="tab" data-v="week">경기 진행으로</button><button class="btn" data-act="lock">잠그기</button></div>' +
-      '<p class="muted small">돼장 PIN으로 들어가려면 잠근 뒤 다시 입력하세요.</p></div>';
-    if (!ui.admin) return viewLock();
+    if (ui.op) return '<div class="card lockcard"><div class="pig" aria-hidden="true"></div><h2>진행 도우미예요</h2>' +
+      '<p class="muted small">이번 주 탭의 <b>경기 진행</b>(코트 넣기·이김·빼기, 지금 못 하는 사람)만 할 수 있어요. 돼장이 도우미에서 빼면 바로 끝나요.</p>' +
+      '<div class="row" style="justify-content:center"><button class="btn primary" data-act="tab" data-v="week">경기 진행으로</button></div></div>';
+    // 관리 PIN 입력 없음(2026-11-27): 돼장으로 로그인한 회원만
+    if (!ui.admin) return '<div class="card lockcard"><div class="pig" aria-hidden="true"></div><h2>관리는 돼장만 쓸 수 있어요</h2>' +
+      '<p class="muted small">돼장 이름으로 로그인하면 바로 열려요.</p></div>';
     var out = '<div class="row" style="justify-content:space-between"><div class="seg" role="group" aria-label="관리 메뉴">' +
       [['plan', '참석·편성'], ['members', '회원'], ['seeds', '실력 순위'], ['pred', '예측'], ['settings', '설정']].map(function (s) {
         return '<button data-act="sec" data-v="' + s[0] + '" aria-pressed="' + (ui.sec === s[0]) + '">' + s[1] + '</button>';
-      }).join('') + '</div><button class="btn sm" data-act="lock">잠그기</button></div>';
+      }).join('') + '</div></div>';
     if (ui.sec === 'members') return out + viewMembers();
     if (ui.sec === 'seeds') return out + viewSeeds();
     if (ui.sec === 'settings') return out + viewSettings();
@@ -1724,7 +1727,7 @@
     }, function (e) {
       ui.ai.busy = false;
       var code = e && e.code;
-      if (code === 'unauthorized') { dropAdmin(); ui.admin = false; ui.pinMsg = '관리자 로그인이 만료됐어요. PIN을 다시 입력하세요.'; }
+      if (code === 'unauthorized') adminExpired();
       ui.ai.err = AI_ERR[code] || '편성 수정 요청에 실패했어요 (' + (code || '알 수 없는 오류') + '). 잠시 후 다시 해 주세요.';
       render();
     });
@@ -1806,11 +1809,20 @@
     return sgDefaultsCard() +
       '<div class="card"><h2>고정 코트 번호</h2><p class="small muted">경기 진행 화면에 늘 보이는 코트예요. 쉼표로 나눠 적어요(예: 5, 6). 추가 코트는 그날 경기 진행 화면에서 번호 없이 열어요.</p>' +
       '<form id="court-form" class="row" style="align-items:flex-end"><label class="f" for="court-nums">코트 번호<input id="court-nums" class="num" inputmode="numeric" value="' + esc(L.courtSlots(work.settings, null).join(', ')) + '"></label><button class="btn primary" type="submit">바꾸기</button></form></div>' +
-      '<div class="card"><h2>진행 PIN</h2><p class="small muted">경기 진행(코트 넣기·이김·빼기, 지금 못 하는 사람)만 할 수 있는 PIN이에요. 도우미에게 알려 주면 관리 탭에서 이 PIN으로 들어와요. 이 기기에서 계속 유지되고, 관리 PIN과는 달라야 해요. 바꾸거나 끄면 도우미 로그인은 모두 끊겨요.</p>' +
-      '<form id="op-pin-form" class="row" style="align-items:flex-end"><label class="f pinf" for="op-pin">새 진행 PIN<input id="op-pin" class="pin num" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off"></label>' +
-      '<button class="btn primary" type="submit">정하기</button><button class="btn" type="button" data-act="op-pin-off">진행 PIN 끄기</button></form></div>' +
-      '<div class="card"><h2>관리 PIN 바꾸기</h2><form id="pin-change" class="row" style="align-items:flex-end"><label class="f pinf" for="pc0">지금 PIN<input id="pc0" class="pin num" type="password" inputmode="numeric" maxlength="4"></label><label class="f pinf" for="pc1">새 PIN<input id="pc1" class="pin num" type="password" inputmode="numeric" maxlength="4"></label><label class="f pinf" for="pc2">한 번 더 입력<input id="pc2" class="pin num" type="password" inputmode="numeric" maxlength="4"></label><button class="btn" type="submit">바꾸기</button></form></div>' +
+      opCard() +
       '<p class="small muted num">마지막 저장: ' + (saved.savedAt ? new Date(saved.savedAt).toLocaleString('ko-KR') : '-') + ' · 버전 ' + saved.rev + '</p>';
+  }
+
+  // 진행 도우미 지정 (2026-11-27): 돼장이 회원 중에서 고르면 그 회원이 자기 로그인으로 경기 진행만 할 수 있음
+  function opCard() {
+    if (!ui.ops) { ui.ops = []; remote.adminOperators(token).then(function (ids) { ui.ops = ids; render(); }, function (e) { if (e.code === 'unauthorized') adminExpired(); }); }
+    var P = pm(), on = {}; ui.ops.forEach(function (id) { on[id] = 1; });
+    return '<div class="card"><h2>진행 도우미</h2><p class="small muted">경기 진행(코트 넣기·이김·빼기, 지금 못 하는 사람)만 할 수 있는 회원이에요. 그 회원은 자기 이름으로 로그인하면 돼요.</p>' +
+      (ui.ops.length ? '<div class="row op-list">' + ui.ops.map(function (id) { return '<span class="chip">' + esc((P[id] || {}).name || id) + ' <button class="linkbtn" data-act="op-rm" data-p="' + id + '" aria-label="' + esc((P[id] || {}).name || id) + ' 도우미에서 빼기">✕</button></span>'; }).join('') + '</div>' : '<p class="small muted">아직 없어요.</p>') +
+      '<div class="row" style="align-items:flex-end"><label class="f" for="op-pick">회원 고르기<select id="op-pick" data-act="op-pick"><option value="">이름 고르기</option>' + groups().map(function (g) {
+        return '<optgroup label="' + esc(g.name) + '">' + work.players.filter(function (p) { return p.group === g.id && p.active !== false && !on[p.id]; }).sort(function (a, b) { return a.name.localeCompare(b.name, 'ko'); })
+          .map(function (p) { return '<option value="' + p.id + '"' + (ui.opPick === p.id ? ' selected' : '') + '>' + esc(p.name) + '</option>'; }).join('') + '</optgroup>';
+      }).join('') + '</select></label><button class="btn primary" data-act="op-add">도우미로 정하기</button></div></div>';
   }
 
   function saveBar() {
@@ -1843,18 +1855,18 @@
     }).catch(function (e) {
       ui.liveBusy = false;
       var code = e && e.code;
-      if (code === 'unauthorized') { dropAdmin(); ui.admin = false; ui.pinMsg = '로그인이 만료됐어요. PIN을 다시 입력하세요.'; toast('로그인이 만료됐어요. 관리 탭에서 PIN을 다시 입력해 주세요.'); return; }
+      if (code === 'unauthorized') { adminExpired(); toast('관리 권한을 다시 확인했어요. 한 번 더 해 주세요.'); return; }
       toast(LIVE_ERR[code] || (code === 'network' ? '인터넷 연결을 확인해 주세요.' : '저장하지 못했어요 (' + (code || '오류') + ').'));
       reloadState().then(function () { render(); });
     });
   }
-  var AVAIL_ERR = { not_today: '경기날 당일에만 표시할 수 있어요.', not_attending: '이번 주 참석 명단에 없어요.', admin_locked: '돼장이 오늘 못 함으로 표시했어요. 돼장에게 말해 주세요.', bad_minutes: '시간이 잘못됐어요.', unauthorized: '관리자 로그인이 만료됐어요. PIN을 다시 입력해 주세요.', network: '인터넷 연결을 확인해 주세요.' };
+  var AVAIL_ERR = { not_today: '경기날 당일에만 표시할 수 있어요.', not_attending: '이번 주 참석 명단에 없어요.', admin_locked: '돼장이 오늘 못 함으로 표시했어요. 돼장에게 말해 주세요.', bad_minutes: '시간이 잘못됐어요.', unauthorized: '관리 권한을 다시 확인했어요. 한 번 더 해 주세요.', network: '인터넷 연결을 확인해 주세요.' };
   function setAvail(admin, pid, st, minutes) {
     var d = ui.week;
     if (!pid || !d) return;
     var p = admin ? remote.adminSetAvailability(token, d, pid, st, minutes) : remote.setAvailability(d, pid, st, minutes);
     ui.lvPick = ''; if (admin) ui.lvAdd = false;
-    p.then(function () { return loadAvail(d); }).then(function () { render(); }, function (e) { toast(AVAIL_ERR[e && e.code] || '저장하지 못했어요 (' + (e && e.code || '오류') + ').'); });
+    p.then(function () { return loadAvail(d); }).then(function () { render(); }, function (e) { if (e && e.code === 'unauthorized' && (ui.admin || ui.op)) adminExpired(); toast(AVAIL_ERR[e && e.code] || '저장하지 못했어요 (' + (e && e.code || '오류') + ').'); });
   }
   function mainView() {
     return ui.tab === 'home' ? viewHome() : ui.tab === 'signup' ? viewSignup() : ui.tab === 'records' ? viewRecords() : ui.tab === 'rank' ? viewRank() : ui.tab === 'plan' ? viewPredict() : ui.tab === 'me' ? viewMe() : ui.tab === 'admin' ? viewAdmin() : viewWeek();
@@ -1996,7 +2008,7 @@
       case 'mb-reset-yes':
         var rp = ui.mb.edit.id;
         remote.adminResetMemberPin(token, rp).then(function () { ui.mb.ask = null; ui.mb.edit = null; toast('비밀번호를 초기화했어요. 다음에 들어올 때 새로 만들어요.'); loadMemberPins(); },
-          function (e) { if (e.code === 'unauthorized') { dropAdmin(); ui.admin = false; ui.pinMsg = '관리자 로그인이 만료됐어요. PIN을 다시 입력하세요.'; render(); } else toast('초기화하지 못했어요 (' + e.code + ').'); });
+          function (e) { if (e.code === 'unauthorized') { adminExpired(); toast('관리 권한을 다시 확인했어요. 한 번 더 해 주세요.'); } else toast('초기화하지 못했어요 (' + e.code + ').'); });
         break;
       case 'awv': ui.awv = v; render(); break;
       case 'lv-extra': liveEdit(function (w) { return L.setExtraCourt(w, el.getAttribute('data-v') === '1'); }, el.getAttribute('data-v') === '1' ? 'extra_open' : 'extra_close', null, null, null, el.getAttribute('data-v') === '1' ? '추가 코트를 열었어요.' : '추가 코트를 닫았어요.'); break;
@@ -2007,7 +2019,12 @@
       case 'lv-start': ui.lvSheet = null; liveEdit(function (w, t) { return L.startMatch(w, el.getAttribute('data-m'), +el.getAttribute('data-c'), t, L.courtSlots(work.settings, w)); }, 'start', el.getAttribute('data-m'), +el.getAttribute('data-c'), null, '코트에 넣었어요.'); break;
       case 'lv-win': ui.lvSheet = null; liveEdit(function (w, t) { return L.finishMatch(w, el.getAttribute('data-m'), el.getAttribute('data-side'), t); }, 'finish', el.getAttribute('data-m'), null, el.getAttribute('data-side'), '결과를 저장했어요.'); break;
       case 'lv-cancel': ui.lvSheet = null; liveEdit(function (w) { return L.cancelMatch(w, el.getAttribute('data-m')); }, 'cancel', el.getAttribute('data-m'), null, null, '코트에서 뺐어요.'); break;
-      case 'op-pin-off': remote.setOperatorPin(token, null).then(function () { toast('진행 PIN을 껐어요. 도우미 로그인도 모두 끊겼어요.'); }, function (e) { toast('진행 PIN을 끄지 못했어요 (' + e.code + ').'); }); break;
+      case 'op-add': case 'op-rm':   // 진행 도우미 지정·해제 (2026-11-27)
+        var opid = act === 'op-add' ? ui.opPick : el.getAttribute('data-p');
+        if (!opid) { toast('도우미로 정할 회원을 골라 주세요.'); break; }
+        remote.adminSetOperator(token, opid, act === 'op-add').then(function (ids) { ui.ops = ids; ui.opPick = ''; toast(act === 'op-add' ? '진행 도우미로 정했어요. 그 회원이 앱을 다시 열면 경기 진행을 할 수 있어요.' : '진행 도우미에서 뺐어요.'); render(); },
+          function (e) { if (e.code === 'unauthorized') adminExpired(); else toast(e.code === 'is_admin' ? '돼장은 이미 다 할 수 있어요.' : e.code === 'bad_player' ? '회원 명단에 없는 사람이에요.' : '바꾸지 못했어요 (' + e.code + ').'); });
+        break;
       case 'lv-grp': ui.lvGroup = v || null; render(); break;
       case 'lv-add': ui.lvAdd = !ui.lvAdd; ui.lvPick = ''; render(); break;
       case 'lv-pick': ui.lvPick = el.getAttribute('data-p') || ''; render(); break;
@@ -2025,7 +2042,6 @@
       case 'rankg': ui.rankGroup = v; render(); break;
       case 'sec':
         if (v === 'members') loadMemberPins(); ui.sec = v; SS.set(SKEY.sec, v); render(); break;
-      case 'lock': ui.admin = false; ui.op = false; forgetAdmin(); render(); break;
       case 'win':
         m = findMatch(el.getAttribute('data-m')); if (!m) return;
         m.win = m.win === el.getAttribute('data-side') ? null : el.getAttribute('data-side');
@@ -2165,6 +2181,7 @@
     var m, P = pm();
     switch (act) {
       case 'sg-adm-pick': ui.sgPick[el.getAttribute('data-v')] = el.value; break;
+      case 'op-pick': ui.opPick = el.value; break;
       case 'pa-player': if (ui.pred.adm) ui.pred.adm.player = el.value; break;
       case 'pa-mode': if (ui.pred.adm) ui.pred.adm.mode = el.value; break;
       case 'pa-pick': if (ui.pred.adm) ui.pred.adm.picks[+el.getAttribute('data-i')] = el.value; break;
@@ -2234,48 +2251,10 @@
         function (e) { if (e.code === 'unauthorized') memberOut('다시 로그인해 주세요.'); else toast(e.code === 'wrong_pin' ? '지금 비밀번호가 맞지 않아요.' : '바꾸지 못했어요 (' + e.code + ').'); });
       return;
     }
-    if (f.id === 'pin-form') {
-      var p1 = document.getElementById('pin1').value;
-      if (!/^\d{4}$/.test(p1)) { ui.pinMsg = '숫자 4자리를 입력하세요.'; render(); return; }
-      if (pinBusy) return;
-      pinBusy = true; ui.pinMsg = ''; render();
-      remote.login(p1).then(function (t) {
-        if (t) { pinBusy = false; rememberAdmin(t); ui.admin = true; ui.op = false; render(); return; }
-        // 관리 PIN이 아니면 진행 PIN인지 (진행 도우미: 계속 유지, 경기 진행만)
-        return remote.operatorLogin(p1).catch(function (e) { if (e && e.code === 'no_op_pin') return null; throw e; }).then(function (ot) {
-          pinBusy = false;
-          if (!ot) { ui.pinMsg = 'PIN이 맞지 않아요.'; render(); return; }
-          token = ot; R.saveToken(LS, ot, Date.now(), 'operator', Date.now() + R.OP_DAYS * 864e5);
-          ui.op = true; ui.admin = false; ui.tab = 'week'; LS.set(KEY.tab, 'week'); toast('진행 도우미로 들어왔어요. 이 기기에서 계속 유지돼요.');
-        });
-      }).catch(function (e) {
-        pinBusy = false;
-        ui.pinMsg = e.code === 'no_pin' ? '관리 PIN이 아직 설정되지 않았어요. 설치 안내(README)대로 PIN을 먼저 정해 주세요.' :
-          e.code === 'network' ? '인터넷 연결을 확인하고 다시 해 주세요.' : '잠금을 해제하지 못했어요 (' + e.code + ').';
-        render();
-      });
-    } else if (f.id === 'court-form') {
+    if (f.id === 'court-form') {
       var nums = document.getElementById('court-nums').value.split(/[,\s]+/).filter(Boolean).map(Number);
       if (!nums.length || nums.some(function (n) { return !(n >= 1 && n <= 99 && n === Math.floor(n)); }) || new Set(nums).size !== nums.length) { toast('1~99 숫자를 쉼표로 나눠 적어 주세요 (예: 5, 6).'); return; }
       work.settings.courts = nums; save();
-    } else if (f.id === 'op-pin-form') {
-      var np = document.getElementById('op-pin').value;
-      if (!/^\d{4}$/.test(np)) { toast('숫자 4자리를 입력하세요.'); return; }
-      remote.setOperatorPin(token, np).then(function () { document.getElementById('op-pin').value = ''; toast('진행 PIN을 정했어요. 도우미에게 알려 주세요.'); }, function (e) {
-        toast(e.code === 'same_as_admin' ? '관리 PIN과 다른 번호로 정해 주세요.' : e.code === 'unauthorized' ? '관리자 로그인이 만료됐어요. PIN을 다시 입력해 주세요.' : '진행 PIN을 정하지 못했어요 (' + e.code + ').');
-      });
-    } else if (f.id === 'pin-change') {
-      var o = document.getElementById('pc0').value, a = document.getElementById('pc1').value, b = document.getElementById('pc2').value;
-      if (!/^\d{4}$/.test(o)) { toast('지금 PIN 4자리를 입력하세요.'); return; }
-      if (!/^\d{4}$/.test(a) || a !== b) { toast('새 PIN 4자리를 두 번 똑같이 입력하세요.'); return; }
-      remote.changePin(token, o, a).then(function () {
-        toast('PIN을 바꿨어요. 다른 기기에서는 새 PIN을 다시 입력해야 해요.');
-      }, function (e) {
-        if (e.code === 'bad_pin') toast('지금 PIN이 맞지 않아요.');
-        else if (e.code === 'same_as_operator') toast('진행 PIN과 다른 번호로 정해 주세요.');
-        else if (e.code === 'unauthorized') { dropAdmin(); ui.admin = false; ui.pinMsg = '관리자 로그인이 만료됐어요. PIN을 다시 입력하세요.'; render(); }
-        else toast('PIN을 바꾸지 못했어요 (' + e.code + ').');
-      });
     } else if (f.id === 'add-player') {
       var nm = document.getElementById('np-name').value.trim(), g = document.getElementById('np-group').value;
       if (!nm) return;
@@ -2338,6 +2317,7 @@
     if (member.token) remote.memberCheck(member.token).then(function (pid) {
       if (!pid) { memberOut('다시 로그인해 주세요.'); return; }
       if (pid !== ui.me || !member.ok) { ui.me = pid; LS.set(KEY.me, pid); member.ok = true; render(); }
+      roleSync();   // 돼장·도우미 역할을 열 때마다 다시 확인(해제됐으면 관리 탭이 사라짐)
     }, function () { });
     // 돼블스플랜: 마감된 주의 예측(보너스 계산용), 카운트다운·다시 읽기 타이머
     loadAllPreds().then(render);
@@ -2345,11 +2325,6 @@
     // 참가 탭·홈을 보고 있으면 30초마다 명단 새로 (다른 사람 신청·취소 반영)
     setInterval(function () { if (member.ok && (ui.tab === 'signup' || ui.tab === 'home') && document.visibilityState === 'visible' && !sg.busy) loadSignups(); }, 30000);
     document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible' && pred.week) { refreshPred(); loadAllPreds().then(render); } });
-    // 기억한 토큰이 만료·무효(PIN 변경 등)면 PIN 입력 화면으로
-    if (token) remote.liveCheck(token).then(function (role) {
-      if (!role) { dropAdmin(); ui.admin = false; render(); return; }
-      if ((role === 'admin') !== ui.admin) { ui.admin = role === 'admin'; ui.op = role === 'operator'; render(); }
-    }, function () { });
   }
   try { remote = R.connect(window.DDW_CONFIG, window.supabase); }
   catch (e) { bootView(e.code === 'config' ? 'config.js에 Supabase 주소와 키를 넣어 주세요.' : '데이터를 불러오지 못했어요.', e.code !== 'config'); return; }
