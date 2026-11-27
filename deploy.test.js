@@ -792,6 +792,16 @@ test('로그인: 토큰 없는 기기는 예전에 고른 이름으로 바로 �
   assert.ok(boot.length > 0 && !/lgPick\(/.test(boot) && !/ui\.lg\.step = 'name'/.test(boot), '처음 열 때 남의 비밀번호 단계로 안 감');
   assert.ok(/function memberOut\([\s\S]*?lgPick\(p\.id/.test(appSrc), '로그인했던 사람이 풀렸을 때(초기화·만료)만 그 이름 비밀번호 단계로');
 });
+test('참가 4가지 (2026-11-27 15:55): 끝난 주는 탭에서 빼기 · 명단 이름 옆 (급수) 없음 · 오른쪽 순서 번호 없음(대기만) · 꽉 차면 대기 신청 버튼', () => {
+  const card = appSrc.match(/function sgCard\([^)]*\) \{[\s\S]*?\n  \}\n/)[0], pl = appSrc.match(/function sgListModal\([^)]*\) \{[\s\S]*?\n  \}\n/)[0];
+  const vs = appSrc.match(/function viewSignup\(\) \{[\s\S]*?\n  \}\n/)[0], vh = appSrc.match(/function viewHome\(\) \{[\s\S]*?\n  \}\n/)[0];
+  assert.ok(/L\.signupOpenWeeks\(/.test(vs) && /L\.signupOpenWeeks\(/.test(vh), '참가 탭·홈 둘 다 끝난 주 빼기');
+  assert.ok(!/esc\(p\.grade\)/.test(pl), '이름 옆 (급수) 없음');
+  assert.ok(!/e\.status === 'in' \? e\.no/.test(pl) && /e\.status === 'in' \? '' : '<span class="sgm-no num">대기 ' \+ e\.no/.test(pl), '신청 순서 번호 없음, 대기만');
+  const cb = appSrc.match(/function clubBar\([^)]*\) \{[\s\S]*?\n  \}\n/)[0];
+  assert.ok(/ui\.tab === 'home'/.test(cb) && /class="cb-me"/.test(cb) && /class="face face-' \+ GRADE_CH\[/.test(cb), '홈 맨 위 오른쪽에 내 급수 얼굴 + 내 이름 (15:55)');
+  assert.ok(/var waitCta = sd\.full && row\.open && !mine;/.test(card) && /\(waitCta \? '<button class="btn sg-waitcta" data-act="sg-apply" data-v="' \+ d \+ '">대기 신청하기<\/button>'/.test(card), '꽉 차면 대기 신청 버튼(꽉 찬 날·열린 날·내가 아직 없을 때)');
+});
 test('service worker: index.html network-first, supabase는 캐시 안 함', () => {
   const sw = fs.readFileSync(path.join(__dirname, 'dist', 'sw.js'), 'utf8');
   const cached = [];

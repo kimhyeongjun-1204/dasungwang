@@ -1026,6 +1026,14 @@ var Logic = (function () {
       return { from: f, to: addDays(f, 4), label: weekend ? (k ? '다다음 주' : '다음 주') : (k ? '다음 주' : '이번 주') };
     });
   }
+  // 탭에 띄울 주: 오늘부터 남은 날이 모두 쉬는 날이면 그 주는 뺌(예: 금요일 청백전으로 쉬면 이번 주 끝 → 다음 주만). 명단 못 받은 날은 열린 것으로 봄 (2026-11-27)
+  function signupOpenWeeks(ws, rows, today) {
+    var out = ws.filter(function (w) {
+      for (var d = w.from; d <= w.to; d = addDays(d, 1)) { if (d < today) continue; var r = rows && rows[d]; if (!r || !r.closed) return true; }
+      return false;
+    });
+    return out.length ? out : ws;
+  }
   // 하루 명단(signups_list 한 줄) → 신청 완료·대기 수, 남은 자리, 내 상태, 내가 데려온 게스트
   function signupDay(row, pid) {
     var es = row.entries || [], inC = 0, waitC = 0, mine = null, guests = [];
@@ -1049,7 +1057,7 @@ var Logic = (function () {
     homeSummary: homeSummary,
     bandTime: bandTime,
     signupWeeks: signupWeeks, signupDay: signupDay,
-    GRADES: GRADES, gradeGroup: gradeGroup, SG_TABS: SG_TABS, sgFilter: sgFilter, backStep: backStep, loginGroups: loginGroups, memberEdit: memberEdit, pinError: pinError,
+    GRADES: GRADES, gradeGroup: gradeGroup, SG_TABS: SG_TABS, sgFilter: sgFilter, backStep: backStep, signupOpenWeeks: signupOpenWeeks, loginGroups: loginGroups, memberEdit: memberEdit, pinError: pinError,
     startTab: startTab,
     LIVE: LIVE, typicalMinutes: typicalMinutes, courtEta: courtEta, courtSlots: courtSlots, courtLabel: courtLabel, setExtraCourt: setExtraCourt, liveBoard: liveBoard, shortNames: shortNames, startMatch: startMatch, finishMatch: finishMatch, cancelMatch: cancelMatch, myLive: myLive,
     meRecord: meRecord, matchStarted: matchStarted, livePrediction: livePrediction, predictionRecord: predictionRecord,
