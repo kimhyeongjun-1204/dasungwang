@@ -1694,6 +1694,8 @@
     if (!el || el.tagName === 'SELECT' || el.tagName === 'INPUT') return;
     var act = el.getAttribute('data-act'), v = el.getAttribute('data-v');
     if (act === 'retry') { location.reload(); return; }
+    // 시작 오류 화면의 '처음 상태로 열기': 이 기기의 화면 기억(임시 저장·탭·주·보기)만 지움. 내 이름·관리자 로그인은 그대로
+    if (act === 'boot-reset') { [KEY.draft, KEY.tab, KEY.wview].forEach(function (k) { LS.del(k); }); try { sessionStorage.removeItem(SKEY.week); sessionStorage.removeItem(SKEY.sec); } catch (e2) { } location.reload(); return; }
     if (!work) return;
     var w, m, P;
     switch (act) {
@@ -1952,6 +1954,14 @@
     document.getElementById('app').innerHTML = '<main><div class="card empty"><div class="pig" aria-hidden="true"></div><b>' + esc(msg) + '</b>' +
       (retry ? '<p class="muted">인터넷 연결을 확인하고 다시 시도해 주세요.</p><button class="btn primary" data-act="retry">다시 시도</button>' : '') + '</div></main>';
   }
+  // 화면을 그리다 오류가 나면 '불러오는 중'에 멈추지 않고 오류 내용과 다시 시도 (2026-11-27 폰에서 멈춘 일)
+  function bootError(e) {
+    if (window.console) console.error(e);
+    document.getElementById('app').innerHTML = '<main><div class="card empty"><div class="pig" aria-hidden="true"></div><b>화면을 그리지 못했어요</b>' +
+      '<p class="muted small">' + esc(String((e && e.message) || e).slice(0, 200)) + '</p>' +
+      '<div class="row" style="justify-content:center"><button class="btn primary" data-act="retry">다시 시도</button><button class="btn" data-act="boot-reset">처음 상태로 열기</button></div>' +
+      '<p class="muted small">계속 이러면 이 화면을 캡처해서 보내 주세요.</p></div></main>';
+  }
   function start(state) {
     saved = state; work = clone(saved);
     restoreDraft();
@@ -1976,5 +1986,7 @@
   try { remote = R.connect(window.DDW_CONFIG, window.supabase); }
   catch (e) { bootView(e.code === 'config' ? 'config.js에 Supabase 주소와 키를 넣어 주세요.' : '데이터를 불러오지 못했어요.', e.code !== 'config'); return; }
   pushInit();
-  remote.load().then(start, function (e) { if (window.console) console.error(e); bootView('데이터를 불러오지 못했어요.', true); });
+  // 15초 넘게 못 받으면 다시 시도 버튼 (나중에라도 받으면 그대로 앱이 열림)
+  var bootTimer = setTimeout(function () { if (!saved) bootView('불러오는 데 오래 걸려요.', true); }, 15000);
+  remote.load().then(function (s) { clearTimeout(bootTimer); try { start(s); } catch (e) { bootError(e); } }, function (e) { clearTimeout(bootTimer); if (window.console) console.error(e); bootView('데이터를 불러오지 못했어요.', true); });
 })();
