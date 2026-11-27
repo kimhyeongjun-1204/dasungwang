@@ -1280,7 +1280,7 @@
       '<div class="sgm-tabs" role="tablist" aria-label="급수">' + L.SG_TABS.map(function (t) {
         var n = L.sgFilter(all, P, t.id).length;
         return '<button role="tab" aria-selected="' + (tab === t.id) + '" data-act="sg-ltab" data-v="' + t.id + '" aria-label="' + t.label + ' ' + n + '명"' + (t.id !== 'all' && !n ? ' class="none"' : '') + '>' +
-          (t.id === 'all' ? '<b>전체</b>' : '<i class="face face-' + t.id + '" aria-hidden="true"></i>') + '<small class="num">' + n + '</small></button>';
+          (t.id === 'all' ? '<b>전체</b>' : '<span class="sgm-tf">' + t.faces.map(function (f) { return '<i class="face face-' + f + '" aria-hidden="true"></i>'; }).join('') + '</span>') + '<small class="num">' + n + '</small></button>';
       }).join('') + '</div>' +
       '<ol class="sgm-list">' + (es.length ? es.map(function (e) {
         var p = e.player_id ? P[e.player_id] || {} : null, ch = p ? GRADE_CH[p.grade] : null;

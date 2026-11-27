@@ -968,14 +968,17 @@ var Logic = (function () {
   // ---- 회원 로그인·회원 관리 (2026-11-26) ----
   var GRADES = ['캐비어', '랍스터', '소갈비', '양갈비', '돼지갈비', '닭갈비'];
   function gradeGroup(g) { var i = GRADES.indexOf(g); return i < 0 ? null : ['A', 'B', 'C'][i >> 1]; }
-  // 참가자 창 탭: 전체 + 급수 6개 각각. id는 얼굴 아이콘 이름(face-cv…). 게스트·급수 없는 사람은 전체에만 (2026-11-27)
-  var SG_TABS = [{ id: 'all', label: '전체' }, { id: 'cv', label: '캐비어' }, { id: 'lb', label: '랍스터' }, { id: 'bf', label: '소갈비' }, { id: 'lm', label: '양갈비' }, { id: 'pk', label: '돼지갈비' }, { id: 'ck', label: '닭갈비' }];
+  // 참가자 창 탭: 전체(신청 순) + 두 급수씩 묶음 3개(얼굴 두 개). 묶음 안은 급수 높은 순, 같은 급수는 신청 순.
+  // 게스트·급수 없는 사람은 전체에만 (2026-11-27 김형준 14:24)
+  var SG_TABS = [{ id: 'all', label: '전체' }, { id: 'A', label: '캐비어·랍스터', faces: ['cv', 'lb'] }, { id: 'B', label: '소갈비·양갈비', faces: ['bf', 'lm'] }, { id: 'C', label: '돼지갈비·닭갈비', faces: ['pk', 'ck'] }];
   // 폰 뒤로 가기 한 번에 할 일: 팝업이 열려 있으면 닫기 → 홈이 아니면 홈으로 → 홈이면 null(앱 밖으로) (2026-11-27)
   function backStep(u) { return u.sgList || u.sgGuest ? 'modal' : u.tab && u.tab !== 'home' ? 'home' : null; }
   function sgFilter(es, P, tab) {
     if (!tab || tab === 'all') return es.slice();
-    var t = SG_TABS.filter(function (x) { return x.id === tab; })[0];
-    return es.filter(function (e) { return t && e.player_id && P[e.player_id] && P[e.player_id].grade === t.label; });
+    var gi = function (e) { return GRADES.indexOf(P[e.player_id].grade); };
+    return es.map(function (e, i) { return { e: e, i: i }; })
+      .filter(function (x) { return x.e.player_id && P[x.e.player_id] && gradeGroup(P[x.e.player_id].grade) === tab; })
+      .sort(function (x, y) { return gi(x.e) - gi(y.e) || x.i - y.i; }).map(function (x) { return x.e; });
   }
   // 로그인 화면: 조마다 활동 회원만 가나다순
   function loginGroups(players, groups) {

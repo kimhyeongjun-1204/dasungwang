@@ -764,7 +764,7 @@ test('참가 카드: 밴드처럼 체크 버튼으로 신청, "15/22 ›" 누르
   assert.ok(/class="sg-count"[^>]*data-act="sg-list"/.test(card) && /sd\.inCount \+ '<\/em>\/' \+ row\.cap/.test(card) && /›/.test(card), '"15/22 ›" 누르면 명단');
   assert.ok(!/명단 ' \+/.test(card) && !/sg-main/.test(card) && !/sg-bar/.test(card), '예전 신청 큰 버튼·명단 버튼·막대 뺌');
   assert.ok(/L\.SG_TABS\.map/.test(pl) && /data-act="sg-ltab"/.test(pl) && /L\.sgFilter\(/.test(pl), '참가자 창 급수 탭');
-  assert.ok(/class="face face-' \+ t\.id/.test(pl), '탭은 급수 얼굴 아이콘');
+  assert.ok(/t\.faces\.map\(/.test(pl) && /class="face face-' \+ f/.test(pl), '묶음 탭은 두 급수 얼굴 아이콘 (14:24)');
   assert.ok(!/sgListModal\(|sgGuestModal\(/.test(card), '팝업은 카드 밖에서 그림(흐린 카드 안이면 다음 카드에 깔림)');
   assert.ok(/class="face face-' \+ ch/.test(pl) && !/class="ch ch-/.test(pl), '프로필 자리는 얼굴만 나오는 아이콘');
   assert.ok(!/체크하면/.test(card), '"체크하면 신청" 문구 없음');

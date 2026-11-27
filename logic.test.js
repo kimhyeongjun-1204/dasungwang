@@ -1177,18 +1177,16 @@ test('bandTime: 신청 일시를 밴드처럼 "2026년 11월 26일 오후 2:38" 
   assert.strictEqual(L.bandTime(null), '');
 });
 
-test('sgFilter: 참가자 탭 — 전체 + 급수 6개 각각 (게스트·급수 없음은 전체에만, 2026-11-27 김형준)', () => {
-  assert.deepStrictEqual(L.SG_TABS.map(t => t.id + ':' + t.label), ['all:전체', 'cv:캐비어', 'lb:랍스터', 'bf:소갈비', 'lm:양갈비', 'pk:돼지갈비', 'ck:닭갈비']);
-  const P = { a: { grade: '캐비어' }, b: { grade: '양갈비' }, c: { grade: '닭갈비' }, d: { grade: '랍스터' }, e: {}, f: { grade: '캐비어' } };
-  const es = [{ id: 1, player_id: 'a' }, { id: 2, player_id: 'b' }, { id: 3, player_id: null, guest: '친구' }, { id: 4, player_id: 'c' }, { id: 5, player_id: 'd' }, { id: 6, player_id: 'e' }, { id: 7, player_id: 'zz' }, { id: 8, player_id: 'f' }];
+test('sgFilter: 참가자 탭 — 전체 + 두 급수씩 묶음 3개, 묶음 안은 급수 높은 순(같은 급수는 신청 순) (2026-11-27 김형준 14:24)', () => {
+  assert.deepStrictEqual(L.SG_TABS.map(t => t.id + ':' + t.label + ':' + (t.faces || []).join('+')), ['all:전체:', 'A:캐비어·랍스터:cv+lb', 'B:소갈비·양갈비:bf+lm', 'C:돼지갈비·닭갈비:pk+ck']);
+  const P = { a: { grade: '캐비어' }, b: { grade: '양갈비' }, c: { grade: '닭갈비' }, d: { grade: '랍스터' }, e: {}, f: { grade: '캐비어' }, g: { grade: '소갈비' }, h: { grade: '돼지갈비' } };
+  const es = [{ id: 1, player_id: 'd' }, { id: 2, player_id: 'b' }, { id: 3, player_id: null, guest: '친구' }, { id: 4, player_id: 'c' }, { id: 5, player_id: 'a' }, { id: 6, player_id: 'e' }, { id: 7, player_id: 'zz' }, { id: 8, player_id: 'f' }, { id: 9, player_id: 'g' }, { id: 10, player_id: 'h' }];
   const ids = tab => L.sgFilter(es, P, tab).map(e => e.id);
-  assert.deepStrictEqual(ids('all'), [1, 2, 3, 4, 5, 6, 7, 8]);
-  assert.deepStrictEqual(ids('cv'), [1, 8]);
-  assert.deepStrictEqual(ids('lb'), [5]);
-  assert.deepStrictEqual(ids('lm'), [2]);
-  assert.deepStrictEqual(ids('ck'), [4]);
-  assert.deepStrictEqual(ids('bf'), []);
-  assert.deepStrictEqual(ids(undefined), [1, 2, 3, 4, 5, 6, 7, 8], '탭 없으면 전체');
+  assert.deepStrictEqual(ids('all'), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], '전체는 신청 순 그대로');
+  assert.deepStrictEqual(ids('A'), [5, 8, 1], '캐비어(신청 순) → 랍스터');
+  assert.deepStrictEqual(ids('B'), [9, 2], '소갈비 → 양갈비');
+  assert.deepStrictEqual(ids('C'), [10, 4], '돼지갈비 → 닭갈비');
+  assert.deepStrictEqual(ids(undefined), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], '탭 없으면 전체');
 });
 
 test('backStep: 폰 뒤로 가기 한 번 = 팝업 닫기 → 홈으로 → (홈이면) 앱 밖 (2026-11-27 김형준)', () => {
