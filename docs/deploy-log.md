@@ -1663,3 +1663,8 @@ $ node logic.test.js; node deploy.test.js   (테스트 먼저 FAIL 2건 확인 �
   - 확인: 운영과 같은 상태(main의 schema.sql만 넣은 새 DB)에 묶음을 넣고 → 한 번 더 넣어도 오류 없음(여러 번 돌려도 같음) → members 43 · signups 44 ok
   - deploy 테스트: 묶음이 schema.sql과 글자까지 같은지, 지우는 SQL(drop table·truncate·app_state 지우기)이 없는지. 역검증: 묶음의 잠금 시간을 바꾸면 FAIL
 - 가짜 서버 E2E(합친 브랜치): 로그인(새 기기 만들기·다시 열기 유지·잠금·예전 사용자), 회원 관리(급수·조 따로), 참가(신청·대기·게스트·취소 확인·다른 회원 대기 3번·돼장 정원 30 → 대기 3명 입장 + 알림 호출·쉬는 날·명단 넣기·기본 정원) 모두 예상대로, 페이지 오류 0·가로 넘침 없음
+- **운영 DB SQL 실행(2026-11-27 11:5x, 김형준 "sql 진행")**: Claude in Chrome으로 Supabase SQL Editor(project ovnagheqsygclposiemh)에 GitHub raw `8b9b7bb`의 묶음 파일을 받아 넣음 — 받은 파일과 편집기 내용 모두 SHA-256 `1542f9bf…3d23`(커밋된 파일과 같음), 335줄
+  - "Potential issue detected(destructive operations)" 경고: 함수 안의 delete(만료 세션 정리·로그아웃·초기화·신청 취소)와 revoke 때문. 지금 바로 지우는 문장은 없음(테스트로 drop table·truncate·app_state 지우기 없음 확인) → Run query → "Success. No rows returned"
+  - Chrome 자동 번역이 켜져 있었지만 편집기 내용은 SHA로 같은지 확인했고, 결과는 아래처럼 API로 따로 확인
+  - 실행 뒤 공개 키로 확인: member_has_pin(p010) → 200 false · workout_defaults → [24, 18, 24, 18, 24] · signups_list(11/30~12/4) → 정원 24·18… 빈 명단 · 토큰 없이 signup_apply → unauthorized · 비밀번호 없는 회원 로그인 → no_pin · member_pin·signup 표 직접 읽기 → 401(권한 없음) · app_state rev 508 그대로
+  - 앱 코드는 아직 머지 전이라 회원 화면은 그대로. 머지는 김형준 요청대로 밤 10시 예약
