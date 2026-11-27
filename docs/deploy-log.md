@@ -1536,3 +1536,4 @@ $ node logic.test.js; node deploy.test.js   (테스트 먼저 FAIL 2건 확인 �
 - 가짜 서버, 시계 11/26·11/27·11/28, 360·390·1024px: 11/26 D-1·11/27 D-DAY에 버튼(href 그 주소 · target _blank · rel noopener · 높이 40px), 11/28엔 청백전 카드 없음, a 안 a 0개, 가로 넘침·오류 없음
 - 고친 것(화면 확인 중): 360px에서 "📺 실시간 점수판 ›"의 ›가 다음 줄로 → › 빼고 한 줄로
 - 사진: docs/screenshots/cheongbaek-live/home_card_360.jpg
+- 배포(2026-11-27 09:5x): 김형준 "진행" → #34 squash 머지(ed713c3) → GitHub Pages 배포 success → 실제 사이트(Chrome)에서 홈 청백전 카드 'D-DAY · 📺 실시간 점수판'(href 그 주소, target _blank) 확인, 뚠뚠배 카드는 그대로
