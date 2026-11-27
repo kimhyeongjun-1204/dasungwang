@@ -1668,3 +1668,7 @@ $ node logic.test.js; node deploy.test.js   (테스트 먼저 FAIL 2건 확인 �
   - Chrome 자동 번역이 켜져 있었지만 편집기 내용은 SHA로 같은지 확인했고, 결과는 아래처럼 API로 따로 확인
   - 실행 뒤 공개 키로 확인: member_has_pin(p010) → 200 false · workout_defaults → [24, 18, 24, 18, 24] · signups_list(11/30~12/4) → 정원 24·18… 빈 명단 · 토큰 없이 signup_apply → unauthorized · 비밀번호 없는 회원 로그인 → no_pin · member_pin·signup 표 직접 읽기 → 401(권한 없음) · app_state rev 508 그대로
   - 앱 코드는 아직 머지 전이라 회원 화면은 그대로. 머지는 김형준 요청대로 밤 10시 예약
+- **미리보기(2026-11-27 12:1x, 김형준 "미리보기 만들기")**: 머지 전에 직접 눌러 보도록 새 공개 저장소 `kimhyeongjun-1204/dasungwang-preview`(사용자 Chrome에서 만듦, 이 세션 GitHub 권한으로는 저장소를 못 만들어서) → feat/signups `01879fe` 빌드 결과만 올리고 GitHub Pages(main / 루트) 켬 → https://kimhyeongjun-1204.github.io/dasungwang-preview/ 200
+  - 맨 위 빨간 띠 "미리보기 · 실제 DB를 써서 신청·비밀번호가 실제로 남아요", 창 제목·manifest 이름에 '미리보기'
+  - 같은 주소(github.io)라 이 기기 저장값(ddw-me 등)을 실제 앱과 같이 씀 → PC Chrome은 ddw-me가 김성곤이라 미리보기가 '김성곤 님 비밀번호 만들기'로 열림(만들지 않음). 사용자에게 '‹ 이름 다시 고르기'로 본인 이름을 고르라고 안내
+  - 확인 끝나면 저장소는 지워도 됨
