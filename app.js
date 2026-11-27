@@ -1319,7 +1319,6 @@
     var out = '<div class="seg sg-weeks" role="group" aria-label="주">' + ws.map(function (w, i) {
       return '<button data-act="sg-week" data-v="' + i + '" aria-pressed="' + (ui.sgWeek === i) + '"><b>' + w.label + '</b><small class="num">' + md(w.from) + '–' + md(w.to) + '</small></button>';
     }).join('') + '</div>';
-    out += '<p class="small muted">동그라미를 체크하면 바로 신청돼요. 정원이 차면 대기 순서대로 자동으로 들어가고, 알림을 켠 사람에게는 자리가 났다고 알려요.</p>';
     if (sg.err) out += '<div class="banner warn"><span>' + esc(sg.err) + '</span><button class="btn sm" data-act="sg-reload">다시 불러오기</button></div>';
     for (var d = wk.from; d <= wk.to; d = addDay(d)) out += sgCard(d, sg.rows[d], P, adm, t);
     return out;

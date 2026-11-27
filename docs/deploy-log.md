@@ -1720,3 +1720,7 @@ $ node logic.test.js; node deploy.test.js   (테스트 먼저 FAIL 2건 확인 �
 - 역검증: 급수 대신 예전처럼 두 급수 묶음으로 거르면 logic FAIL 1 · 프로필을 전신 아이콘으로 되돌리면 deploy FAIL 1
 - 가짜 서버 Playwright 360·1024px: 카드 "월요민턴 15/24 ›"(문구 없음) / 탭 전체 27·캐비어 4·랍스터 3·소갈비 6·양갈비 6·돼지갈비 4·닭갈비 4, 탭마다 그 급수만 / 탭 한 칸 너비 360px 40px · 1024px 59px, 가로 넘침 없음 · 페이지 오류 0
 - 사진: docs/screenshots/signup-modal/list_faces_all_360.jpg · list_faces_lm_360.jpg · card_check_360.jpg(다시 찍음)
+
+## 82. 참가 탭 맨 위 안내문 뺌 (2026-11-27)
+- 요청(김형준 14:06): "동그라미를 체크하면 바로 신청돼요. 정원이 차면…" 문구 다 빼기
+- 테스트 먼저(문구 없어야 함) FAIL 확인 → 줄 삭제 → deploy 73 · logic 151 passed. 빌드 결과에도 문구 0개

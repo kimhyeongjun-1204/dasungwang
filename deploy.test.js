@@ -766,6 +766,7 @@ test('참가 카드: 밴드처럼 체크 버튼으로 신청, "15/22 ›" 누르
   assert.ok(/class="face face-' \+ t\.id/.test(pl), '탭은 급수 얼굴 아이콘');
   assert.ok(/class="face face-' \+ ch/.test(pl) && !/class="ch ch-/.test(pl), '프로필 자리는 얼굴만 나오는 아이콘');
   assert.ok(!/체크하면/.test(card), '"체크하면 신청" 문구 없음');
+  assert.ok(!/동그라미를 체크하면|대기 순서대로 자동으로/.test(appSrc), '참가 탭 맨 위 안내문 없음 (14:06)');
   assert.ok(/case 'sg-ltab':/.test(appSrc) && /case 'sg-list': ui\.sgList = v; ui\.sgTab = 'all'/.test(appSrc), '탭 바꾸기, 열 때는 전체');
 });
 test('service worker: index.html network-first, supabase는 캐시 안 함', () => {
