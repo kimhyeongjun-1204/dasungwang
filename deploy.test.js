@@ -813,6 +813,14 @@ test('내 정보 탭: 하단 탭 다섯 번째, 달력(운동함·신청·대기
   assert.ok(/ui\.tab === 'my' \? viewMy\(\)/.test(appSrc), '탭 연결');
   assert.ok(/my: '[^']*내 정보'/.test(appSrc), '맨 위 제목');
 });
+test('이달의 출석왕: 기록 탭에 달별 순위(얼굴·이름·횟수, 내 줄 강조), 내 정보에 내 출석·순위 (2026-11-27 김형준)', () => {
+  const vr = appSrc.match(/function viewRecords\(\) \{[\s\S]*?\n  \}\n/)[0], vm = appSrc.match(/function viewMy\(\) \{[\s\S]*?\n  \}\n/)[0];
+  assert.ok(/attendCard\(\)/.test(vr), '기록 탭에 출석왕 카드');
+  const ac = appSrc.match(/function attendCard\(\) \{[\s\S]*?\n  \}\n/)[0];
+  assert.ok(/L\.attendRank\(/.test(ac) && /data-act="rec-month"/.test(ac) && /loadMyMonth\(/.test(ac) && /ui\.me/.test(ac), '달별 순위·달 넘기기·내 줄');
+  assert.ok(/L\.attendRank\(/.test(vm), '내 정보에 내 출석 순위');
+  assert.ok(/case 'rec-month':/.test(appSrc));
+});
 test('service worker: index.html network-first, supabase는 캐시 안 함', () => {
   const sw = fs.readFileSync(path.join(__dirname, 'dist', 'sw.js'), 'utf8');
   const cached = [];

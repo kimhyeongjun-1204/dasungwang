@@ -1062,6 +1062,17 @@ var Logic = (function () {
     return { weeks: weeks, n: weeks.length, w: weeks.reduce(function (a, x) { return a + x.w; }, 0), l: weeks.reduce(function (a, x) { return a + x.l; }, 0) };
   }
 
+  // 이달의 출석왕: 그 달 명단에서 오늘 전 날짜의 '신청 완료'만 셈(대기·게스트·오늘 이후 빼고). 같은 수는 같은 순위 (2026-11-27)
+  function attendRank(rows, today) {
+    var c = {};
+    (rows || []).forEach(function (r) {
+      if (r.day >= today) return;
+      (r.entries || []).forEach(function (e) { if (e.player_id && e.status === 'in') c[e.player_id] = (c[e.player_id] || 0) + 1; });
+    });
+    var out = Object.keys(c).map(function (pid) { return { pid: pid, n: c[pid] }; }).sort(function (x, y) { return y.n - x.n || (x.pid < y.pid ? -1 : 1); });
+    out.forEach(function (r, i) { r.rank = i && out[i - 1].n === r.n ? out[i - 1].rank : i + 1; });
+    return out;
+  }
   // 탭에 띄울 주: 오늘부터 남은 날이 모두 쉬는 날이면 그 주는 뺌(예: 금요일 청백전으로 쉬면 이번 주 끝 → 다음 주만). 명단 못 받은 날은 열린 것으로 봄 (2026-11-27)
   function signupOpenWeeks(ws, rows, today) {
     var out = ws.filter(function (w) {
@@ -1093,7 +1104,7 @@ var Logic = (function () {
     homeSummary: homeSummary,
     bandTime: bandTime,
     signupWeeks: signupWeeks, signupDay: signupDay,
-    GRADES: GRADES, gradeGroup: gradeGroup, SG_TABS: SG_TABS, sgFilter: sgFilter, backStep: backStep, signupOpenWeeks: signupOpenWeeks, monthGrid: monthGrid, myDays: myDays, myDsw: myDsw, loginGroups: loginGroups, memberEdit: memberEdit, pinError: pinError,
+    GRADES: GRADES, gradeGroup: gradeGroup, SG_TABS: SG_TABS, sgFilter: sgFilter, backStep: backStep, signupOpenWeeks: signupOpenWeeks, monthGrid: monthGrid, myDays: myDays, myDsw: myDsw, attendRank: attendRank, loginGroups: loginGroups, memberEdit: memberEdit, pinError: pinError,
     startTab: startTab,
     LIVE: LIVE, typicalMinutes: typicalMinutes, courtEta: courtEta, courtSlots: courtSlots, courtLabel: courtLabel, setExtraCourt: setExtraCourt, liveBoard: liveBoard, shortNames: shortNames, startMatch: startMatch, finishMatch: finishMatch, cancelMatch: cancelMatch, myLive: myLive,
     meRecord: meRecord, matchStarted: matchStarted, livePrediction: livePrediction, predictionRecord: predictionRecord,

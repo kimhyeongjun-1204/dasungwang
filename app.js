@@ -265,7 +265,7 @@
   }
   function viewRecords() {
     var h = L.homeSummary(work, todayKST(), null);
-    return '<div class="card"><p class="small muted">지난 시즌·대회 결과를 볼 수 있어요. 뚱뚱배 기록은 대회가 끝나면 여기에 모여요.</p></div>' +
+    return '<div class="card"><p class="small muted">지난 시즌·대회 결과를 볼 수 있어요. 뚱뚱배 기록은 대회가 끝나면 여기에 모여요.</p></div>' + attendCard() +
       '<button class="rec-card" data-act="tab" data-v="rank"><span class="rec-h"><b>돼지지옥 다승왕전</b><span class="chip ' + (h.status === 'ended' ? '' : 'rec-live') + '">' +
       (h.status === 'ended' ? '종료' : '진행 중') + '</span></span><span class="small muted num">' + (h.first ? md(h.first) + '–' + md(h.last) : '') + ' · ' + h.done + '/' + h.total + '주 · 순위 보기 ›</span></button>';
   }
@@ -1368,6 +1368,22 @@
     remote.signupsList(ym + '-01', last).then(function (rows) { my.rows[ym] = rows; my.busy[ym] = false; render(); },
       function (e) { my.busy[ym] = false; my.rows[ym] = []; toast('달력을 불러오지 못했어요 (' + e.code + ').'); render(); });
   }
+  // 이달의 출석왕 (2026-11-27): 그 달 지난 날 '신청 완료' 횟수 순위. 같은 수는 같은 순위, 10위까지 + 내 줄
+  var rec = { ym: null };
+  function attendCard() {
+    var t = todayKST(), ym = rec.ym || t.slice(0, 7), rows = my.rows[ym], P = pm();
+    if (!rows && !my.busy[ym]) loadMyMonth(ym);
+    var R = rows ? L.attendRank(rows, t) : [], mine = R.filter(function (r) { return r.pid === ui.me; })[0];
+    var show = R.filter(function (r) { return r.rank <= 10; });
+    if (mine && show.indexOf(mine) < 0) show.push(mine);
+    var row = function (r) { var p = P[r.pid] || {}, ch = GRADE_CH[p.grade];
+      return '<li class="' + (r.pid === ui.me ? 'me' : '') + (r.rank === 1 ? ' top' : '') + '"><span class="ar-rank num">' + (r.rank === 1 ? '👑' : r.rank) + '</span>' + (ch ? '<i class="face face-' + ch + '" aria-hidden="true"></i>' : '<span class="face"></span>') +
+        '<b>' + esc(p.name || '?') + '</b><span class="num ar-n">' + r.n + '회</span></li>'; };
+    return '<section class="card attend"><div class="my-cal-head"><button class="btn sm" data-act="rec-month" data-v="-1" aria-label="지난달">‹</button><h2 class="num">' + (+ym.slice(5, 7)) + '월 출석왕</h2>' +
+      '<button class="btn sm" data-act="rec-month" data-v="1" aria-label="다음 달">›</button></div>' +
+      (!rows ? '<p class="muted small">불러오는 중…</p>' : R.length ? '<ol class="ar-list">' + show.map(row).join('') + '</ol>' : '<p class="muted small">아직 운동한 기록이 없어요.</p>') +
+      '<p class="small muted">운동 참가 신청이 \'신청 완료\'로 지나간 날을 세요(대기·게스트 빼고, 오늘 것은 내일부터).</p></section>';
+  }
   function ymShift(ym, k) { var d = new Date(Date.UTC(+ym.slice(0, 4), +ym.slice(5, 7) - 1 + k, 1)); return d.toISOString().slice(0, 7); }
   function viewMy() {
     var t = todayKST(), P = pm(), me = P[ui.me];
@@ -1390,6 +1406,8 @@
           return '<span class="my-d' + (st ? ' st-' + st : '') + (d === t ? ' today' : '') + '" role="gridcell" aria-label="' + md(d) + (lab ? ' ' + lab : '') + '"><b class="num">' + (+d.slice(8)) + '</b>' + (st ? '<i aria-hidden="true">' + (st === 'wait' ? '대기' : '✓') + '</i>' : '') + '</span>';
         }).join('') + '</div>';
       }).join('') + '</div>' +
+      (rows ? (function () { var R = L.attendRank(rows, t), m = R.filter(function (x) { return x.pid === ui.me; })[0];
+        return '<p class="my-rank small"><b>' + (+ym.slice(5, 7)) + '월 출석 ' + (m ? m.n + '회 · ' + m.rank + '위' : '0회') + '</b> <span class="muted">(' + R.length + '명 중)</span></p>'; })() : '') +
       (rows ? '<p class="my-legend small"><span class="lg-done">✓ 운동함 <b class="num">' + cnt.done + '</b></span><span class="lg-plan">✓ 신청 <b class="num">' + cnt.plan + '</b></span><span class="lg-wait">대기 <b class="num">' + cnt.wait + '</b></span></p>' : '<p class="muted small">불러오는 중…</p>') + '</section>';
     // 다가오는 신청 (이번 주·다음 주 명단에서)
     var up = Object.keys(sg.rows).sort().filter(function (d) { return d >= t; }).map(function (d) { var m = L.signupDay(sg.rows[d], ui.me).mine; return m ? { d: d, m: m } : null; }).filter(Boolean);
@@ -1995,6 +2013,7 @@
     switch (act) {
       case 'sg-week': ui.sgWeek = +v; render(); break;
       case 'my-month': my.ym = ymShift(my.ym || todayKST().slice(0, 7), +v); render(); break;
+      case 'rec-month': rec.ym = ymShift(rec.ym || todayKST().slice(0, 7), +v); render(); break;
       case 'sg-reload': loadSignups(); break;
       case 'sg-list': ui.sgList = v; ui.sgTab = 'all'; navPush('modal'); render(); break;
       case 'sg-ltab': ui.sgTab = v; render(); var ll = document.querySelector('.sgm-list'); if (ll) ll.scrollTop = 0; break;
@@ -2071,7 +2090,7 @@
       case 'push-done': push.help = false; render(); break;
       case 'push-test': pushTest().then(function (ok) { toast(ok ? '시험 알림을 보냈어요. 화면 위에 떴는지 확인해 보세요.' : '시험 알림을 못 보냈어요. 알림 허용을 확인해 주세요.'); }); break;
       case 'wview': ui.wview = v === 'all' ? 'all' : 'mine'; LS.set(KEY.wview, ui.wview); render(); break;
-      case 'tab': if (v === 'my') { my.rows = {}; my.ym = null; }   // 내 정보는 들어올 때마다 새로
+      case 'tab': if (v === 'my' || v === 'records') { my.rows = {}; my.ym = null; rec.ym = null; }   // 내 정보는 들어올 때마다 새로
         if (v === 'home' && ui.tab !== 'home') navBack(); else if (v !== 'home' && ui.tab === 'home') navPush('tab'); ui.tab = v; LS.set(KEY.tab, v); ui.notice = null; ui.pred.edit = false; ui.pred.full = false; ui.pred.confirm = false; render(); window.scrollTo(0, 0); break;
       case 'week': ui.week = v; SS.set(SKEY.week, v); ui.confirm = null; ui.notice = null; ui.ai.res = null; ui.ai.err = ''; ui.shiftSel = { p: '', dir: 'up' }; ui.pred.edit = false; ui.pred.more = false; ui.pred.adm = null; ui.pred.admDel = ''; render(); break;
       case 'rankg': ui.rankGroup = v; render(); break;

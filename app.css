@@ -1084,3 +1084,13 @@ button.lv-row:disabled { cursor: default; opacity: .7; }
 .my-up, .my-dsw { list-style: none; margin: 0; padding: 0; display: grid; }
 .my-up li, .my-dsw li { display: flex; justify-content: space-between; align-items: center; min-height: 40px; border-bottom: 1px solid var(--line-2); }
 .my-t { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+
+/* 이달의 출석왕 (2026-11-27) */
+.ar-list { list-style: none; margin: 0; padding: 0; display: grid; }
+.ar-list li { display: flex; align-items: center; gap: 10px; min-height: 48px; border-bottom: 1px solid var(--line-2); padding: 0 4px; }
+.ar-list li.me { background: var(--navy-50); border-radius: 8px; }
+.ar-list li.top b { color: #B45309; }
+.ar-rank { width: 26px; text-align: center; font-weight: 900; color: var(--text-2); }
+.ar-list .face { width: 32px; height: 32px; }
+.ar-list b { flex: 1; font-size: 15px; } .ar-n { font-weight: 900; color: var(--navy); }
+.my-rank { margin: 6px 0 0; color: var(--navy); }

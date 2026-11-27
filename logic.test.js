@@ -1235,4 +1235,16 @@ test('내 정보: monthGrid(달력 칸, 일요일 시작) · myDays(운동함·�
   assert.deepStrictEqual([r.n, r.w, r.l], [2, 2, 1]);
 });
 
+test('attendRank: 이달의 출석왕 — 지난 날 신청 완료만 셈(대기·게스트·오늘 이후 빼고), 같은 수는 같은 순위 (2026-11-27 김형준)', () => {
+  const rows = [
+    { day: '2026-11-02', entries: [{ player_id: 'a', status: 'in' }, { player_id: 'b', status: 'in' }, { player_id: 'c', status: 'wait' }] },
+    { day: '2026-11-03', entries: [{ player_id: 'a', status: 'in' }, { player_id: null, host_id: 'a', status: 'in' }] },
+    { day: '2026-11-04', entries: [{ player_id: 'b', status: 'in' }, { player_id: 'd', status: 'in' }] },
+    { day: '2026-11-27', entries: [{ player_id: 'd', status: 'in' }] },
+    { day: '2026-11-30', entries: [{ player_id: 'd', status: 'in' }] }
+  ];
+  assert.deepStrictEqual(L.attendRank(rows, '2026-11-27').map(r => r.rank + ':' + r.pid + ':' + r.n), ['1:a:2', '1:b:2', '3:d:1']);
+  assert.deepStrictEqual(L.attendRank([], '2026-11-27'), []);
+});
+
 console.log(`\n${passed} passed`);
