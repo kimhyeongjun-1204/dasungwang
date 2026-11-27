@@ -1553,3 +1553,9 @@ $ node logic.test.js; node deploy.test.js   (테스트 먼저 FAIL 2건 확인 �
 - 사진: docs/screenshots/cheongbaek-hero/home_hero_360.jpg
 - 배포(2026-11-27 10:1x): 김형준 "진행" → #35 squash 머지(edaee79) → GitHub Pages 배포 success → 실제 사이트(Chrome): 홈으로 열림(하단 탭 홈 선택), '진행 중' 맨 위 청백전 큰 카드(href 청백전 페이지), 작은 카드 '돼지지옥 다승왕전 7/11주 완료 · 이번 주 12/2' + 뚠뚠배, '실시간 점수판' 글씨 없음
   - 사용자 Chrome은 다크 모드 확장 프로그램이 색을 바꿔 그려서(계산된 배경색이 rgba(24,26,27…)로 바뀌어 있음, 앱 CSS엔 다크 모드 규칙 없음) 카드가 어둡게 보였음. 일반 화면 모습은 가짜 서버 사진과 같음
+
+## 76. 앱 이름 '라켓뚱보단' (브랜치 fix/app-name, main 기준, 2026-11-27)
+- 요청(김형준 2026-11-27 10:18): 앱 이름을 다승왕이 아니라 라켓뚱보단으로
+- 바꾼 곳: manifest name '라켓뚱보단 다승왕전' → '라켓뚱보단', short_name(홈 화면 아이콘 밑 이름) '다승왕' → '라켓뚱보단', 창 제목(build.js TITLE), 아이폰 홈 화면 이름(apple-mobile-web-app-title), 알림 기본 제목(sw.js), 시험 알림 제목. 화면 안 '돼지지옥 다승왕전' 같은 행사 이름은 그대로
+- 테스트를 먼저 바꾸고 FAIL 확인 → deploy 61 · logic 142 · tourney 17 · push 5 passed. 요구가 바뀐 테스트 1개(manifest 이름)는 고쳐 씀. 역검증: short_name을 '다승왕'으로 되돌리면 deploy FAIL
+- service worker는 네트워크 먼저라 manifest 새 이름을 바로 받아 감. 이미 설치한 앱의 아이콘 이름은 안드로이드 Chrome은 다음에 앱을 열 때 manifest를 다시 확인해 바뀌고(바로 안 바뀔 수 있음), 아이폰은 홈 화면에서 지우고 다시 추가해야 바뀜

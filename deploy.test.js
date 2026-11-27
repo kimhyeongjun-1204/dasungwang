@@ -556,8 +556,10 @@ test('build.js: dist/index.html 완전한 문서 + PWA 파일', () => {
   assert.ok(/불러오는 중/.test(html), '로딩 표시');
   assert.ok(/serviceWorker/.test(html), 'service worker 등록');
   const man = JSON.parse(fs.readFileSync(dist('manifest.webmanifest'), 'utf8'));
-  assert.strictEqual(man.name, '라켓뚱보단 다승왕전');
-  assert.strictEqual(man.short_name, '다승왕');
+  assert.strictEqual(man.name, '라켓뚱보단', '앱 이름은 라켓뚱보단 (2026-11-27, 다승왕전에서 바뀜)');
+  assert.strictEqual(man.short_name, '라켓뚱보단');
+  assert.ok(/<title>라켓뚱보단<\/title>/.test(html) && /apple-mobile-web-app-title" content="라켓뚱보단"/.test(html), '창 제목·아이폰 홈 화면 이름');
+  assert.ok(/d\.title \|\| '라켓뚱보단'/.test(fs.readFileSync(path.join(__dirname, 'sw.js'), 'utf8')), '알림 기본 제목');
   assert.strictEqual(man.display, 'standalone');
   assert.ok(man.start_url && man.theme_color && man.background_color);
   for (const s of [192, 512]) {

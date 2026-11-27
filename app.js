@@ -805,7 +805,7 @@
   function pushTest() {
     if (!('serviceWorker' in navigator)) return Promise.resolve(false);
     return navigator.serviceWorker.ready.then(function (reg) {
-      return reg.showNotification('시험 알림 · 다승왕전', {
+      return reg.showNotification('시험 알림 · 라켓뚱보단', {
         body: push.ios ? '이렇게 와요. 설정 › 알림 › 다승왕전에서 배너로 바꾸면 화면 위에 떠요.' : '이렇게 와요. 이 알림을 길게 눌러 ⚙ › 팝업으로 표시를 켜면 화면 위에 떠요.',
         tag: 'ddw-test', renotify: true, icon: 'icons/icon-192.png', data: { url: './' },
       });
