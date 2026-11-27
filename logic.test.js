@@ -1198,4 +1198,16 @@ test('backStep: 폰 뒤로 가기 한 번 = 팝업 닫기 → 홈으로 → (홈
   assert.strictEqual(L.backStep({ tab: 'home' }), null);
 });
 
+test('signupOpenWeeks: 남은 날이 없는 주(지난 날·쉬는 날뿐)는 탭에서 뺌, 명단을 아직 못 받았으면 그대로 (2026-11-27 김형준)', () => {
+  const ws = L.signupWeeks('2026-11-27');
+  const row = c => ({ cap: 24, closed: !!c, entries: [] });
+  const open = { '2026-11-27': row(false) }, closed = { '2026-11-27': row(true) };
+  assert.deepStrictEqual(L.signupOpenWeeks(ws, closed, '2026-11-27').map(w => w.label), ['다음 주'], '금요일(청백전) 쉬는 날이면 이번 주 끝');
+  assert.deepStrictEqual(L.signupOpenWeeks(ws, open, '2026-11-27').map(w => w.label), ['이번 주', '다음 주'], '오늘 열려 있으면 이번 주도');
+  assert.deepStrictEqual(L.signupOpenWeeks(ws, {}, '2026-11-27').map(w => w.label), ['이번 주', '다음 주'], '명단 못 받았으면 그대로');
+  assert.deepStrictEqual(L.signupOpenWeeks(ws, closed, '2026-11-26').map(w => w.label), ['이번 주', '다음 주'], '목요일엔 금요일이 남아 있음(목 명단 없음)');
+  const all = {}; ['2026-11-30', '2026-12-01', '2026-12-02', '2026-12-03', '2026-12-04', '2026-11-27'].forEach(d => all[d] = row(true));
+  assert.deepStrictEqual(L.signupOpenWeeks(ws, all, '2026-11-27').map(w => w.label), ['이번 주', '다음 주'], '다 닫혀 있으면 빈 화면 대신 그대로');
+});
+
 console.log(`\n${passed} passed`);

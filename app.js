@@ -204,8 +204,12 @@
     }).join('') + '</div></nav>';
   }
   function clubBar(title) {
-    return '<div class="clubbar">' + (ui.tab !== 'home' ? '<button class="cb-back" data-act="tab" data-v="home" aria-label="홈으로">‹</button>' : '') + '<button class="club-logo" data-act="tab" data-v="home" aria-label="' + esc(work.settings.club || '라켓뚱보단') + ' 홈으로">' + esc(work.settings.club || '라켓뚱보단') + '</button>' + (title ? '<h1 class="club-title">' + esc(title) + '</h1>' : '') + '</div>';
+    // 홈 맨 위 오른쪽: 내 급수 얼굴 + 내 이름 (2026-11-27 15:55)
+    var me = pm()[ui.me], ch = me && GRADE_CH[me.grade];
+    var mine = ui.tab === 'home' && member.ok && me ? '<span class="cb-me">' + (ch ? '<i class="face face-' + GRADE_CH[me.grade] + '" aria-hidden="true"></i>' : '') + '<b>' + esc(me.name) + '</b></span>' : '';
+    return '<div class="clubbar">' + (ui.tab !== 'home' ? '<button class="cb-back" data-act="tab" data-v="home" aria-label="홈으로">‹</button>' : '') + '<button class="club-logo" data-act="tab" data-v="home" aria-label="' + esc(work.settings.club || '라켓뚱보단') + ' 홈으로">' + esc(work.settings.club || '라켓뚱보단') + '</button>' + (title ? '<h1 class="club-title">' + esc(title) + '</h1>' : '') + mine + '</div>';
   }
+
   // 클럽 홈 (2026-11-25): 운동 참가(예시 · 신청은 밴드) → 진행 중(다승왕전·행사) → 진행 중인 공지 → 다가오는 일정. 밴드 정보는 club.js
   var DOW = '일월화수목금토';
   function dowOf(d) { return DOW[new Date(d + 'T00:00:00Z').getUTCDay()]; }
@@ -213,7 +217,7 @@
   function bandLink(post, cls, inner) { return '<a class="' + cls + '" href="' + Club.postUrl(post) + '" target="_blank" rel="noopener">' + inner + '</a>'; }
   function viewHome() {
     var t = todayKST(), h = L.homeSummary(work, t, ui.me || null), out = '';
-    var wk = L.signupWeeks(t)[0], my = 0, myWait = 0;
+    var wk = L.signupOpenWeeks(L.signupWeeks(t), sg.rows, t)[0], my = 0, myWait = 0;   // 이번 주가 끝났으면 다음 주
     if (!sg.at && !sg.busy) loadSignups();
     var days = []; for (var d = wk.from; d <= wk.to; d = addDay(d)) days.push(d);
     out += '<section class="card hm-join"><div class="hm-head"><h2>운동 참가 <span class="small muted num">' + md(wk.from) + '–' + md(wk.to) + '</span></h2></div>' +
@@ -1297,12 +1301,12 @@
         var p = e.player_id ? P[e.player_id] || {} : null, ch = p ? GRADE_CH[p.grade] : null;
         var face = p ? (ch ? '<i class="face face-' + ch + '" aria-hidden="true"></i>' : '<span class="sgm-ini" aria-hidden="true">' + esc((p.name || '?').slice(0, 1)) + '</span>') :
           '<span class="sgm-ini guest g' + (e.gender === 'F' ? 'f' : 'm') + '" aria-hidden="true">' + (e.gender === 'F' ? '여' : '남') + '</span>';
-        var nm = p ? esc(p.name || '?') + (p.grade ? '<small>(' + esc(p.grade) + ')</small>' : '') :
+        var nm = p ? esc(p.name || '?') :   // 이름 옆 (급수)는 뺌, 급수는 얼굴로 (15:55)
           (function () { var gl = (e.gender === 'F' ? '여' : '남') + '게스트', by = esc((P[e.host_id] || {}).name || '?') + ' 추가';   // "남게스트 · 김형준 추가" (14:17)
             return e.guest ? esc(e.guest) + '<small>(' + gl + ' · ' + by + ')</small>' : gl + ' <small>· ' + by + '</small>'; })();
         return '<li class="' + (e.status === 'in' ? 'in' : 'wait') + (e.player_id && e.player_id === ui.me ? ' me' : '') + '"><span class="sgm-face">' + face + '</span>' +
           '<span class="sgm-who"><b>' + nm + (e.by_admin ? ' <small class="muted">돼장 넣음</small>' : '') + '</b><small class="num">' + L.bandTime(e.at) + '</small></span>' +
-          '<span class="sgm-no num">' + (e.status === 'in' ? e.no : '대기 ' + e.no) + '</span>' +
+          (e.status === 'in' ? '' : '<span class="sgm-no num">대기 ' + e.no + '</span>') +   // 신청 순서 번호는 뺌, 대기만 (15:55)
           (adm ? '<button class="btn sm danger" data-act="sg-adm-rm" data-v="' + d + '" data-id="' + e.id + '">빼기</button>' : '') + '</li>';
       }).join('') : '<li class="muted">' + (all.length ? '이 급수는 아직 없어요.' : '아직 신청한 사람이 없어요.') + '</li>') + '</ol>';
     if (adm) {
@@ -1325,7 +1329,7 @@
       '<p class="small muted">셔틀콕 안내는 공지를 확인해 주세요.</p></form>';
   }
   function viewSignup() {
-    var t = todayKST(), ws = L.signupWeeks(t), wk = ws[ui.sgWeek] || ws[0], P = pm(), adm = ui.admin;
+    var t = todayKST(), ws = L.signupOpenWeeks(L.signupWeeks(t), sg.rows, t), wk = ws[ui.sgWeek] || ws[0], P = pm(), adm = ui.admin;   // 끝난 주는 탭에서 뺌
     if (!sg.at && !sg.busy) loadSignups();
     var out = '<div class="seg sg-weeks" role="group" aria-label="주">' + ws.map(function (w, i) {
       return '<button data-act="sg-week" data-v="' + i + '" aria-pressed="' + (ui.sgWeek === i) + '"><b>' + w.label + '</b><small class="num">' + md(w.from) + '–' + md(w.to) + '</small></button>';
@@ -1346,10 +1350,12 @@
     var out = '<section class="card sg-day' + (mine ? ' sg-mine' : '') + (row.closed || past ? ' sg-dim' : '') + '">' + head + chip + '</div>';
     // 밴드 참가신청서처럼: 체크 동그라미로 신청 · 오른쪽 "15/22 ›" 누르면 참가자 창 (2026-11-27)
     var hint = mine ? (mine.status === 'in' ? '신청했어요' : '대기 ' + mine.no + '번이에요') : !row.open ? (row.closed ? '쉬는 날이에요' : '신청이 끝났어요') : '';
-    out += '<div class="sg-row">' + (row.open || mine ? '<button class="sg-check' + (mine && mine.status !== 'in' ? ' wait' : '') + '" role="checkbox" aria-checked="' + !!mine + '" data-act="' + (mine ? 'sg-cancel' : 'sg-apply') + '" data-v="' + d + '"' + (row.open ? '' : ' disabled') +
+    // 꽉 찬 날(수요일처럼)은 체크 대신 '대기 신청하기' 버튼 (2026-11-27 15:55)
+    var waitCta = sd.full && row.open && !mine;
+    out += '<div class="sg-row">' + (waitCta ? '<button class="btn sg-waitcta" data-act="sg-apply" data-v="' + d + '">대기 신청하기</button>' : row.open || mine ? '<button class="sg-check' + (mine && mine.status !== 'in' ? ' wait' : '') + '" role="checkbox" aria-checked="' + !!mine + '" data-act="' + (mine ? 'sg-cancel' : 'sg-apply') + '" data-v="' + d + '"' + (row.open ? '' : ' disabled') +
         ' aria-label="' + dowOf(d) + '요일 ' + (mine ? '신청 취소' : sd.full ? '대기 신청' : '참가 신청') + '"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12.5l4 4 8-9"/></svg></button>' : '<span class="sg-check off" aria-hidden="true"></span>') +
       '<span class="sg-what"><b>' + dowOf(d) + '요민턴</b>' + (hint ? '<small>' + hint + '</small>' : '') + '</span>' +
-      '<button class="sg-count" data-act="sg-list" data-v="' + d + '" aria-haspopup="dialog" aria-label="참가자 ' + sd.inCount + '명, 정원 ' + row.cap + '명' + (sd.waitCount ? ', 대기 ' + sd.waitCount + '명' : '') + ' 명단 보기"><span class="num"><em>' + sd.inCount + '</em>/' + row.cap + '</span>' + (sd.waitCount ? '<small>대기 ' + sd.waitCount + '</small>' : '') + '<i aria-hidden="true">›</i></button></div>' +
+      '<button class="sg-count" data-act="sg-list" data-v="' + d + '" aria-haspopup="dialog" aria-label="참가자 ' + sd.inCount + '명, 정원 ' + row.cap + '명' + (sd.waitCount ? ', 대기 ' + sd.waitCount + '명' : '') + ' 명단 보기"><span class="num"><em>' + sd.inCount + '</em>/' + row.cap + '</span><i aria-hidden="true">›</i></button></div>' +   // 대기 수는 위 칩에 있음
       (row.memo ? '<p class="sg-memo">' + esc(row.memo) + '</p>' : '');
     var btns = '';
     if (row.open) btns += '<button class="btn sm" data-act="sg-guest" data-v="' + d + '">＋ 게스트</button>';
