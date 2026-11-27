@@ -21,7 +21,8 @@ var Club = (function () {
   ];
   // 다승왕전 말고 따로 열리는 행사. noDow: true면 요일을 붙이지 않음(밴드 글 요일이 날짜와 안 맞아 확인 전일 때)
   var EVENTS = [
-    { name: '청백전 & 치킨데이', short: '청백전', date: '2026-11-27', place: '성남오리초', post: 2638 },  // 밴드 글엔 '11월 29일(금)' → 김형준 확인: 11/27(금) (2026-11-25)
+    { name: '청백전 & 치킨데이', short: '청백전', date: '2026-11-27', place: '성남오리초', post: 2638,
+      live: 'https://chang333787-boop.github.io/cheongbaek-2026/' },   // 다른 회원이 만든 청백전 실시간 점수판 (김형준 요청 2026-11-27)  // 밴드 글엔 '11월 29일(금)' → 김형준 확인: 11/27(금) (2026-11-25)
     { name: '아듀 2026 뚠뚠배', short: '뚠뚠배', date: '2026-12-18', place: '풍덕초', post: 2656 }
   ];
 
@@ -42,7 +43,9 @@ var Club = (function () {
     return all.slice(0, n || 4);
   }
   function postUrl(post) { return BAND + '/post/' + post; }
+  // 행사 당일이고 따로 페이지(live)가 있으면 그날만 홈 맨 위 큰 카드 (2026-11-27 청백전, 다승왕과 자리 바꿈)
+  function heroEvent(today, events) { return (events || EVENTS).filter(function (e) { return e.live && e.date === today; })[0] || null; }
 
-  return { BAND: BAND, NOTICES: NOTICES, SIGNUPS: SIGNUPS, EVENTS: EVENTS, activeNotices: activeNotices, currentSignup: currentSignup, upcoming: upcoming, postUrl: postUrl };
+  return { BAND: BAND, NOTICES: NOTICES, SIGNUPS: SIGNUPS, EVENTS: EVENTS, activeNotices: activeNotices, currentSignup: currentSignup, upcoming: upcoming, postUrl: postUrl, heroEvent: heroEvent };
 })();
 if (typeof module !== 'undefined') module.exports = Club;

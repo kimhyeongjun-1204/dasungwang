@@ -556,8 +556,10 @@ test('build.js: dist/index.html 완전한 문서 + PWA 파일', () => {
   assert.ok(/불러오는 중/.test(html), '로딩 표시');
   assert.ok(/serviceWorker/.test(html), 'service worker 등록');
   const man = JSON.parse(fs.readFileSync(dist('manifest.webmanifest'), 'utf8'));
-  assert.strictEqual(man.name, '라켓뚱보단 다승왕전');
-  assert.strictEqual(man.short_name, '다승왕');
+  assert.strictEqual(man.name, '라켓뚱보단', '앱 이름은 라켓뚱보단 (2026-11-27, 다승왕전에서 바뀜)');
+  assert.strictEqual(man.short_name, '라켓뚱보단');
+  assert.ok(/<title>라켓뚱보단<\/title>/.test(html) && /apple-mobile-web-app-title" content="라켓뚱보단"/.test(html), '창 제목·아이폰 홈 화면 이름');
+  assert.ok(/d\.title \|\| '라켓뚱보단'/.test(fs.readFileSync(path.join(__dirname, 'sw.js'), 'utf8')), '알림 기본 제목');
   assert.strictEqual(man.display, 'standalone');
   assert.ok(man.start_url && man.theme_color && man.background_color);
   for (const s of [192, 512]) {
@@ -597,11 +599,11 @@ test('알림 카드 "카톡처럼 화면 위에 뜨게 하려면?" → 안드로
   assert.ok(/<a [^>]*href="guide\.html"[^>]*>카톡처럼 화면 위에 뜨게 하려면\?<\/a>/.test(c[0]), '안드로이드 링크가 guide.html로 바로 가지 않음');
   assert.ok(/push\.ios \? '<button[^']*data-act="push-help"/.test(c[0]), '아이폰은 앱 안 안내(push-help)로');
 });
-test('앱을 열 때: 경기날이면 바로 이번 주(그날), 왼쪽 위 ‹ 홈으로 클럽 홈 (2026-11-25)', () => {
+test('앱을 열 때: 늘 홈(2026-11-27), 경기날이면 다승왕 들어갔을 때 그날 주가 보이게, 다승왕 왼쪽 위 ‹ 홈', () => {
   const st = appSrc.match(/function start\(state\) \{[\s\S]*?\n  \}\n/);
   assert.ok(st, 'start 없음');
   assert.ok(/ui\.tab = L\.startTab\(LS\.get\(KEY\.tab\), todayKST\(\), seasonDates\(\)\)/.test(st[0]), 'start에서 첫 화면을 startTab으로 정하지 않음');
-  assert.ok(/if \(ui\.tab === 'week' && seasonDates\(\)\.indexOf\(todayKST\(\)\) >= 0\) ui\.week = todayKST\(\)/.test(st[0]), '경기날 이번 주가 오늘 날짜가 아님');
+  assert.ok(/if \(seasonDates\(\)\.indexOf\(todayKST\(\)\) >= 0\) ui\.week = todayKST\(\)/.test(st[0]), '경기날 다승왕 주가 오늘 날짜가 아님');
   assert.ok(/class="back-home" data-act="tab" data-v="home"/.test(appSrc), '다승왕 화면 왼쪽 위 ‹ 홈 없음');
 });
 test('하단 탭(.bnav)에 가려지는 고정 버튼 없음: 예측 하기(.plan-cta)·저장 막대는 탭 위에 (2026-11-25 회귀)', () => {
@@ -677,6 +679,28 @@ test('돼장 회원 관리: 관리 메뉴에 회원, 새 회원·급수·조(따
   assert.ok(!/급수 → 조는 자동/.test(v[0]), '급수로 조가 자동으로 정해진다는 안내 없음');
   assert.ok(/remote\.adminResetMemberPin\(/.test(appSrc) && /remote\.adminMemberPins\(/.test(appSrc));
   assert.ok(/L\.memberEdit\(/.test(appSrc));
+});
+test('클럽 홈 행사 카드: live 링크가 있으면 "실시간 점수판" 새 창 + 밴드 공지 링크 따로 (2026-11-27)', () => {
+  const h = appSrc.match(/function viewHome\(\) \{[\s\S]*?\n  \}\n/)[0];
+  assert.ok(/e\.live/.test(h) && /href="' \+ esc\(e\.live\) \+ '" target="_blank" rel="noopener"/.test(h), '실시간 점수판 새 창 링크');
+  assert.ok(/청백전 바로가기/.test(h), '버튼 글자는 "청백전" (2026-11-27, "실시간 점수판"에서 바뀜)');
+  assert.ok(/if \(e\.live\) return '<div class="ev-mini ev-live">'/.test(h), 'live 있는 행사만 링크 두 개를 담는 div (a 안에 a 금지)');
+});
+test('클럽 홈: 행사 당일(heroEvent)엔 그 행사가 맨 위 큰 카드, 다승왕은 작은 카드로 자리 바꿈, 글씨는 "청백전" (2026-11-27)', () => {
+  const h = appSrc.match(/function viewHome\(\) \{[\s\S]*?\n  \}\n/)[0];
+  assert.ok(/Club\.heroEvent\(t\)/.test(h), '오늘의 큰 행사 확인');
+  assert.ok(/<a class="ev-card cb" href="' \+ esc\(hero\.live\) \+ '" target="_blank" rel="noopener">/.test(h), '큰 카드는 행사 페이지 새 창');
+  assert.ok(/ev-mini dsw-mini" data-act="tab" data-v="week"/.test(h), '다승왕은 작은 카드로');
+  assert.ok(!/실시간 점수판/.test(h), '"실시간 점수판" 글씨 없음, "청백전"으로만');
+  const css = fs.readFileSync(path.join(__dirname, 'app.css'), 'utf8');
+  assert.ok(/\.ev-card\.cb \{/.test(css), '청백전 카드 꾸밈');
+});
+test('앱 시작: "불러오는 중"에서 멈추지 않음 — 그리다 오류 나면 오류 내용 + 다시 시도·처음 상태로, 15초 넘게 못 받으면 다시 시도 (2026-11-27 폰에서 멈춤)', () => {
+  assert.ok(/remote\.load\(\)\.then\(function \(s\) \{ clearTimeout\(bootTimer\); try \{ start\(s\); \} catch \(e\) \{ bootError\(e\); \} \}/.test(appSrc), 'start 오류를 잡아서 보여 줌');
+  assert.ok(/var bootTimer = setTimeout\(function \(\) \{[^}]*bootView\('불러오는 데 오래 걸려요/.test(appSrc), '오래 걸리면 다시 시도');
+  const be = appSrc.match(/function bootError\(e\) \{[\s\S]*?\n  \}\n/);
+  assert.ok(be && /data-act="retry"/.test(be[0]) && /data-act="boot-reset"/.test(be[0]) && /esc\(/.test(be[0]), '오류 화면: 다시 시도·처음 상태로, 오류 글자는 esc');
+  assert.ok(/act === 'boot-reset'/.test(appSrc), '처음 상태로 열기');
 });
 test('service worker: index.html network-first, supabase는 캐시 안 함', () => {
   const sw = fs.readFileSync(path.join(__dirname, 'dist', 'sw.js'), 'utf8');
