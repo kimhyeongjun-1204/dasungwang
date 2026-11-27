@@ -1261,4 +1261,9 @@ test('memberEdit 성별: 남 M · 여 F · 모름(빈칸이면 지움), 다른 �
   assert.ok(!('gender' in w.players[2]), '안 고르면 칸 없음');
 });
 
+test('loginGroups: 이름 고르기에서 남·여 탭으로 나누게 성별도 넘김 (2026-11-27 김형준)', () => {
+  const g = L.loginGroups([{ id: 'a', name: '나', group: 'A', gender: 'F' }, { id: 'b', name: '가', group: 'A', gender: 'M' }, { id: 'c', name: '다', group: 'A' }], [{ id: 'A', name: '캐비어·랍스터' }]);
+  assert.deepStrictEqual(g[0].members, [{ id: 'b', name: '가', gender: 'M' }, { id: 'a', name: '나', gender: 'F' }, { id: 'c', name: '다', gender: null }]);
+});
+
 console.log(`\n${passed} passed`);

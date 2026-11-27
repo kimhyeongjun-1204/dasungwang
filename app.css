@@ -1099,3 +1099,8 @@ button.lv-row:disabled { cursor: default; opacity: .7; }
 .mb-sex { font-size: 11px; font-weight: 900; border-radius: 999px; padding: 1px 6px; color: #fff; }
 .mb-sex.sM { background: #3E7BD9; } .mb-sex.sF { background: #D9497A; }
 .mb-sexes { max-width: 240px; }
+
+/* 로그인 이름 고르기 남·여 탭 (2026-11-27) */
+.seg.lg-sex { display: flex; width: 100%; margin: 4px 0 8px; }
+.seg.lg-sex button { flex: 1; min-height: 44px; font-size: 15px; font-weight: 700; }
+.seg.lg-sex button[aria-selected="true"] { background: var(--navy); color: #fff; }

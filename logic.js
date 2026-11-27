@@ -984,7 +984,7 @@ var Logic = (function () {
   function loginGroups(players, groups) {
     return groups.map(function (g) {
       return { id: g.id, members: players.filter(function (p) { return p.group === g.id && p.active !== false; })
-        .sort(function (a, b) { return a.name.localeCompare(b.name, 'ko'); }).map(function (p) { return { id: p.id, name: p.name }; }) };
+        .sort(function (a, b) { return a.name.localeCompare(b.name, 'ko'); }).map(function (p) { return { id: p.id, name: p.name, gender: p.gender || null }; }) };   // 성별: 로그인 이름 고르기 남·여 탭 (2026-11-27)
     });
   }
   // 돼장 회원 관리: e = { id?(없으면 새 회원), name?, grade?, group?, active? }. work.players를 직접 고침

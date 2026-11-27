@@ -858,6 +858,13 @@ test('회원 관리 성별: 고치기 창에 남/여, 목록에 남·여 표시 
   assert.ok(/p\.gender === 'F' \? '여' : p\.gender === 'M' \? '남'/.test(vm), '목록에 성별');
   assert.ok(/case 'mb-sex':/.test(appSrc) && /ed\.gender = /.test(appSrc), '저장할 때 성별');
 });
+test('로그인 이름 고르기: 조 안에서 남자·여자 탭 (2026-11-27 김형준 17:51)', () => {
+  const v = appSrc.match(/function viewLogin\(\) \{[\s\S]*?\n  \}\n/)[0];
+  assert.ok(/data-act="lg-sex"/.test(v) && /role="tablist" aria-label="성별"/.test(v), '남자·여자 탭');
+  assert.ok(/m\.gender === sex|\(m\.gender \|\| 'X'\) === sex/.test(v), '탭에 맞는 이름만');
+  assert.ok(/case 'lg-sex':/.test(appSrc) && /case 'lg-group': [^\n]*ui\.lg\.sex = /.test(appSrc), '탭 바꾸기, 조 고르면 처음 탭');
+  assert.ok(!/그 밖/.test(v) && /\[\['M', '남자'\], \['F', '여자'\]\]/.test(v), "'그 밖' 탭 없음, 성별 없는 회원은 로그인 목록에 안 보임 (17:56)");
+});
 test('service worker: index.html network-first, supabase는 캐시 안 함', () => {
   const sw = fs.readFileSync(path.join(__dirname, 'dist', 'sw.js'), 'utf8');
   const cached = [];
