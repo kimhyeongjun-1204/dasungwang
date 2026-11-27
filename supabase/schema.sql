@@ -715,3 +715,109 @@ revoke all on function public.push_subscribe(text, text, text, text), public.pus
   public.push_targets(uuid, date, text), public.push_gone(uuid, text[]) from public;
 grant execute on function public.push_subscribe(text, text, text, text), public.push_unsubscribe(text),
   public.push_targets(uuid, date, text), public.push_gone(uuid, text[]) to anon, authenticated;
+
+-- ---------- 회원 로그인: 조 → 이름 → 비밀번호 4자리 (2026-11-26) ----------
+-- 처음 고른 이름이면 비밀번호를 만들고(두 번 입력은 앱에서), 이미 있으면 그 비밀번호로만 들어옴. 이름 바꾸기는 없음.
+-- 5번 틀리면 10분 잠금. 잊으면 돼장이 초기화(그 회원의 모든 기기 로그인도 끊김). 비밀번호는 bcrypt 해시로만 저장
+create table if not exists public.member_pin (
+  player_id text primary key,
+  pin_hash text not null,
+  fails int not null default 0,
+  locked_until timestamptz,
+  updated_at timestamptz not null default now()
+);
+create table if not exists public.member_session (
+  token uuid primary key default gen_random_uuid(),
+  player_id text not null,
+  expires_at timestamptz not null
+);
+create index if not exists member_session_player on public.member_session (player_id);
+alter table public.member_pin enable row level security;
+alter table public.member_session enable row level security;
+revoke all on public.member_pin, public.member_session from anon, authenticated;
+
+create or replace function public.member_has_pin(pid text) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.member_pin m where m.player_id = pid);
+$$;
+
+create or replace function public.member_new_session(pid text) returns uuid
+language plpgsql security definer set search_path = public as $$
+declare t uuid;
+begin
+  delete from public.member_session where expires_at < now();
+  insert into public.member_session (player_id, expires_at) values (pid, now() + interval '365 days') returning token into t;
+  return t;
+end $$;
+revoke all on function public.member_new_session(text) from public, anon, authenticated;
+
+create or replace function public.member_set_pin(pid text, pin text) returns uuid
+language plpgsql security definer set search_path = public, extensions as $$
+begin
+  if not public.prediction_player_ok(pid) then raise exception 'bad_player'; end if;
+  if pin is null or pin !~ '^[0-9]{4}$' then raise exception 'bad_pin'; end if;
+  insert into public.member_pin (player_id, pin_hash) values (pid, crypt(pin, gen_salt('bf', 8))) on conflict (player_id) do nothing;
+  if not found then raise exception 'pin_exists'; end if;
+  return public.member_new_session(pid);
+end $$;
+
+-- 결과: {"token": …} / {"error":"wrong","left":남은 횟수} / {"error":"locked","until":…}. 틀린 횟수를 남겨야 해서 오류 대신 값으로 돌려줌
+create or replace function public.member_login(pid text, pin text) returns jsonb
+language plpgsql security definer set search_path = public, extensions as $$
+declare r public.member_pin%rowtype;
+begin
+  if not public.prediction_player_ok(pid) then raise exception 'bad_player'; end if;
+  select * into r from public.member_pin m where m.player_id = pid for update;
+  if not found then raise exception 'no_pin'; end if;
+  if r.locked_until is not null and r.locked_until > now() then return jsonb_build_object('error', 'locked', 'until', r.locked_until); end if;
+  if pin is null or crypt(pin, r.pin_hash) <> r.pin_hash then
+    if r.fails + 1 >= 5 then
+      update public.member_pin set fails = 0, locked_until = now() + interval '10 minutes' where player_id = pid;
+      return jsonb_build_object('error', 'locked', 'until', now() + interval '10 minutes');
+    end if;
+    update public.member_pin set fails = r.fails + 1 where player_id = pid;
+    return jsonb_build_object('error', 'wrong', 'left', 5 - (r.fails + 1));
+  end if;
+  update public.member_pin set fails = 0, locked_until = null where player_id = pid;
+  return jsonb_build_object('token', public.member_new_session(pid));
+end $$;
+
+-- 토큰 → 회원 id (만료·초기화·쉬는 회원이면 null)
+create or replace function public.member_check(token uuid) returns text
+language sql stable security definer set search_path = public as $$
+  select s.player_id from public.member_session s
+   where s.token = member_check.token and s.expires_at > now() and public.prediction_player_ok(s.player_id);
+$$;
+
+create or replace function public.member_change_pin(token uuid, old_pin text, new_pin text) returns void
+language plpgsql security definer set search_path = public, extensions as $$
+declare pid text := public.member_check(token); h text;
+begin
+  if pid is null then raise exception 'unauthorized'; end if;
+  select pin_hash into h from public.member_pin where player_id = pid;
+  if h is null or old_pin is null or crypt(old_pin, h) <> h then raise exception 'wrong_pin'; end if;
+  if new_pin is null or new_pin !~ '^[0-9]{4}$' then raise exception 'bad_pin'; end if;
+  update public.member_pin set pin_hash = crypt(new_pin, gen_salt('bf', 8)), fails = 0, locked_until = null, updated_at = now() where player_id = pid;
+end $$;
+
+create or replace function public.member_logout(token uuid) returns void
+language sql security definer set search_path = public as $$
+  delete from public.member_session s where s.token = member_logout.token;
+$$;
+
+-- 돼장(admin)만: 비밀번호를 만든 회원 id 목록 / 초기화
+create or replace function public.admin_member_pins(token uuid) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if not public.admin_check(token) then raise exception 'unauthorized'; end if;
+  return coalesce((select jsonb_agg(player_id order by player_id) from public.member_pin), '[]'::jsonb);
+end $$;
+
+create or replace function public.admin_reset_member_pin(token uuid, pid text) returns boolean
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.admin_check(token) then raise exception 'unauthorized'; end if;
+  delete from public.member_session s where s.player_id = pid;
+  delete from public.member_pin m where m.player_id = pid;
+  return found;
+end $$;

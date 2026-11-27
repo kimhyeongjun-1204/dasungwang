@@ -28,6 +28,12 @@ const state = JSON.parse(JSON.stringify(src));
 delete state.rev; delete state.savedAt; if (state.settings) delete state.settings.pin;
 const db = { state, rev: src.rev || 1, saved_at: src.savedAt || new Date().toISOString(), pin: '1234', sessions: new Set(), opPin: process.env.MOCK_OP_PIN || null, ops: new Set() };  // ops: 진행 도우미 토큰
 
+// ---- 회원 로그인 ----
+const members = { pins: new Map(), sessions: new Map() };
+(process.env.MOCK_MEMBER_PINS || '').split(',').filter(Boolean).forEach(x => { const [pid, pin] = x.split(':'); members.pins.set(pid, { pin, fails: 0, until: 0 }); });
+const activeP = pid => (db.state.players || []).some(p => p.id === pid && p.active !== false);
+const memberSession = pid => { const t = crypto.randomUUID(); members.sessions.set(t, pid); return t; };
+
 // ---- 돼블스플랜: schema.sql의 테이블·함수를 메모리에서 흉내 ----
 const P = { predictions: [], prediction_counts: [], prediction_events: [], prediction_close: [], availability: [], eventId: 0 };
 const deadline = d => Date.parse(d + 'T17:30:00+09:00');
@@ -160,6 +166,38 @@ const RPC = {
     send(res, 200, JSON.stringify(out));
   },
   push_gone: (a, res) => { if (!isOp(a.token)) return fail(res, 'unauthorized'); (a.p_endpoints || []).forEach(e => pushDb.subs.delete(e)); send(res, 200, '0'); },
+  // ---- 회원 로그인 (schema.sql member_* 흉내, 해시 대신 평문 — 가짜 서버 전용). MOCK_MEMBER_PINS=p001:0000,p002:1234 로 미리 넣을 수 있음 ----
+  member_has_pin: (a, res) => send(res, 200, String(members.pins.has(a.pid))),
+  member_set_pin: (a, res) => {
+    if (!activeP(a.pid)) return fail(res, 'bad_player');
+    if (!/^\d{4}$/.test(a.pin || '')) return fail(res, 'bad_pin');
+    if (members.pins.has(a.pid)) return fail(res, 'pin_exists');
+    members.pins.set(a.pid, { pin: a.pin, fails: 0, until: 0 }); send(res, 200, JSON.stringify(memberSession(a.pid)));
+  },
+  member_login: (a, res) => {
+    if (!activeP(a.pid)) return fail(res, 'bad_player');
+    const r = members.pins.get(a.pid); if (!r) return fail(res, 'no_pin');
+    if (r.until > now()) return send(res, 200, JSON.stringify({ error: 'locked', until: new Date(r.until).toISOString() }));
+    if (a.pin !== r.pin) {
+      if (++r.fails >= 5) { r.fails = 0; r.until = now() + 600e3; return send(res, 200, JSON.stringify({ error: 'locked', until: new Date(r.until).toISOString() })); }
+      return send(res, 200, JSON.stringify({ error: 'wrong', left: 5 - r.fails }));
+    }
+    r.fails = 0; r.until = 0; send(res, 200, JSON.stringify({ token: memberSession(a.pid) }));
+  },
+  member_check: (a, res) => { const pid = members.sessions.get(a.token); send(res, 200, JSON.stringify(pid && activeP(pid) ? pid : null)); },
+  member_change_pin: (a, res) => {
+    const pid = members.sessions.get(a.token); if (!pid) return fail(res, 'unauthorized');
+    const r = members.pins.get(pid); if (!r || r.pin !== a.old_pin) return fail(res, 'wrong_pin');
+    if (!/^\d{4}$/.test(a.new_pin || '')) return fail(res, 'bad_pin');
+    r.pin = a.new_pin; send(res, 200, 'null');
+  },
+  member_logout: (a, res) => { members.sessions.delete(a.token); send(res, 200, 'null'); },
+  admin_member_pins: (a, res) => { if (!db.sessions.has(a.token)) return fail(res, 'unauthorized'); send(res, 200, JSON.stringify([...members.pins.keys()].sort())); },
+  admin_reset_member_pin: (a, res) => {
+    if (!db.sessions.has(a.token)) return fail(res, 'unauthorized');
+    for (const [t, pid] of members.sessions) if (pid === a.pid) members.sessions.delete(t);
+    send(res, 200, String(members.pins.delete(a.pid)));
+  },
   admin_login: (a, res) => { if (a.pin !== db.pin) return send(res, 200, 'null'); const t = crypto.randomUUID(); db.sessions.add(t); send(res, 200, JSON.stringify(t)); },
   admin_check: (a, res) => send(res, 200, String(db.sessions.has(a.token))),
   admin_logout: (a, res) => { db.sessions.delete(a.token); db.ops.delete(a.token); send(res, 200, 'null'); },

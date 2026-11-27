@@ -632,6 +632,54 @@ test('클럽 홈: 참가 신청은 예시 + 밴드 안내, 진행 중 공지·�
   assert.ok(bl && /target="_blank" rel="noopener"/.test(bl[0]) && /bandLink\(/.test(h), '밴드 링크는 새 창(bandLink)으로');
   assert.ok(/data-act="tab" data-v="week"/.test(h), '다승왕전 카드(→ 이번 주) 그대로');
 });
+test('schema.sql 회원 로그인: 비밀번호·세션 표는 아무도 못 읽고, 함수로만 (2026-11-26)', () => {
+  const sql = fs.readFileSync(path.join(__dirname, 'supabase', 'schema.sql'), 'utf8');
+  assert.ok(/revoke all on public\.member_pin, public\.member_session from anon, authenticated/.test(sql));
+  ['member_has_pin', 'member_set_pin', 'member_login', 'member_check', 'member_change_pin', 'member_logout', 'admin_member_pins', 'admin_reset_member_pin'].forEach(f => {
+    assert.ok(new RegExp('create or replace function public\\.' + f + '\\(').test(sql), f + ' 없음');
+  });
+  assert.ok(/crypt\(pin, gen_salt\('bf', 8\)\)/.test(sql), 'bcrypt 해시');
+  assert.ok(/revoke all on function public\.member_new_session/.test(sql), '세션 만들기는 직접 못 부름');
+});
+test('api 회원 로그인: RPC 이름·인자, 결과 모양 (2026-11-26)', async () => {
+  const calls = [];
+  const h = name => a => { calls.push(name + ' ' + JSON.stringify(a)); return { data: { member_has_pin: true, member_set_pin: 'T1', member_login: { token: 'T2' }, member_check: 'p1', admin_member_pins: ['p1'], admin_reset_member_pin: true }[name] || null, error: null }; };
+  const names = ['member_has_pin', 'member_set_pin', 'member_login', 'member_check', 'member_change_pin', 'member_logout', 'admin_member_pins', 'admin_reset_member_pin'];
+  const c = fakeClient(Object.fromEntries(names.map(n => [n, h(n)])));
+  const a = need().api(c);
+  assert.strictEqual(await a.memberHasPin('p1'), true);
+  assert.strictEqual(await a.memberSetPin('p1', '0000'), 'T1');
+  assert.deepStrictEqual(await a.memberLogin('p1', '0000'), { token: 'T2' });
+  assert.strictEqual(await a.memberCheck('T2'), 'p1');
+  await a.memberChangePin('T2', '0000', '1111'); await a.memberLogout('T2');
+  assert.deepStrictEqual(await a.adminMemberPins('A'), ['p1']);
+  assert.strictEqual(await a.adminResetMemberPin('A', 'p1'), true);
+  assert.deepStrictEqual(calls, ['member_has_pin {"pid":"p1"}', 'member_set_pin {"pid":"p1","pin":"0000"}', 'member_login {"pid":"p1","pin":"0000"}', 'member_check {"token":"T2"}',
+    'member_change_pin {"token":"T2","old_pin":"0000","new_pin":"1111"}', 'member_logout {"token":"T2"}', 'admin_member_pins {"token":"A"}', 'admin_reset_member_pin {"token":"A","pid":"p1"}']);
+  await assert.rejects(need().api(fakeClient({ member_set_pin: () => ({ data: null, error: { message: 'pin_exists' } }) })).memberSetPin('p1', '1'), e => e.code === 'pin_exists');
+  await assert.rejects(need().api(fakeClient({ member_login: () => ({ data: null, error: { message: 'no_pin' } }) })).memberLogin('p1', '1'), e => e.code === 'no_pin');
+});
+test('로그인 화면: 내 이름이 없으면 조 → 이름 → 비밀번호, 게스트 없음, 이름 바꾸기 없음 (2026-11-26)', () => {
+  const login = appSrc.match(/function viewLogin\(\) \{[\s\S]*?\n  \}\n/);
+  assert.ok(login, 'viewLogin 없음');
+  const v = login[0];
+  assert.ok(/L\.loginGroups\(/.test(v) && /data-act="lg-group"/.test(v) && /data-act="lg-name"/.test(v), '조 → 이름 단계');
+  assert.ok(/lg-pin2/.test(v) && /비밀번호 만들기/.test(v), '처음이면 두 번 입력해서 만들기');
+  assert.ok(!/게스트/.test(v), '게스트는 로그인 화면에 없음');
+  assert.ok(/MKEY\s*=\s*'ddw-mtok'/.test(appSrc), '회원 토큰은 ddw-mtok');
+  assert.ok(/if \(!member\.ok\) return viewLogin\(\)|member\.ok \? [^:]+ : viewLogin\(\)/.test(appSrc), '로그인 전에는 로그인 화면');
+  assert.ok(!/data-act="me"/.test(appSrc) && !/function mePicker/.test(appSrc), '이름 고르기(바꾸기) 없음');
+});
+test('돼장 회원 관리: 관리 메뉴에 회원, 새 회원·급수·조(따로)·쉬는 회원·비밀번호 초기화 (2026-11-26, 조 따로 11-27)', () => {
+  assert.ok(/\['members', '회원'\]/.test(appSrc), '관리 메뉴에 회원');
+  const v = appSrc.match(/function viewMembers\(\) \{[\s\S]*?\n  \}\n/);
+  assert.ok(v, 'viewMembers 없음');
+  assert.ok(/L\.GRADES/.test(v[0]) && /mb-save/.test(v[0]) && /mb-reset/.test(v[0]) && /mb-active/.test(v[0]), '급수·저장·초기화·쉬는 회원');
+  assert.ok(/data-act="mb-gsel"/.test(v[0]) && /급수와 조는 따로/.test(v[0]), '조는 급수와 따로 고름 (2026-11-27)');
+  assert.ok(!/급수 → 조는 자동/.test(v[0]), '급수로 조가 자동으로 정해진다는 안내 없음');
+  assert.ok(/remote\.adminResetMemberPin\(/.test(appSrc) && /remote\.adminMemberPins\(/.test(appSrc));
+  assert.ok(/L\.memberEdit\(/.test(appSrc));
+});
 test('클럽 홈 행사 카드: live 링크가 있으면 "실시간 점수판" 새 창 + 밴드 공지 링크 따로 (2026-11-27)', () => {
   const h = appSrc.match(/function viewHome\(\) \{[\s\S]*?\n  \}\n/)[0];
   assert.ok(/e\.live/.test(h) && /href="' \+ esc\(e\.live\) \+ '" target="_blank" rel="noopener"/.test(h), '실시간 점수판 새 창 링크');

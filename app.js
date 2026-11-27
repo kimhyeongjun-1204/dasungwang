@@ -3,6 +3,8 @@
   var L = window.Logic, R = window.Remote;
   var KEY = { me: 'ddw-me', draft: 'ddw-draft', tab: 'ddw-tab', wview: 'ddw-wview', pushFor: 'ddw-push-for' };
   var SKEY = { week: 'ddw-week', sec: 'ddw-sec' };
+  // 회원 로그인 (2026-11-26): 조 → 이름 → 비밀번호 4자리. 서버가 준 회원 토큰을 이 기기에 기억(1년), 이름 바꾸기는 없음
+  var MKEY = 'ddw-mtok';
 
   function store(kind) {
     return {
@@ -43,7 +45,10 @@
     busy: null,
     pinMsg: '',
     notice: null,
+    lg: { step: 'group', gid: null, pid: null, has: null, busy: false, msg: '' },   // 로그인 단계
+    mb: { group: 'A', edit: null, pins: null, ask: null },   // 돼장 회원 관리
   };
+  var member = { ok: false, token: null };
 
   // 저장 안 된 변경(이 기기) 복원
   function restoreDraft() {
@@ -106,7 +111,7 @@
   function toast(msg) { ui.toast = msg; render(); clearTimeout(toastTimer); toastTimer = setTimeout(function () { ui.toast = null; render(); }, 3200); }
 
   // ---------- 저장 (Supabase save_state RPC, rev가 맞을 때만) ----------
-  function save() {
+  function save(okMsg) {
     if (ui.busy) return;
     if (!ui.admin || !token) {
       ui.saveError = '관리 탭에서 PIN으로 잠금을 해제해야 저장할 수 있어요.';
@@ -119,7 +124,7 @@
     remote.save(token, next, base).then(function (rev) {
       next.rev = rev; next.savedAt = new Date().toISOString();
       saved = next; work = clone(next); LS.del(KEY.draft);
-      ui.busy = null; live.stateAt = Date.now(); toast('저장했어요.');
+      ui.busy = null; live.stateAt = Date.now(); toast(okMsg || '저장했어요.');
     }).catch(function (e) {
       ui.busy = null;
       var code = e && e.code;
@@ -411,15 +416,6 @@
     return out;
   }
 
-  function mePicker() {
-    return '<label class="f" for="me-select">내 이름<select id="me-select" data-act="me"><option value="">이름을 선택하세요</option>' +
-      groups().map(function (g) {
-        return '<optgroup label="' + esc(g.name) + '">' + work.players.filter(function (p) { return p.group === g.id && p.active !== false; })
-          .sort(function (a, b) { return a.name.localeCompare(b.name, 'ko'); })
-          .map(function (p) { return '<option value="' + p.id + '"' + (p.id === ui.me ? ' selected' : '') + '>' + esc(p.name) + '</option>'; }).join('') + '</optgroup>';
-      }).join('') + '</select></label>';
-  }
-
   var FATE_TEXT = {
     hell: '치열한 승부, 살벌한 랠리. 지난번 전승의 대가로 강한 상대와 붙어요.',
     heaven: '달콤한 휴식, 잠시 행복회로! 지난번 전패의 선물이에요.',
@@ -431,8 +427,8 @@
   var FATE_QUOTE = { hell: '그렇다면 지옥으로 모시겠습니다.', heaven: '천국행 티켓을 발급해 드리겠습니다.' };
   function viewMe() {
     var P = pm(), me = P[ui.me];
-    var pick = mePicker();
-    if (!me) return pick + '<div class="card empty"><div class="pig" aria-hidden="true"></div><b>이름을 고르면 내 경기만 모아 보여 줘요</b><p class="muted">내 매칭, 누적 승수, 다음 주 지옥도·천국도 배정까지. 이 기기에만 기억돼요.</p></div>';
+    var pick = '';
+    if (!me) return '<div class="card empty"><div class="pig" aria-hidden="true"></div><b>회원 명단에서 내 이름을 찾지 못했어요</b><p class="muted">돼장에게 회원 관리에서 확인해 달라고 해 주세요.</p></div>';
     var S = L.standings(work, { bonus: bonusMap(), now: Date.now() });
     var gid = work.settings.countBy === 'pool' ? null : me.group;
     var row = null, gsize = 0, gw = 1;
@@ -444,7 +440,7 @@
     var nd = nextPlayDate(), tier = L.tierOf(work, me.id, nd);
     var ndLabel = md(nd === '9999-12-31' ? work.settings.seasonEnd : nd);
     var myG = groups().filter(function (x) { return x.id === me.group; })[0];
-    var wrap = function (body) { return pick + '<div class="team-zone me-zone g' + me.group + '">' + body + '</div>'; };
+    var wrap = function (body) { return pick + '<div class="team-zone me-zone g' + me.group + '">' + body + '</div>' + mePinCard(); };
     var rec = L.meRecord(row);   // 총합 = 공식 승 + 돼블스플랜 보너스
     var prec = pred.allOk ? L.predictionRecord(work, pred.all, me.id) : null;
     var out = myG ? teamBanner(myG, ['내 조', rec.has ? '조 내 ' + row.rank + '위' : '기록 대기']) : '';
@@ -1035,7 +1031,6 @@
     var d = ui.pred, n = d.picks.length, max = L.PREDICT.picks, B = L.PREDICT.bonus, qs = L.quotaStatus(d.picks, w);
     var out = '<div class="pe-head"><button class="btn sm" data-act="pe-close" aria-label="예측 화면으로 돌아가기">←</button><h2>예측하기 <span class="muted small num">' + md(w.date) + '(수)</span></h2>' +
       '<span class="pe-cd num" data-cd="' + w.date + '" data-pre="마감 ">마감 ' + fmtLeft(L.predictionDeadline(w.date).getTime() - Date.now()) + '</span></div>';
-    out += mePicker();
     out += '<div class="mode-cards" role="radiogroup" aria-label="방식">' + ['high', 'safe'].map(function (k) {
       return '<button class="mode-card" role="radio" aria-checked="' + (d.mode === k) + '" data-act="pe-mode" data-v="' + k + '">' +
         (k === 'high' ? '<span class="mc-tag">HIGH RISK</span>' : '') + '<b class="mc-name">' + (k === 'high' ? '🔥 ' : '🛡️ ') + MODE_LABEL[k] + '</b>' +
@@ -1253,6 +1248,137 @@
 
   // ---------- 관리 ----------
   // PIN은 서버(admin_secret)에만 있음. 처음 PIN은 설치 때 SQL Editor에서 정함(README)
+
+  // ---------- 회원 로그인 (2026-11-26): 조 → 이름 → 비밀번호. 게스트는 없음, 이름 바꾸기 없음 ----------
+  var GROUP_GRADES = { A: ['cv', 'lb'], B: ['bf', 'lm'], C: ['pk', 'ck'] };
+  function viewLogin() {
+    var lg = ui.lg, LG = L.loginGroups(work.players, groups());
+    var out = '<section class="lg card" aria-labelledby="lg-h"><span class="lg-club">' + esc(work.settings.club || '라켓뚱보단') + '</span>';
+    if (lg.step === 'group' || !lg.gid) {
+      return out + '<h1 id="lg-h">내 조를 골라 주세요</h1><p class="muted small">처음 한 번만 하면 이 기기에서 계속 내 이름으로 들어와요.</p>' +
+        '<div class="lg-groups">' + LG.map(function (g) {
+          return '<button class="lg-group g' + g.id + '" data-act="lg-group" data-v="' + g.id + '"><span class="lg-faces" aria-hidden="true">' +
+            GROUP_GRADES[g.id].map(function (c) { return '<i class="ch ch-' + c + '"></i>'; }).join('') + '</span><b>' + esc(gname(g.id)) + '</b><small class="num">' + g.members.length + '명</small></button>';
+        }).join('') + '</div></section>';
+    }
+    var g = LG.filter(function (x) { return x.id === lg.gid; })[0] || { members: [] };
+    if (lg.step === 'name' || !lg.pid) {
+      return out + '<button class="btn sm lg-back" data-act="lg-back" data-v="group">‹ 조 다시 고르기</button><h1 id="lg-h">' + esc(gname(lg.gid)) + '조 · 내 이름</h1>' +
+        '<div class="lg-names">' + g.members.map(function (m) { return '<button data-act="lg-name" data-p="' + m.id + '">' + esc(m.name) + '</button>'; }).join('') + '</div>' +
+        '<p class="muted small">내 이름이 없으면 돼장에게 회원 추가를 부탁해 주세요.</p></section>';
+    }
+    var nm = (pm()[lg.pid] || {}).name || '';
+    out += '<button class="btn sm lg-back" data-act="lg-back" data-v="name">‹ 이름 다시 고르기</button><h1 id="lg-h">' + esc(nm) + ' 님</h1>';
+    if (lg.has === null) return out + '<p class="muted">확인하는 중…</p></section>';
+    var pinIn = function (id, label) { return '<label class="f pinf" for="' + id + '">' + label + '<input id="' + id + '" class="pin num" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off"></label>'; };
+    out += '<form id="lg-form" class="lg-form">' + (lg.has ?
+      '<p class="small">비밀번호 4자리를 넣어 주세요.</p>' + pinIn('lg-pin1', '비밀번호') + '<button class="btn primary" type="submit"' + (lg.busy ? ' disabled' : '') + '>로그인</button>' :
+      '<p class="small"><b>비밀번호 만들기</b> · 처음이에요. 숫자 4자리를 두 번 넣어 주세요. 다른 사람이 이 이름으로 들어올 때 이 비밀번호가 필요해요.</p>' +
+        '<div class="row">' + pinIn('lg-pin1', '비밀번호') + pinIn('lg-pin2', '한 번 더') + '</div><button class="btn primary" type="submit"' + (lg.busy ? ' disabled' : '') + '>만들고 들어가기</button>') + '</form>' +
+      (lg.msg ? '<p class="small lg-msg" role="alert">' + esc(lg.msg) + '</p>' : '') +
+      (lg.has ? '<p class="muted small">비밀번호를 잊었으면 돼장에게 초기화를 부탁해 주세요.</p>' : '') + '</section>';
+    return out;
+  }
+  function lgPick(pid, msg) {
+    ui.lg.pid = pid; ui.lg.step = 'pin'; ui.lg.has = null; ui.lg.msg = msg || ''; render();
+    remote.memberHasPin(pid).then(function (h) { if (ui.lg.pid === pid) { ui.lg.has = h; render(); focusPin(); } }, function (e) {
+      ui.lg.msg = e.code === 'network' ? '인터넷 연결을 확인해 주세요.' : '확인하지 못했어요 (' + e.code + ').'; ui.lg.step = 'name'; ui.lg.pid = null; render();
+    });
+  }
+  function focusPin() { var f = document.getElementById('lg-pin1'); if (f) try { f.focus(); } catch (e) { } }
+  function memberIn(pid, t) {
+    member.ok = true; member.token = t; LS.set(MKEY, t);
+    ui.me = pid; LS.set(KEY.me, pid); ui.lg = { step: 'group', gid: null, pid: null, has: null, busy: false, msg: '' };
+    if (push.sub) pushRebind();
+    render(); toast(((pm()[pid] || {}).name || '') + ' 님, 반가워요!');
+  }
+  function memberOut(msg) {
+    member.ok = false; member.token = null; LS.del(MKEY);
+    var p = pm()[ui.me];
+    ui.lg = { step: p ? 'name' : 'group', gid: p ? p.group : null, pid: null, has: null, busy: false, msg: msg || '' };
+    if (p && p.active !== false) lgPick(p.id, msg); else render();   // 초기화됐으면 '비밀번호 만들기'로
+  }
+  var LOGIN_ERR = { bad_player: '회원 명단에 없는 이름이에요. 돼장에게 확인해 주세요.', network: '인터넷 연결을 확인해 주세요.' };
+  function hhmm(iso) { var d = new Date(new Date(iso).getTime() + 9 * 3600e3); return d.getUTCHours() + ':' + ('0' + d.getUTCMinutes()).slice(-2); }
+  function submitLogin() {
+    var lg = ui.lg, a = (document.getElementById('lg-pin1') || {}).value || '', b = lg.has ? undefined : (document.getElementById('lg-pin2') || {}).value || '';
+    var bad = L.pinError(a, b);
+    if (bad) { lg.msg = bad; render(); focusPin(); return; }
+    if (lg.busy) return;
+    lg.busy = true; lg.msg = ''; render();
+    var pid = lg.pid;
+    (lg.has ? remote.memberLogin(pid, a) : remote.memberSetPin(pid, a).then(function (t) { return { token: t }; })).then(function (r) {
+      lg.busy = false;
+      if (r && r.token) { memberIn(pid, r.token); return; }
+      lg.msg = r && r.error === 'locked' ? '여러 번 틀려서 ' + hhmm(r.until) + '까지 잠겼어요. 잊었으면 돼장에게 초기화를 부탁해 주세요.' :
+        '비밀번호가 맞지 않아요.' + (r && r.left ? ' ' + r.left + '번 더 틀리면 10분 동안 잠겨요.' : '');
+      render(); focusPin();
+    }, function (e) {
+      lg.busy = false;
+      if (e.code === 'pin_exists') { lg.has = true; lg.msg = '방금 이 이름의 비밀번호가 만들어졌어요. 그 비밀번호로 들어와 주세요.'; }
+      else if (e.code === 'no_pin') { lg.has = false; lg.msg = '비밀번호가 초기화됐어요. 새로 만들어 주세요.'; }
+      else lg.msg = LOGIN_ERR[e.code] || '들어가지 못했어요 (' + e.code + ').';
+      render(); focusPin();
+    });
+  }
+  // 내 기록 아래: 비밀번호 바꾸기 (이름 바꾸기는 없음)
+  function mePinCard() {
+    return '<details class="card mpin"' + (ui.mpinOpen ? ' open' : '') + '><summary>비밀번호 바꾸기</summary><form id="mpin-form" class="row" style="align-items:flex-end">' +
+      ['지금 비밀번호', '새 비밀번호', '한 번 더'].map(function (t, i) {
+        return '<label class="f pinf" for="mp' + i + '">' + t + '<input id="mp' + i + '" class="pin num" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off"></label>';
+      }).join('') + '<button class="btn" type="submit">바꾸기</button></form><p class="muted small">이름은 바꿀 수 없어요. 다른 이름으로 들어가야 하면 돼장에게 말해 주세요.</p></details>';
+  }
+
+  // ---------- 돼장 회원 관리 (2026-11-26): 새 회원, 급수·조 바꾸기(저장하면 바로), 비밀번호 초기화, 쉬는 회원 ----------
+  // 급수(회원 등급)와 조(다승왕·대회에서 뛰는 조)는 따로 고름(2026-11-27): 랍스터여도 소갈비·양갈비조에서 뛸 수 있음
+  function loadMemberPins() {
+    if (!token || !ui.admin) return;
+    remote.adminMemberPins(token).then(function (ids) { ui.mb.pins = ids; ui.mb.loading = false; render(); }, function (e) { ui.mb.loading = false; if (e.code === 'unauthorized') { dropAdmin(); ui.admin = false; render(); } });
+  }
+  function viewMembers() {
+    var mb = ui.mb, P = pm(), pins = mb.pins || [];
+    if (mb.pins === null && !mb.loading) { mb.loading = true; setTimeout(loadMemberPins, 0); }
+    var list = work.players.filter(function (p) { return mb.group === 'ALL' || (mb.group === 'OFF' ? p.active === false : p.group === mb.group && p.active !== false); })
+      .sort(function (a, b) { return a.name.localeCompare(b.name, 'ko'); });
+    var cnt = function (id) { return work.players.filter(function (p) { return id === 'ALL' || (id === 'OFF' ? p.active === false : p.group === id && p.active !== false); }).length; };
+    var out = '<div class="row" style="justify-content:space-between"><div class="gsel" role="group" aria-label="조">' +
+      groups().map(function (g) { return [g.id, g.name]; }).concat([['OFF', '쉬는 회원'], ['ALL', '전체']]).map(function (x) {
+        return '<button' + (/^[ABC]$/.test(x[0]) ? ' class="g' + x[0] + '"' : '') + ' data-act="mb-group" data-v="' + x[0] + '" aria-pressed="' + (mb.group === x[0]) + '">' + esc(x[1]) + ' <span class="num">' + cnt(x[0]) + '</span></button>';
+      }).join('') + '</div><button class="btn primary" data-act="mb-new">＋ 새 회원</button></div>';
+    out += '<div class="card mb-list">' + (list.length ? list.map(function (p) {
+      return '<button class="mb-row" data-act="mb-edit" data-p="' + p.id + '"><b>' + esc(p.name) + '</b><span class="chip">' + esc(p.grade || '급수 미정') + '</span>' +
+        '<small class="muted">' + esc(gname(p.group)) + '조 · ' + (mb.pins === null ? '…' : pins.indexOf(p.id) >= 0 ? '비밀번호 있음' : '아직 로그인 안 함') + '</small>' +
+        (p.active === false ? '<span class="chip warn">쉬는 회원</span>' : '') + '<span aria-hidden="true">›</span></button>';
+    }).join('') : '<p class="muted">이 조에 회원이 없어요.</p>') + '</div>';
+    out += '<p class="small muted">급수와 조는 따로예요. 조를 바꾸면 저장하는 즉시 바뀌고, 지난 주 경기는 그날 조 그대로 남아요.</p>';
+    var e = mb.edit;
+    if (e) {
+      var cur = e.id ? P[e.id] : null;
+      out += '<div class="pc-back" data-act="mb-close" aria-hidden="true"></div><section class="pc-sheet mb-sheet" role="dialog" aria-modal="true" aria-labelledby="mb-h">' +
+        '<h2 id="mb-h">' + (cur ? esc(cur.name) + ' 고치기' : '새 회원 추가') + '</h2>' +
+        '<label class="f" for="mb-name">이름<input id="mb-name" value="' + esc(e.name) + '" maxlength="10" autocomplete="off"></label>' +
+        '<p class="small muted mb-lbl">급수 (회원 등급)</p><div class="mb-grades" role="radiogroup" aria-label="급수">' + L.GRADES.map(function (gr, i) {
+          return '<button role="radio" aria-checked="' + (e.grade === gr) + '" data-act="mb-grade" data-v="' + gr + '"><i class="ch ch-' + ['cv', 'lb', 'bf', 'lm', 'pk', 'ck'][i] + '" aria-hidden="true"></i>' + gr + '</button>';
+        }).join('') + '</div>' +
+        '<p class="small muted mb-lbl">다승왕·대회에서 뛰는 조 <span>· 급수와 조는 따로예요</span></p><div class="gsel mb-gsel" role="radiogroup" aria-label="조">' + groups().map(function (g) {
+          return '<button role="radio" class="g' + g.id + '" aria-checked="' + (e.group === g.id) + '" aria-pressed="' + (e.group === g.id) + '" data-act="mb-gsel" data-v="' + g.id + '">' + esc(g.name) + '</button>';
+        }).join('') + '</div>' +
+        (cur && e.group && e.group !== cur.group ? '<p class="small mb-to">' + esc(gname(cur.group)) + '조 → <b>' + esc(gname(e.group)) + '조</b> · 저장하면 바로 바뀌고, 이번 시즌 승수도 새 조 순위로 가요</p>' : '') +
+        (cur ? '<div class="row">' + (mb.pins && mb.pins.indexOf(cur.id) >= 0 ? '<button class="btn sm" data-act="mb-reset">비밀번호 초기화</button>' : '') +
+          '<button class="btn sm' + (cur.active === false ? '' : ' danger') + '" data-act="mb-active" data-v="' + (cur.active === false ? '1' : '0') + '">' + (cur.active === false ? '다시 활동' : '쉬는 회원으로') + '</button></div>' : '') +
+        (mb.ask === 'reset' ? '<div class="banner warn"><span>' + esc(cur.name) + ' 비밀번호를 지울까요? 그 회원의 모든 기기에서 로그아웃되고, 다음에 들어올 때 새로 만들어요.</span><span class="row"><button class="btn sm danger" data-act="mb-reset-yes">초기화</button><button class="btn sm" data-act="mb-reset-no">취소</button></span></div>' : '') +
+        '<div class="row"><button class="btn primary" data-act="mb-save">' + (cur ? '저장' : '추가하기') + '</button><button class="btn" data-act="mb-close">취소</button></div></section>';
+    }
+    return out;
+  }
+  // 저장 안 된 편성 변경이 같이 저장되지 않게, 그런 변경이 있으면 먼저 정리하게 함
+  function mbApply(edit, msg) {
+    if (dirty()) { toast('저장 안 된 다른 변경이 있어요. 먼저 저장하거나 되돌려 주세요.'); return false; }
+    var r = L.memberEdit(work, edit, 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5));
+    if (r.errors.length) { toast(r.errors[0]); return false; }
+    ui.mb.edit = null; ui.mb.ask = null; save(msg); return true;
+  }
+
   function viewLock() {
     return '<div class="card lockcard"><div class="pig" aria-hidden="true"></div>' +
       '<h2>관리 화면 잠금 해제</h2>' +
@@ -1271,9 +1397,10 @@
       '<p class="muted small">돼장 PIN으로 들어가려면 잠근 뒤 다시 입력하세요.</p></div>';
     if (!ui.admin) return viewLock();
     var out = '<div class="row" style="justify-content:space-between"><div class="seg" role="group" aria-label="관리 메뉴">' +
-      [['plan', '참석·편성'], ['seeds', '실력 순위'], ['pred', '예측'], ['settings', '설정']].map(function (s) {
+      [['plan', '참석·편성'], ['members', '회원'], ['seeds', '실력 순위'], ['pred', '예측'], ['settings', '설정']].map(function (s) {
         return '<button data-act="sec" data-v="' + s[0] + '" aria-pressed="' + (ui.sec === s[0]) + '">' + s[1] + '</button>';
       }).join('') + '</div><button class="btn sm" data-act="lock">잠그기</button></div>';
+    if (ui.sec === 'members') return out + viewMembers();
     if (ui.sec === 'seeds') return out + viewSeeds();
     if (ui.sec === 'settings') return out + viewSettings();
     if (ui.sec === 'pred') return out + viewAdminPred();
@@ -1615,14 +1742,17 @@
     ui.lvPick = ''; if (admin) ui.lvAdd = false;
     p.then(function () { return loadAvail(d); }).then(function () { render(); }, function (e) { toast(AVAIL_ERR[e && e.code] || '저장하지 못했어요 (' + (e && e.code || '오류') + ').'); });
   }
+  function mainView() {
+    return ui.tab === 'home' ? viewHome() : ui.tab === 'records' ? viewRecords() : ui.tab === 'rank' ? viewRank() : ui.tab === 'plan' ? viewPredict() : ui.tab === 'me' ? viewMe() : ui.tab === 'admin' ? viewAdmin() : viewWeek();
+  }
   function render() {
     if (!work) return; // 데이터 받기 전(알림 초기화 등)에는 그리지 않음
     var app = document.getElementById('app');
     var focusId = document.activeElement && document.activeElement.id;
     SN = null;   // 명단이 바뀌었을 수 있으니 그릴 때마다 다시
-    var main = ui.tab === 'home' ? viewHome() : ui.tab === 'records' ? viewRecords() : ui.tab === 'rank' ? viewRank() : ui.tab === 'plan' ? viewPredict() : ui.tab === 'me' ? viewMe() : ui.tab === 'admin' ? viewAdmin() : viewWeek();
-    var top = DSW_TABS.indexOf(ui.tab) >= 0 ? header() : clubBar({ home: '', records: '🏆 기록 보관소' }[ui.tab] || '');
-    var html = top + '<main>' + saveBar() + main + '</main>' + bottomNav();
+    var main = member.ok ? mainView() : viewLogin();
+    var top = !member.ok ? '' : DSW_TABS.indexOf(ui.tab) >= 0 ? header() : clubBar({ home: '', records: '🏆 기록 보관소' }[ui.tab] || '');
+    var html = top + '<main>' + saveBar() + main + '</main>' + (member.ok ? bottomNav() : '');
     if (dirty() || ui.busy && ui.busy.indexOf('편성') !== 0) {
       html += '<div class="savebar" role="region" aria-label="저장"><div class="in"><span>' + esc(ui.busy || '저장 안 된 변경이 있어요') + '</span>' +
         (ui.busy ? '' : '<span class="row"><button class="btn sm" data-act="revert">되돌리기</button><button class="btn sm primary" data-act="save">저장</button></span>') + '</div></div>';
@@ -1699,6 +1829,36 @@
     if (!work) return;
     var w, m, P;
     switch (act) {
+      case 'lg-group': ui.lg.gid = v; ui.lg.step = 'name'; ui.lg.pid = null; ui.lg.msg = ''; render(); break;
+      case 'lg-name': lgPick(el.getAttribute('data-p')); break;
+      case 'lg-back': ui.lg.step = v; if (v === 'group') ui.lg.gid = null; ui.lg.pid = null; ui.lg.msg = ''; render(); break;
+      case 'mb-group': ui.mb.group = v; render(); break;
+      case 'mb-new': ui.mb.edit = { id: null, name: '', grade: null, group: null, groupSet: false }; ui.mb.ask = null; render(); var nf = document.getElementById('mb-name'); if (nf) nf.focus(); break;
+      case 'mb-edit': P = pm()[el.getAttribute('data-p')]; ui.mb.edit = { id: P.id, name: P.name, grade: P.grade || null, group: P.group, groupSet: true }; ui.mb.ask = null; render(); break;
+      case 'mb-close': ui.mb.edit = null; ui.mb.ask = null; render(); break;
+      case 'mb-grade':   // 새 회원은 조를 아직 안 골랐으면 급수로 추천한 조를 미리 골라 둠(바꿀 수 있음). 기존 회원은 급수만 바뀜
+        ui.mb.edit.name = (document.getElementById('mb-name') || {}).value || ui.mb.edit.name; ui.mb.edit.grade = v;
+        if (!ui.mb.edit.groupSet) ui.mb.edit.group = L.gradeGroup(v);
+        render(); break;
+      case 'mb-gsel': ui.mb.edit.name = (document.getElementById('mb-name') || {}).value || ui.mb.edit.name; ui.mb.edit.group = v; ui.mb.edit.groupSet = true; render(); break;
+      case 'mb-save':
+        var me2 = ui.mb.edit, nm2 = (document.getElementById('mb-name') || {}).value;
+        if (!me2.id) { if (mbApply({ name: nm2, grade: me2.grade, group: me2.group || undefined }, String(nm2).trim() + ' 님을 추가했어요.') && me2.group) ui.mb.group = me2.group; }
+        else {
+          var was = pm()[me2.id], ed = { id: me2.id, name: nm2 };
+          if (me2.grade && me2.grade !== was.grade) ed.grade = me2.grade;
+          if (me2.group && me2.group !== was.group) ed.group = me2.group;
+          if (mbApply(ed, ed.group ? String(nm2).trim() + ' 님을 ' + gname(ed.group) + '조로 옮겼어요.' : '저장했어요.') && ed.group) ui.mb.group = ed.group;
+        }
+        break;
+      case 'mb-active': mbApply({ id: ui.mb.edit.id, active: v === '1' }, v === '1' ? '다시 활동으로 바꿨어요.' : '쉬는 회원으로 바꿨어요. 로그인·신청이 막혀요.'); break;
+      case 'mb-reset': ui.mb.ask = 'reset'; render(); break;
+      case 'mb-reset-no': ui.mb.ask = null; render(); break;
+      case 'mb-reset-yes':
+        var rp = ui.mb.edit.id;
+        remote.adminResetMemberPin(token, rp).then(function () { ui.mb.ask = null; ui.mb.edit = null; toast('비밀번호를 초기화했어요. 다음에 들어올 때 새로 만들어요.'); loadMemberPins(); },
+          function (e) { if (e.code === 'unauthorized') { dropAdmin(); ui.admin = false; ui.pinMsg = '관리자 로그인이 만료됐어요. PIN을 다시 입력하세요.'; render(); } else toast('초기화하지 못했어요 (' + e.code + ').'); });
+        break;
       case 'awv': ui.awv = v; render(); break;
       case 'lv-extra': liveEdit(function (w) { return L.setExtraCourt(w, el.getAttribute('data-v') === '1'); }, el.getAttribute('data-v') === '1' ? 'extra_open' : 'extra_close', null, null, null, el.getAttribute('data-v') === '1' ? '추가 코트를 열었어요.' : '추가 코트를 닫았어요.'); break;
       case 'lv-ask-start': ui.lvSheet = { kind: 'start', m: el.getAttribute('data-m') }; render(); break;
@@ -1724,7 +1884,8 @@
       case 'tab': ui.tab = v; LS.set(KEY.tab, v); ui.notice = null; ui.pred.edit = false; ui.pred.full = false; ui.pred.confirm = false; render(); window.scrollTo(0, 0); break;
       case 'week': ui.week = v; SS.set(SKEY.week, v); ui.confirm = null; ui.notice = null; ui.ai.res = null; ui.ai.err = ''; ui.shiftSel = { p: '', dir: 'up' }; ui.pred.edit = false; ui.pred.more = false; ui.pred.adm = null; ui.pred.admDel = ''; render(); break;
       case 'rankg': ui.rankGroup = v; render(); break;
-      case 'sec': ui.sec = v; SS.set(SKEY.sec, v); render(); break;
+      case 'sec':
+        if (v === 'members') loadMemberPins(); ui.sec = v; SS.set(SKEY.sec, v); render(); break;
       case 'lock': ui.admin = false; ui.op = false; forgetAdmin(); render(); break;
       case 'win':
         m = findMatch(el.getAttribute('data-m')); if (!m) return;
@@ -1864,7 +2025,6 @@
     if (!act || !work) return;
     var m, P = pm();
     switch (act) {
-      case 'me': ui.pred.confirm = false; ui.me = el.value; if (el.value) LS.set(KEY.me, el.value); else LS.del(KEY.me); if (push.sub && ui.me) pushRebind(); ui.rankGroup = null; if (ui.pred.edit && localPred(ui.week, ui.me)) openPredEdit(); render(); break;
       case 'pa-player': if (ui.pred.adm) ui.pred.adm.player = el.value; break;
       case 'pa-mode': if (ui.pred.adm) ui.pred.adm.mode = el.value; break;
       case 'pa-pick': if (ui.pred.adm) ui.pred.adm.picks[+el.getAttribute('data-i')] = el.value; break;
@@ -1892,12 +2052,23 @@
       case 'shift-dir': ui.shiftSel.dir = el.value; break;
     }
   });
+  // 비밀번호 바꾸기 펼침 상태: 토스트 등으로 다시 그려도 접히지 않게
+  document.addEventListener('toggle', function (ev) { if (ev.target.classList && ev.target.classList.contains('mpin')) ui.mpinOpen = ev.target.open; }, true);
   document.addEventListener('input', function (ev) { if (ev.target.id === 'paste') ui.paste = ev.target.value; if (ev.target.id === 'seed-text') ui.seedText[ui.seedGroup] = ev.target.value; if (ev.target.id === 'ai-text') ui.ai.text = ev.target.value; });
 
   document.addEventListener('submit', function (ev) {
     ev.preventDefault();
     var f = ev.target;
     if (!work) return;
+    if (f.id === 'lg-form') { submitLogin(); return; }
+    if (f.id === 'mpin-form') {
+      var q0 = document.getElementById('mp0').value, q1 = document.getElementById('mp1').value, q2 = document.getElementById('mp2').value;
+      var qb = L.pinError(q0) || L.pinError(q1, q2);
+      if (qb) { toast(qb); return; }
+      remote.memberChangePin(member.token, q0, q1).then(function () { toast('비밀번호를 바꿨어요.'); ['mp0', 'mp1', 'mp2'].forEach(function (id) { var x = document.getElementById(id); if (x) x.value = ''; }); },
+        function (e) { if (e.code === 'unauthorized') memberOut('다시 로그인해 주세요.'); else toast(e.code === 'wrong_pin' ? '지금 비밀번호가 맞지 않아요.' : '바꾸지 못했어요 (' + e.code + ').'); });
+      return;
+    }
     if (f.id === 'pin-form') {
       var p1 = document.getElementById('pin1').value;
       if (!/^\d{4}$/.test(p1)) { ui.pinMsg = '숫자 4자리를 입력하세요.'; render(); return; }
@@ -1972,7 +2143,18 @@
     var sess = R.loadSession(LS, Date.now());
     token = sess ? sess.token : null;
     ui.admin = !!sess && sess.role === 'admin'; ui.op = !!sess && sess.role === 'operator';
+    // 회원 로그인: 기억한 토큰이 있으면 먼저 그대로 열고 서버에서 확인(초기화·쉬는 회원이면 다시 로그인).
+    // 토큰은 없지만 예전에 고른 이름이 있으면(로그인 생기기 전 사용자) 그 이름의 비밀번호 단계부터
+    member.token = LS.get(MKEY);
+    var meP = pm()[ui.me];
+    member.ok = !!(member.token && meP && meP.active !== false);
+    if (!member.ok && meP && meP.active !== false) { ui.lg.gid = meP.group; ui.lg.step = 'name'; }
     render();
+    if (!member.ok && meP && meP.active !== false) lgPick(meP.id);
+    if (member.token) remote.memberCheck(member.token).then(function (pid) {
+      if (!pid) { memberOut('다시 로그인해 주세요.'); return; }
+      if (pid !== ui.me || !member.ok) { ui.me = pid; LS.set(KEY.me, pid); member.ok = true; render(); }
+    }, function () { });
     // 돼블스플랜: 마감된 주의 예측(보너스 계산용), 카운트다운·다시 읽기 타이머
     loadAllPreds().then(render);
     setInterval(predTick, 1000);

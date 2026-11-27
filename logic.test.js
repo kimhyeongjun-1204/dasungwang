@@ -1093,6 +1093,50 @@ test('club.js 데이터: 진행 중 공지마다 밴드 글 번호, 2025년 비�
   assert.ok(cb && cb.date === '2026-11-27' && new Date(cb.date + 'T00:00:00Z').getUTCDay() === 5 && !cb.noDow, '청백전은 11/27(금) (사용자 확인 2026-11-25)');
 });
 
+// ---- 회원 로그인·회원 관리 (2026-11-26): 조 → 이름 → 비밀번호, 급수 → 조 자동, 조 변경은 바로 ----
+test('급수 → 처음 추천 조(새 회원 추가 때만): 캐비어·랍스터 A, 소갈비·양갈비 B, 돼지갈비·닭갈비 C', () => {
+  assert.deepStrictEqual(L.GRADES, ['캐비어', '랍스터', '소갈비', '양갈비', '돼지갈비', '닭갈비']);
+  assert.deepStrictEqual(L.GRADES.map(L.gradeGroup), ['A', 'A', 'B', 'B', 'C', 'C']);
+  assert.strictEqual(L.gradeGroup('없음'), null);
+});
+test('loginGroups: 조마다 활동 회원만 가나다순, 쉬는 회원은 빠짐', () => {
+  const ps = [{ id: 'p1', name: '최', group: 'A' }, { id: 'p2', name: '가', group: 'A' }, { id: 'p3', name: '나', group: 'B' }, { id: 'p4', name: '다', group: 'C', active: false }];
+  const r = L.loginGroups(ps, [{ id: 'A' }, { id: 'B' }, { id: 'C' }]);
+  assert.deepStrictEqual(r.map(g => g.id + ':' + g.members.map(m => m.name).join(',')), ['A:가,최', 'B:나', 'C:']);
+});
+// 2026-11-27 김형준: 급수(회원 등급)와 조(다승왕·대회에서 뛰는 조)는 따로. 급수가 랍스터여도 소갈비·양갈비조에서 뛸 수 있음
+test('memberEdit: 새 회원은 이름 + 급수 + 조(안 고르면 급수로 추천한 조), 이름 겹치면 안 됨', () => {
+  const w = { players: [{ id: 'p1', name: '김가가', group: 'A' }, { id: 'p9', name: '박쉬는', group: 'B', active: false }] };
+  assert.deepStrictEqual(L.memberEdit(w, { name: '  ', grade: '소갈비', group: 'B' }).errors, ['이름을 적어 주세요.']);
+  assert.deepStrictEqual(L.memberEdit(w, { name: '김가가', grade: '소갈비', group: 'B' }).errors, ['같은 이름이 이미 있어요.']);
+  assert.deepStrictEqual(L.memberEdit(w, { name: '새사람', grade: '없는급수', group: 'B' }).errors, ['급수를 골라 주세요.']);
+  assert.deepStrictEqual(L.memberEdit(w, { name: '새사람', grade: '양갈비', group: 'D' }).errors, ['조를 골라 주세요.']);
+  assert.deepStrictEqual(L.memberEdit(w, { name: ' 새사람 ', grade: '랍스터', group: 'B' }, 'pNEW').errors, []);
+  assert.deepStrictEqual(w.players[2], { id: 'pNEW', name: '새사람', group: 'B', grade: '랍스터' }, '랍스터인데 B조로 뛸 수 있음');
+  L.memberEdit(w, { name: '또사람', grade: '닭갈비' }, 'pN2');
+  assert.strictEqual(w.players[3].group, 'C', '조를 안 주면 급수로 추천한 조');
+});
+test('memberEdit: 급수를 바꿔도 조는 그대로, 조는 따로 바꾸면 바로, 쉬는 회원·다시 활동', () => {
+  const w = { players: [{ id: 'p1', name: '김가가', group: 'A' }, { id: 'p2', name: '이나나', group: 'B', grade: '소갈비' }] };
+  assert.deepStrictEqual(L.memberEdit(w, { id: 'p2', name: '이나나', grade: '랍스터' }).errors, []);
+  assert.deepStrictEqual(w.players[1], { id: 'p2', name: '이나나', group: 'B', grade: '랍스터' }, '급수만 바뀌고 조는 B 그대로');
+  assert.deepStrictEqual(L.memberEdit(w, { id: 'p2', group: 'A' }).errors, []);
+  assert.strictEqual(w.players[1].group, 'A', '조는 고른 대로 바로');
+  assert.deepStrictEqual(L.memberEdit(w, { id: 'p2', group: 'X' }).errors, ['조를 골라 주세요.']);
+  assert.deepStrictEqual(L.memberEdit(w, { id: 'p2', name: '김가가', grade: '랍스터' }).errors, ['같은 이름이 이미 있어요.']);
+  assert.deepStrictEqual(L.memberEdit(w, { id: 'p1', active: false }).errors, []);
+  assert.strictEqual(w.players[0].active, false);
+  assert.deepStrictEqual(L.memberEdit(w, { id: 'p1', active: true }).errors, []);
+  assert.ok(!('active' in w.players[0]), '다시 활동하면 active 표시를 지움');
+  assert.deepStrictEqual(L.memberEdit(w, { id: 'nope', grade: '캐비어' }).errors, ['없는 회원이에요.']);
+});
+test('pinInput: 4자리 숫자만, 두 번 입력이 같아야 함', () => {
+  assert.strictEqual(L.pinError('12a4'), '숫자 4자리로 적어 주세요.');
+  assert.strictEqual(L.pinError('123'), '숫자 4자리로 적어 주세요.');
+  assert.strictEqual(L.pinError('1234'), null);
+  assert.strictEqual(L.pinError('1234', '1235'), '두 번 적은 비밀번호가 달라요.');
+  assert.strictEqual(L.pinError('1234', '1234'), null);
+});
 test('club.js 청백전: 다른 회원이 만든 실시간 점수판 링크 (김형준 요청 2026-11-27)', () => {
   const cb = CL.EVENTS.filter(e => e.short === '청백전')[0];
   assert.strictEqual(cb.live, 'https://chang333787-boop.github.io/cheongbaek-2026/');
