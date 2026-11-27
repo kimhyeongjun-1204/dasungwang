@@ -840,6 +840,18 @@ test('내 정보 탭: 하단 탭 다섯 번째, 달력(운동함·신청·대기
   assert.ok(/ui\.tab === 'my' \? viewMy\(\)/.test(appSrc), '탭 연결');
   assert.ok(/my: '[^']*내 정보'/.test(appSrc), '맨 위 제목');
 });
+test('내 정보 맨 아래: 비밀번호 바꾸기 + 로그아웃(한 번 더 묻고, 서버 세션 지우고, 조 고르기 화면으로) (2026-11-27 김형준)', () => {
+  const vm = appSrc.match(/function viewMy\(\) \{[\s\S]*?\n  \}\n/)[0];
+  assert.ok(/mePinCard\(\)/.test(vm), '내 정보에 비밀번호 바꾸기');
+  assert.ok(/data-act="my-logout"/.test(vm), '로그아웃 버튼');
+  assert.ok(/ui\.myOut \?/.test(vm) && /data-act="my-logout-ok"/.test(vm), '한 번 더 묻기');
+  const c = appSrc.match(/case 'my-logout-ok':[\s\S]*?break;/);
+  assert.ok(c, '로그아웃 확인 처리 없음');
+  assert.ok(/remote\.memberLogout\(/.test(c[0]) && /memberLeave\(\)/.test(c[0]), '서버 세션 지우고 나가기');
+  const f = appSrc.match(/function memberLeave\(\) \{[\s\S]*?\n  \}\n/);
+  assert.ok(f, 'memberLeave 없음');
+  assert.ok(/LS\.del\(MKEY\)/.test(f[0]) && /member\.ok = false/.test(f[0]) && /dropAdmin\(\)/.test(f[0]) && /step: 'group'/.test(f[0]), '토큰·관리 열쇠 지우고 조 고르기부터');
+});
 test('이달의 출석왕: 기록 탭에 달별 순위(얼굴·이름·횟수, 내 줄 강조), 내 정보에 내 출석·순위 (2026-11-27 김형준)', () => {
   const vr = appSrc.match(/function viewRecords\(\) \{[\s\S]*?\n  \}\n/)[0], vm = appSrc.match(/function viewMy\(\) \{[\s\S]*?\n  \}\n/)[0];
   assert.ok(/attendCard\(\)/.test(vr), '기록 탭에 출석왕 카드');
